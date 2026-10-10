@@ -24,8 +24,11 @@ approve_pending() {
 
 while [ "$(date +%s)" -lt "${DEADLINE}" ]; do
   approve_pending
+  # Ready workers only: the SNO master is schedulable, so its role list
+  # also matches /worker/ — exclude control-plane roles or the gate
+  # passes before the last worker joins.
   ready="$($OC get nodes --no-headers 2>/dev/null \
-    | awk '$2 == "Ready" && $3 ~ /worker/ {n++} END {print n+0}')"
+    | awk '$2 == "Ready" && $3 ~ /worker/ && $3 !~ /master/ && $3 !~ /control-plane/ {n++} END {print n+0}')"
   if [ "${ready}" -ge "${WORKERS_NEEDED}" ]; then
     echo "all ${WORKERS_NEEDED} workers Ready"
     exit 0
