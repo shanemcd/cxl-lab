@@ -24,3 +24,8 @@ cluster_install_node_count: >-
   {{ (masters | length) + (cxl_workers | length) + (dram_workers | length) }}
 cluster_install_workers_needed: >-
   {{ (cxl_workers | length) + (dram_workers | length) }}
+
+# API-ready gate before the role's first cluster interaction: the freshly
+# installed API server can time out requests while it warms up.
+cluster_install_api_ready_retries: 40
+cluster_install_api_ready_delay_seconds: 15

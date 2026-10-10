@@ -48,6 +48,25 @@
   loop_control:
     label: "{{ item.item.name }}"
 
+- name: Wait for the installed API server to be ready
+  # First cluster touch: right after the BiP install settles, the API
+  # server can still be warming up and time out individual requests
+  # (observed live: a plain `oc get sa` failing with a 60s server-side
+  # Timeout). Poll readyz the same way layered_image does before its
+  # first cluster interaction.
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - "--raw=/readyz"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: cluster_install_api_ready
+  until: cluster_install_api_ready.rc == 0
+  retries: "{{ cluster_install_api_ready_retries }}"
+  delay: "{{ cluster_install_api_ready_delay_seconds }}"
+  changed_when: false
+
 - name: Read the machine-os-puller SA registry-secret annotation
   # BiP pivot race (observed live, 4.22.16): the SA gets
   # internal-registry-pull-secret-ref pointing at a dockercfg secret the
