@@ -283,8 +283,8 @@
         cluster_install_routers.stdout_lines
         | reject('search', masters[0].name) | list | length == 0
       - cluster_install_cv.stdout is search('True')
-      # master booted the payload machine-os-content (P8 pins the layered
-      # image FROM this ref; nodes must match until the MCO pivot)
+      # master booted the payload machine-os-content (the layered image is
+      # built FROM this ref; nodes must match until the MCO pivot)
       - cluster_install_osimage.stdout | trim == machine_os_content_ref
     fail_msg: >-
       Cluster state check failed — nodes:

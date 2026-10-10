@@ -37,8 +37,8 @@
 
 - name: Assert the pinned base matches the booted cluster
   # The layered image must extend EXACTLY what the cluster runs, or the
-  # MCO pivot (P9) mixes OS contents. The pin was TOFU'd in P3 and the
-  # install role asserts it too — this is the build-side half.
+  # MCO pivot mixes OS contents. The install role asserts the same pin —
+  # this is the build-side half.
   ansible.builtin.assert:
     that:
       - layered_image_mc_osimage.stdout | trim == machine_os_content_ref

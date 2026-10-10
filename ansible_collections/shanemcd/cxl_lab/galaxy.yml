@@ -1,17 +1,24 @@
 ---
 namespace: shanemcd
 name: cxl_lab
-version: 2.0.0
+version: 1.0.0
 readme: README.md
 authors:
   - Shane McDonald <me@shanemcd.com>
-description: Disposable OpenShift + QEMU-emulated CXL Type-3 lab automation.
+description: >-
+  Disposable OpenShift + QEMU-emulated CXL Type-3 lab: single-node OpenShift,
+  CXL workers with a committed emulated region onlined as System RAM on a
+  CPU-less guest NUMA node.
 license:
   - GPL-3.0-or-later
 tags:
   - infrastructure
   - linux
-  - tools
+  - openshift
+  - cxl
+  - qemu
+  - lab
 dependencies: {}
 repository: https://github.com/shanemcd/cxl-lab
 documentation: https://github.com/shanemcd/cxl-lab
+issues: https://github.com/shanemcd/cxl-lab/issues
