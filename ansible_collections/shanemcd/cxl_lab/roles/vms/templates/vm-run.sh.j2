@@ -87,8 +87,8 @@ ARGS=(
   -object memory-backend-ram,id=ram0,size={{ node.ram }}
   -object memory-backend-ram,id=vmem0,share=on,size={{ node.vmem_size }}
   -device pxb-cxl,bus=pcie.0,id={{ vms_cxl_pxb_id }},bus_nr={{ node.cxl_bus_nr }},numa_node=1
-  -device cxl-rp,id=rp0,bus={{ vms_cxl_pxb_id }}
-  -device cxl-type3,bus=rp0,volatile-memdev=vmem0,id=cxl-vmem0
+  -device cxl-rp,id={{ vms_cxl_root_port_id }},bus={{ vms_cxl_pxb_id }}
+  -device cxl-type3,bus={{ vms_cxl_root_port_id }},volatile-memdev=vmem0,id={{ vms_cxl_type3_id }}
 {% else %}
   -machine q35
   -m {{ node.ram }} -smp {{ node.vcpu }}

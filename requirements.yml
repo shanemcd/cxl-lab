@@ -1,6 +1,7 @@
 ---
-# External collection pins (plan §6). Installed automatically by host tooling;
-# never installed by hand. Third-party trees under collections/ are gitignored.
+# Pinned external collection dependencies. Install with:
+#   ansible-galaxy collection install -r requirements.yml -p ansible_collections
+# Installed third-party trees are gitignored; only shanemcd.cxl_lab is tracked.
 collections:
   - name: community.general
     version: "13.5.0"

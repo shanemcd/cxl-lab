@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate: no hardcoded configuration values in role/playbook code (plan §5).
+# Gate: no hardcoded configuration values in role/playbook code.
 #
 # Vars files (roles/*/defaults, roles/*/vars, inventory group_vars/host_vars, and
 # molecule scenarios) are the sanctioned homes for literal values. Everywhere else,

@@ -14,10 +14,8 @@ layered_image_kernel_pkgs:
   - kernel-modules-extra
 layered_image_sha256sums_name: "SHA256SUMS"
 
-# Throwaway lint runner + polling.
+# Throwaway lint runner.
 layered_image_lint_container: "cxl-lab-bootc-lint"
-layered_image_lint_wait_retries: 60
-layered_image_lint_wait_delay: 5
 
 # Full OCI Accept set for the manifest query (plan §11: the authoritative
 # digest is the registry's Docker-Content-Digest — podman's RepoDigest is a
