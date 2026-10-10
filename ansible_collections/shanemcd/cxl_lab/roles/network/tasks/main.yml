@@ -1,0 +1,266 @@
+---
+# network (v2, plan §5 + §10.3 P4 verdict): plain persistent Linux bridge via
+# iproute2 (ours — netavark bridges are container-attachment-scoped and
+# cannot serve VM-only attachment), single reversible masquerade rule for
+# egress NAT (the podman-network route was evaluated live in P4 and set
+# aside — see plan §5), persistent ip_forward drop-in, and the host
+# /etc/hosts block. The egress path is proven by a veth+netns probe that
+# emulates a VM tap on the bridge.
+
+- name: Set all node IP suffixes fact (probe-collision check)
+  ansible.builtin.set_fact:
+    network_all_node_suffixes: "{{ (masters | map(attribute='ip_suffix') | list)
+      + (cxl_workers | map(attribute='ip_suffix') | list)
+      + (dram_workers | map(attribute='ip_suffix') | list) }}"
+
+- name: Assert network taxonomy consistency
+  ansible.builtin.assert:
+    that:
+      # kernel ifnames cap at 15 chars
+      - lab_bridge_name | length <= 15
+      # the bridge carries only the gateway address in v2 (no DNS/VIP/LB)
+      - network_bridge_addresses | length == 1
+      - network_bridge_addresses[0] | regex_replace('/.*', '') == lab_gateway_ip
+      # the egress probe IP must not collide with the gateway or any node
+      - network_probe_suffix | int not in
+        ([host_gateway_suffix | int] + network_all_node_suffixes | map('int') | list)
+      # the DHCP free range must not cover the gateway, probe, or any node
+      # suffix (only unknown clients ever draw from it)
+      - (range(network_dhcp_range_start_suffix | int,
+               network_dhcp_range_end_suffix | int + 1) | list
+         | intersect([host_gateway_suffix | int, network_probe_suffix | int]
+                    + network_all_node_suffixes | map('int') | list)) == []
+    fail_msg: >-
+      Network taxonomy inconsistent — lab_bridge_name={{ lab_bridge_name }},
+      network_bridge_addresses={{ network_bridge_addresses }},
+      lab_gateway_ip={{ lab_gateway_ip }},
+      network_probe_suffix={{ network_probe_suffix }},
+      node suffixes {{ network_all_node_suffixes }}.
+
+- name: Check lab bridge link
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ lab_bridge_name }}"
+  register: network_bridge_link
+
+- name: Create lab bridge
+  ansible.builtin.command:
+    cmd: "ip link add {{ lab_bridge_name }} type bridge"
+  when: not network_bridge_link.stat.exists
+  changed_when: true
+
+- name: Read lab bridge admin state
+  ansible.builtin.command:
+    cmd: "ip -o link show dev {{ lab_bridge_name }}"
+  register: network_bridge_state
+  changed_when: false
+
+- name: Bring lab bridge up
+  ansible.builtin.command:
+    cmd: "ip link set dev {{ lab_bridge_name }} up"
+  when: "',UP' not in network_bridge_state.stdout"
+  changed_when: true
+
+- name: Read current lab bridge addresses
+  ansible.builtin.command:
+    cmd: "ip -j -4 addr show dev {{ lab_bridge_name }}"
+  register: network_bridge_addrs_raw
+  changed_when: false
+
+- name: Set existing lab bridge addresses fact
+  ansible.builtin.set_fact:
+    network_existing_addrs: >-
+      {{ (network_bridge_addrs_raw.stdout | from_json | first).addr_info
+         | default([]) | map(attribute='local') | list }}
+
+- name: Add missing lab addresses to the bridge
+  ansible.builtin.command:
+    cmd: "ip addr replace {{ item }} dev {{ lab_bridge_name }}"
+  loop: "{{ network_bridge_addresses }}"
+  when: (item | regex_replace('/.*', '')) not in network_existing_addrs
+  changed_when: true
+
+- name: Enable IPv4 forwarding (persistent drop-in; teardown removes it)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_file: "/etc/sysctl.d/{{ network_sysctl_conf_name }}"
+    reload: true
+
+- name: Check lab masquerade rule
+  # The single reversible NAT rule (plan §10 decision 3 fallback, made
+  # primary by the P4 verdict). Teardown removes it by this exact spec.
+  ansible.builtin.command:
+    cmd: >-
+      iptables -t nat -C POSTROUTING
+      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
+      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
+  register: network_nat_check
+  changed_when: false
+  failed_when: network_nat_check.rc not in [0, 1]
+
+- name: Add lab masquerade rule (single, reversible)
+  ansible.builtin.command:
+    cmd: >-
+      iptables -t nat -A POSTROUTING
+      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
+      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
+  when: network_nat_check.rc == 1
+  changed_when: true
+
+- name: Add lab host-resolution block to /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} cxl-lab"
+    block: "{{ network_hosts_block | join('\n') }}"
+
+- name: Install dnsmasq (host-native lab resolver)
+  # Plan §10.8 (P6 verdict): ignition fetches config.merge sources before
+  # applying storage, so worker stubs need api-int resolvable at initramfs
+  # fetch time with only the NM keyfile resolver. DNS-only on the gateway.
+  ansible.builtin.package:
+    name: dnsmasq
+    state: present
+
+- name: Render lab resolver config (dnsmasq on the bridge gateway)
+  ansible.builtin.template:
+    src: dnsmasq-lab.conf.j2
+    dest: "{{ network_dnsmasq_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart lab resolver
+
+- name: Enable and start the lab resolver
+  ansible.builtin.service:
+    name: "{{ network_dnsmasq_service }}"
+    state: started
+    enabled: true
+
+# --- verification (post-apply asserts: bridge state, gateway address,
+# --- forwarding, masquerade rule, egress path via tap-emulating probe) ---
+
+- name: Render lab egress probe script
+  ansible.builtin.template:
+    src: network-egress-probe.sh.j2
+    dest: "{{ network_probe_script_path }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Run lab egress probe (veth + netns emulating a VM tap)
+  ansible.builtin.command:
+    cmd: "{{ network_probe_script_path }}"
+  register: network_verify_egress
+  changed_when: false
+
+- name: Read lab bridge state for verification
+  ansible.builtin.command:
+    cmd: "ip -o link show dev {{ lab_bridge_name }}"
+  register: network_verify_link
+  changed_when: false
+
+- name: Read lab bridge addresses for verification
+  ansible.builtin.command:
+    cmd: "ip -j -4 addr show dev {{ lab_bridge_name }}"
+  register: network_verify_addrs
+  changed_when: false
+
+- name: Read IPv4 forwarding state for verification
+  ansible.builtin.slurp:
+    src: /proc/sys/net/ipv4/ip_forward
+  register: network_verify_forward
+
+- name: Read FORWARD chain policy for verification
+  ansible.builtin.command:
+    cmd: iptables -S FORWARD
+  register: network_verify_forward_policy
+  changed_when: false
+
+- name: Verify lab masquerade rule present
+  ansible.builtin.command:
+    cmd: >-
+      iptables -t nat -C POSTROUTING
+      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
+      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
+  register: network_verify_nat
+  changed_when: false
+  failed_when: network_verify_nat.rc != 0
+
+- name: Read lab hosts block for verification
+  ansible.builtin.slurp:
+    src: /etc/hosts
+  register: network_verify_hosts
+
+- name: Read lab resolver service state for verification
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - "{{ network_dnsmasq_service }}"
+  register: network_verify_dns_service
+  changed_when: false
+
+- name: Resolve a cluster record via the lab resolver
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +short
+      - "api-int.{{ lab_domain }}"
+      - "@{{ lab_gateway_ip }}"
+  register: network_verify_dns_cluster
+  changed_when: false
+
+- name: Resolve an internet record via the lab resolver
+  # Forwarding proof: the resolver must answer non-lab names too.
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +short
+      - "{{ network_smoke_test_host }}"
+      - "@{{ lab_gateway_ip }}"
+  register: network_verify_dns_forward
+  changed_when: false
+
+- name: Assert lab network state
+  ansible.builtin.assert:
+    that:
+      - "'UP' in network_verify_link.stdout"
+      - network_bridge_addresses | map('regex_replace', '/.*', '')
+        | difference((network_verify_addrs.stdout | from_json | first).addr_info
+          | default([]) | map(attribute='local') | list) | length == 0
+      - network_verify_forward.content | b64decode | trim == '1'
+      - "'-P FORWARD ACCEPT' in network_verify_forward_policy.stdout"
+      - network_verify_nat.rc == 0
+      - "'EGRESS_OK' in network_verify_egress.stdout"
+      # every hosts-block line must be present in /etc/hosts
+      - network_hosts_block
+        | select('in', network_verify_hosts.content | b64decode)
+        | list | length == network_hosts_block | length
+      # lab resolver: running, serving cluster records, forwarding upstream
+      - network_verify_dns_service.stdout | trim == 'active'
+      - network_verify_dns_cluster.stdout | trim == master_ip
+      - network_verify_dns_forward.stdout | trim | length > 0
+    fail_msg: >-
+      Lab network verification failed — bridge {{ network_verify_link.stdout }},
+      addresses {{ network_verify_addrs.stdout }},
+      ip_forward {{ network_verify_forward.content | b64decode | trim }},
+      FORWARD policy {{ network_verify_forward_policy.stdout }},
+      masquerade rc {{ network_verify_nat.rc }},
+      egress {{ network_verify_egress.stdout | default('') }},
+      hosts content {{ network_verify_hosts.content | b64decode | default('') }},
+      resolver service {{ network_verify_dns_service.stdout | default('') }},
+      cluster lookup {{ network_verify_dns_cluster.stdout | default('') }},
+      forwarded lookup {{ network_verify_dns_forward.stdout | default('') }}.
+
+- name: Lab network summary
+  ansible.builtin.debug:
+    msg: >-
+      Lab network OK — bridge {{ lab_bridge_name }} up with gateway
+      {{ lab_gateway_ip }}, ip_forward persisted, single reversible
+      masquerade rule for {{ lab_subnet_cidr }} present, egress probe
+      (tap emulation) passed, hosts block
+      ({{ network_hosts_block | length }} entries) applied, lab resolver
+      active on {{ lab_gateway_ip }} (cluster + forwarded lookups
+      verified; DHCP reservations for {{ (masters + cxl_workers + dram_workers) | length }}
+      nodes).

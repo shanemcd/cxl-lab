@@ -1,0 +1,22 @@
+---
+# network role-scoped knobs. Everything site-specific comes from the network
+# taxonomy (group_vars/all/network.yml); these defaults only carry role-local
+# probe/rule plumbing derived from it. Teardown reverses exactly the
+# taxonomy-driven changes (bridge + addresses, sysctl drop-in, masquerade
+# rule, hosts block).
+
+# iptables rule tag: identifies the single lab masquerade rule so teardown
+# removes exactly what this role added (never a rule we did not create).
+
+# Egress probe plumbing (veth + netns emulating a VM tap; kernel ifname cap
+# is 15 chars). The script is rendered into the lab workspace scripts dir.
+network_probe_netns: "cxlnsprobe"
+network_probe_veth_host: "cxlveth0"
+network_probe_veth_guest: "cxlveth1"
+network_probe_prefix_len: "{{ lab_subnet_cidr | regex_replace('^.*/', '') }}"
+network_probe_script_path: "{{ vm_scripts_dir }}/network-egress-probe.sh"
+
+# Egress smoke test endpoint: the external service probed from inside the
+# probe namespace to prove DNS + routed egress + masquerade.
+network_smoke_test_host: "quay.io"
+network_smoke_test_port: 443

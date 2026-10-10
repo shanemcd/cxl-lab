@@ -1,0 +1,22 @@
+---
+# Full pipeline: host prep → artifacts (kernel + QEMU) → network → ignition →
+# VMs → install → OS image → MCO. Stages can be run individually via the
+# numbered playbooks. Verification, teardown, and ops run explicitly.
+- name: Host preparation stage
+  import_playbook: 01_host_prep.yml
+- name: Artifact construction stage (kernel RPMs, host QEMU)
+  import_playbook: 02_artifacts.yml
+- name: Lab network stage
+  import_playbook: 03_network.yml
+- name: Install config and ignition stage
+  import_playbook: 04_ignition.yml
+- name: Virtual machines stage
+  import_playbook: 05_vms.yml
+- name: Cluster install stage
+  import_playbook: 06_install.yml
+- name: Layered OS image and registry stage
+  import_playbook: 07_os_image.yml
+- name: MCO and region commit stage
+  import_playbook: 08_mco.yml
+- name: Verification stage
+  import_playbook: verify.yml

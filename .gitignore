@@ -1,0 +1,12 @@
+# Ansible: third-party collections (reinstallable via requirements.yml);
+# only our own shanemcd.cxl_lab collection is tracked
+ansible_collections/*
+!ansible_collections/shanemcd
+
+# Python runtime artifacts
+__pycache__/
+*.pyc
+.cache/
+
+# Local/editor files
+.DS_Store

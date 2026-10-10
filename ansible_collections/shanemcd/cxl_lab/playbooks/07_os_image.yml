@@ -1,0 +1,8 @@
+---
+- name: Layered OS image and lab registry
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.registry
+    - role: shanemcd.cxl_lab.layered_image

@@ -1,0 +1,8 @@
+[{{ kernel_srpm_cdn_repo_id }}]
+name = RHEL {{ kernel_srpm_rhel_release }} BaseOS Source RPMs
+baseurl = {{ kernel_srpm_cdn_repo_baseurl }}
+enabled = 1
+gpgcheck = 0
+sslclientcert = {{ artifacts_entitlement_cert }}
+sslclientkey = {{ artifacts_entitlement_key }}
+sslcacert = {{ artifacts_rhsm_ca_file }}

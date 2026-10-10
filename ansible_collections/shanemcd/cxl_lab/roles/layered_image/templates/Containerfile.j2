@@ -1,0 +1,11 @@
+# Managed by cxl_lab.lab.layered_image — do not edit (runbook §7).
+# bootc layered OS image for the CXL workers: FROM the EXACT stock node
+# deployment digest (queried from the live cluster via `bootc status`, never
+# hardcoded) with the five SHA256-verified cxltest kernel RPMs layered via
+# rpm-ostree override replace (initramfs regenerated automatically), plus the
+# documented repo cache cleanup.
+FROM {{ layered_image_base_ref }}
+COPY *.rpm /tmp/kernel-rpms/
+RUN rpm-ostree override replace /tmp/kernel-rpms/*.rpm \
+    && rm -rf /tmp/kernel-rpms
+RUN rm -rf /var/cache/rpm-ostree /var/cache/ldconfig

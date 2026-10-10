@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Managed by cxl_lab.lab.artifacts — do not edit.
+# Entitled CDN kernel SRPM download (plan §6.2): runs inside the CS10
+# downloader container with the host RHSM entitlement mounted read-only.
+# Artifact integrity is enforced by the role via the pinned sha256 in
+# versions.yml (stronger than repo GPG for this purpose).
+set -euo pipefail
+
+cd /workspace
+
+echo "==> installing dnf download plugin"
+dnf -y -q install dnf-plugins-core
+
+echo "==> downloading {{ kernel_srpm_nvr }} source RPM from the entitled CDN"
+dnf download --disablerepo='*' --enablerepo={{ kernel_srpm_cdn_repo_id }} {{ kernel_srpm_nvr }} --source
+
+echo "==> CDN SRPM download OK"

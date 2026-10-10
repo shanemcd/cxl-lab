@@ -1,0 +1,99 @@
+---
+# Cluster state checks (runbook §10 "Cluster" block): expected nodes Ready,
+# clusterversion Available at the pinned version, all operators Available,
+# master/worker/worker-cxl MachineConfigPools Updated.
+
+- name: Read the node states
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - nodes
+      - "-o"
+      - 'jsonpath={range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_nodes
+  changed_when: false
+
+- name: Read the clusterversion state
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - clusterversion
+      - "-o"
+      - 'jsonpath={.items[0].status.desired.version}{"\n"}{.items[0].status.conditions[?(@.type=="Available")].status}{"\n"}'
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_clusterversion
+  changed_when: false
+
+- name: Read the machine config pool states
+  vars:
+    verify_mcp_args: >-
+      {{ ['get', 'mcp'] + (verify_builtin_mcp_names + [mco_cxl_mcp_name])
+         + ['-o', 'jsonpath={range .items[*]}{.metadata.name}{" "}'
+            ~ '{.status.conditions[?(@.type=="Updated")].status}{"\n"}{end}'] }}
+  ansible.builtin.command:
+    argv: "{{ [install_bin_dir ~ '/oc'] + verify_mcp_args }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_mcps
+  changed_when: false
+
+- name: Read the cluster operator states
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - clusteroperators
+      - "-o"
+      - 'jsonpath={range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}'
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_operators
+  changed_when: false
+
+- name: Assert the cluster state
+  vars:
+    verify_expected_nodes: "{{ (masters + dram_workers + cxl_workers)
+                                | map(attribute='name') | sort | list }}"
+    verify_actual_nodes: "{{ verify_nodes.stdout_lines
+                              | map('split', ' ') | map('first') | sort | list }}"
+    verify_ready_count: "{{ verify_nodes.stdout_lines
+                             | select('search', ' True$') | list | length }}"
+    verify_mcp_expected: "{{ (verify_builtin_mcp_names + [mco_cxl_mcp_name]) | sort }}"
+    verify_mcp_actual: "{{ verify_mcps.stdout_lines
+                            | map('split', ' ') | map('first') | sort | list }}"
+    verify_mcp_updated_count: "{{ verify_mcps.stdout_lines
+                                   | select('search', ' True$') | list | length }}"
+    verify_operators_total: "{{ verify_operators.stdout_lines | list | length }}"
+    verify_operators_available: "{{ verify_operators.stdout_lines
+                                    | select('search', ' True$') | list | length }}"
+  ansible.builtin.assert:
+    that:
+      - verify_actual_nodes == verify_expected_nodes
+      - verify_ready_count | int == verify_expected_nodes | length
+      - verify_clusterversion.stdout_lines | length == 2
+      - verify_clusterversion.stdout_lines[0] | trim == ocp_version
+      - verify_clusterversion.stdout_lines[1] | trim == 'True'
+      - verify_mcp_actual == verify_mcp_expected
+      - verify_mcp_updated_count | int == verify_mcp_expected | length
+      - verify_operators_total | int > 0
+      - verify_operators_available | int == verify_operators_total | int
+    fail_msg: >-
+      Cluster state check failed — nodes: {{ verify_nodes.stdout_lines |
+      default([]) | join('; ') }}; clusterversion: {{ verify_clusterversion.stdout
+      | default('') | trim }}; mcps: {{ verify_mcps.stdout_lines | default([]) |
+      join('; ') }}; operators: {{ verify_operators_available | int }} of
+      {{ verify_operators_total | int }} Available.
+
+- name: Collect the cluster evidence
+  ansible.builtin.set_fact:
+    verify_cluster_report:
+      nodes: "{{ verify_nodes.stdout_lines }}"
+      clusterversion: "{{ verify_clusterversion.stdout_lines | map('trim') | list }}"
+      mcps: "{{ verify_mcps.stdout_lines }}"
+      operators_available: "{{ verify_operators.stdout_lines | select('search', ' True$') | list | length }}"
+      operators_total: "{{ verify_operators.stdout_lines | list | length }}"

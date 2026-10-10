@@ -1,0 +1,69 @@
+---
+# Per-VM leftover removal (included with loop_var: node): tap, overlay,
+# run script, logs, pidfile, and monitor socket. All idempotent — absent
+# resources are skipped. The guest shutdown itself happens at fleet level
+# in tasks/main.yml (parallel poweroff + one poller + --stop fallback).
+# The master additionally loses its prepared boot-ISO copy (the blank
+# install target disk is the node overlay).
+#
+# Every task here carries the vms layer tag explicitly: include_tasks
+# children do NOT inherit the include task's tags, so without this a
+# `--tags vms` partial run would silently skip the per-VM cleanup.
+
+- name: Detach the VM tap from the lab bridge
+  # tuntap del fails EBUSY while the tap is still enslaved; detach first.
+  tags: vms
+  ansible.builtin.command:
+    argv:
+      - ip
+      - link
+      - set
+      - dev
+      - "{{ vm_tap_prefix }}{{ node.name }}"
+      - nomaster
+  failed_when: false
+  changed_when: false
+
+- name: Remove the VM tap
+  tags: vms
+  ansible.builtin.command:
+    argv:
+      - ip
+      - tuntap
+      - del
+      - mode
+      - tap
+      - dev
+      - "{{ vm_tap_prefix }}{{ node.name }}"
+  failed_when: false
+  changed_when: false
+
+- name: Remove the VM disk
+  tags: vms
+  ansible.builtin.file:
+    path: "{{ vm_images_dir }}/{{ node.name }}.qcow2"
+    state: absent
+
+- name: Remove the master boot-medium copy
+  when: node.name == masters[0].name
+  tags: vms
+  ansible.builtin.file:
+    path: "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
+    state: absent
+
+- name: Remove the VM run script
+  tags: vms
+  ansible.builtin.file:
+    path: "{{ vm_scripts_dir }}/run-{{ node.name }}.sh"
+    state: absent
+
+- name: Remove the VM logs, pidfile, and monitor socket
+  tags: vms
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ vm_logs_dir }}/{{ node.name }}.serial.log"
+    - "{{ vm_logs_dir }}/{{ node.name }}.qemu-stderr.log"
+    - "{{ vm_run_dir }}/{{ node.name }}.pid"
+    - "{{ vm_run_dir }}/{{ node.name }}.monitor.sock"

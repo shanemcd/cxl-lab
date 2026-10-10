@@ -1,0 +1,8 @@
+---
+- name: Lab artifacts (cxltest kernel RPMs, pinned downloads, host QEMU)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: shanemcd.cxl_lab.artifacts
+    - role: shanemcd.cxl_lab.qemu_builder

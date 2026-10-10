@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Lab egress probe (plan §5): emulates a VM tap on the lab bridge — a veth
+# pair with one end enslaved to the bridge and the other inside a throwaway
+# network namespace holding a default route via the lab gateway. A TCP
+# connect to the external endpoint from inside the namespace proves DNS +
+# routed egress + the masquerade rule, i.e. the exact path the QEMU VMs will
+# use in P6. Fully self-cleaning (trap + idempotent pre-clean).
+set -euo pipefail
+
+bridge="{{ lab_bridge_name }}"
+netns="{{ network_probe_netns }}"
+veth_host="{{ network_probe_veth_host }}"
+veth_guest="{{ network_probe_veth_guest }}"
+probe_addr="{{ lab_subnet_prefix }}.{{ network_probe_suffix }}/{{ network_probe_prefix_len }}"
+gateway="{{ lab_gateway_ip }}"
+endpoint="{{ network_smoke_test_host }}:{{ network_smoke_test_port }}"
+
+cleanup() {
+  ip netns del "{{ network_probe_netns }}" 2>/dev/null || true
+  ip link del "{{ network_probe_veth_host }}" 2>/dev/null || true
+}
+trap cleanup EXIT
+cleanup   # a previous probe may have died mid-run
+
+ip netns add "$netns"
+ip link add "$veth_host" type veth peer name "$veth_guest"
+ip link set "$veth_host" master "$bridge"
+ip link set "$veth_host" up
+ip link set "$veth_guest" netns "$netns"
+ip -n "$netns" link set lo up
+ip -n "$netns" link set "$veth_guest" up
+ip -n "$netns" addr add "$probe_addr" dev "$veth_guest"
+ip -n "$netns" route add default via "$gateway"
+
+if ip netns exec "$netns" \
+     bash -c "exec 3<>/dev/tcp/{{ network_smoke_test_host }}/{{ network_smoke_test_port }}"; then
+  echo "EGRESS_OK (probe {{ lab_subnet_prefix }}.{{ network_probe_suffix }} -> $endpoint)"
+else
+  echo "EGRESS_FAIL: TCP connect to $endpoint from {{ lab_subnet_prefix }}.{{ network_probe_suffix }} failed" >&2
+  exit 1
+fi

@@ -1,0 +1,14 @@
+---
+# External collection pins (plan §6). Installed automatically by host tooling;
+# never installed by hand. Third-party trees under collections/ are gitignored.
+collections:
+  - name: community.general
+    version: "13.5.0"
+  - name: containers.podman
+    version: "1.21.1"
+  - name: ansible.posix
+    version: "2.2.2"
+  - name: community.crypto
+    version: "3.5.0"
+  - name: kubernetes.core
+    version: "6.6.0"

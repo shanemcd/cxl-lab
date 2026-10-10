@@ -1,0 +1,38 @@
+---
+# qemu_builder role-scoped knobs; images/versions live in the versions taxonomy
+# (group_vars/all/versions.yml) and paths in the paths taxonomy.
+
+# Build workspace (tarball staging + build script + DESTDIR staging tree).
+# The workspace is mounted into the builder at the same in-container path
+# (qemu_builder_workspace_mount) — the build script's DESTDIR refers to the
+# in-container path so the staged tree lands in the host-mounted directory.
+qemu_builder_script_path: "{{ qemu_build_dir }}/qemu-build.sh"
+qemu_builder_staging_dir: "{{ qemu_build_dir }}/staging"
+qemu_builder_workspace_mount: /workspace
+
+# Build dependencies installed inside the digest-pinned CS10 builder (same
+# set the v1 Fedora Containerfile validated, minus git/iproute/numactl — no
+# patch step, no in-container networking, no host-nodes binding in v2).
+qemu_builder_build_deps:
+  - gcc
+  - gcc-c++
+  - make
+  - meson
+  - ninja-build
+  - glib2-devel
+  - pixman-devel
+  - libfdt-devel
+  - bzip2
+  - diffutils
+  - xz
+  - python3
+
+# Host runtime libraries the CS10-built binary links against (verified via
+# ldd on the RHEL 10 host, P3: libfdt.so.1 is the only CS10-only linkage —
+# RHEL 10 AppStream carries the same SONAME).
+qemu_builder_runtime_packages:
+  - libfdt
+
+# Full-build container polling (configure + ninja on 48 cores takes ~10 min).
+qemu_builder_wait_retries: 120
+qemu_builder_wait_delay: 15

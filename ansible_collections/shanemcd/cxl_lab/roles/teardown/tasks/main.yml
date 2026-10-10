@@ -1,0 +1,397 @@
+---
+# teardown (v2): reverse-layer rollback. Layers are TAGGED; a bare run
+# executes every layer in file order (reverse build order): mco → registry
+# → vms → network → images → artifacts → install-data. Use --tags <layer>
+# for a single layer. Every task is idempotent — a second teardown run is
+# a no-op. Destructive command tasks are check-guarded, so --check
+# dry-runs the whole playbook. The QEMU host PREFIX is never removed
+# (plan §10.6 — the exists-guard makes a same-version rebuild a no-op).
+#
+# NOTE (documented behavior): the network layer deletes the lab bridge
+# while the VM taps may still exist; the run scripts re-enslave taps at
+# VM start, so a network-only teardown with running VMs requires
+# restarting them afterwards (or a full teardown, which removes the VMs
+# first). For a rebuild after any teardown of the vms layer or deeper,
+# regenerate ignition within a fresh 12 h window.
+
+- name: Stat the kubeconfig
+  ansible.builtin.stat:
+    path: "{{ kubeconfig_path }}"
+  register: teardown_kubeconfig_stat
+  tags: always
+
+- name: Probe the cluster API
+  when: teardown_kubeconfig_stat.stat.exists
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - "--raw=/readyz"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: teardown_api_probe
+  failed_when: false
+  changed_when: false
+  tags: always
+
+- name: Set the cluster availability fact
+  # Check mode keeps dry-run coverage of the cluster-facing layers; a real
+  # run requires the API to answer (a half-torn-down cluster has a
+  # kubeconfig but no quorum — the VM destruction below makes the cluster
+  # objects moot).
+  ansible.builtin.set_fact:
+    teardown_cluster_available: >-
+      {{ teardown_kubeconfig_stat.stat.exists
+         and (ansible_check_mode or (teardown_api_probe.rc | default(1) == 0)) }}
+  tags: always
+
+# --- Layer: mco --------------------------------------------------------------
+# Removing the MachineConfigs lets the MCO roll the CXL workers back to the
+# release base image; unlabeling returns the nodes to the plain worker
+# pool. This layer does NOT wait for the rollback reboots.
+
+- name: Remove the region commit MachineConfig
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: MachineConfig
+    name: "{{ region_commit_mc_name }}"
+  tags: mco
+
+- name: Remove the osImageURL MachineConfig
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: MachineConfig
+    name: "{{ mco_cxl_osimage_mc_name }}"
+  tags: mco
+
+- name: Remove the worker-cxl MachineConfigPool
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: MachineConfigPool
+    name: "{{ mco_cxl_mcp_name }}"
+  tags: mco
+
+- name: Remove the worker-cxl label from the CXL nodes
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: patched
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: Node
+    name: "{{ item.name }}"
+    definition:
+      metadata:
+        # null value removes the label key (strategic merge).
+        labels: "{{ {'node-role.kubernetes.io/' ~ mco_cxl_role_label: None} }}"
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: mco
+
+# --- Layer: registry ---------------------------------------------------------
+
+- name: Remove the lab registry from the cluster image config
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: patched
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: config.openshift.io/v1
+    kind: Image
+    name: cluster
+    definition:
+      spec:
+        registrySources:
+          # Empty array drops our registry host (this collection is the only
+          # writer of this key — the patch replaced the list wholesale).
+          insecureRegistries: []
+  tags: registry
+
+- name: Remove the registry container
+  containers.podman.podman_container:
+    name: "{{ registry_container_name }}"
+    state: absent
+  tags: registry
+
+- name: Remove the registry data directory
+  ansible.builtin.file:
+    path: "{{ vm_registry_data_dir }}"
+    state: absent
+  tags: registry
+
+# --- Layer: vms --------------------------------------------------------------
+# Fleet-parallel shutdown: all guest poweroffs fire first (one command),
+# then ONE poller over the fleet until every QEMU reports stopped (rc 3),
+# then the --stop force fallback for wedged guests. Never serial
+# per-VM waits.
+
+- name: Stat the VM run scripts
+  ansible.builtin.stat:
+    path: "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+  loop: "{{ masters + cxl_workers + dram_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: teardown_script_stat
+  tags: vms
+
+- name: Set the present VM fact
+  ansible.builtin.set_fact:
+    teardown_vm_present: >-
+      {{ (masters + cxl_workers + dram_workers)
+         | zip(teardown_script_stat.results | map(attribute='stat.exists'))
+         | selectattr(1) | map(attribute=0) | list }}
+  tags: vms
+
+- name: Power off every present guest (all poweroffs fire first)
+  when:
+    - teardown_vm_present | length > 0
+    - not ansible_check_mode
+  ansible.builtin.shell: |
+    set -o pipefail
+    for pair in {{ teardown_vm_present | map(attribute='name')
+                     | zip(teardown_vm_present | map(attribute='ip_suffix'))
+                     | map('join', ' ') | map('quote') | join(' ') }}; do
+      set -- ${pair}
+      vm=$1
+      suffix=$2
+      ssh -i {{ install_ssh_key_path }} \
+          -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          -o ConnectTimeout=10 \
+          "core@{{ lab_subnet_prefix }}.${suffix}" 'sudo systemctl poweroff' \
+          >/dev/null 2>&1 &
+    done
+    wait
+  args:
+    executable: /bin/bash
+  register: teardown_poweroff
+  changed_when: true
+  tags: vms
+
+- name: Wait for all QEMU processes to exit (one fleet poller)
+  when:
+    - teardown_vm_present | length > 0
+    - not ansible_check_mode
+  ansible.builtin.shell: |
+    set -o pipefail
+    pending=1
+    for attempt in $(seq 1 {{ vm_stop_wait_retries }}); do
+      pending=0
+      for vm in {{ teardown_vm_present | map(attribute='name') | map('quote') | join(' ') }}; do
+        rc=0
+        bash "{{ vm_scripts_dir }}/run-${vm}.sh" --status >/dev/null 2>&1 || rc=$?
+        [ "$rc" -ne 3 ] && pending=1
+      done
+      [ "$pending" -eq 0 ] && exit 0
+      sleep {{ vm_stop_wait_delay }}
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: teardown_vm_wait
+  changed_when: false
+  failed_when: false
+  tags: vms
+
+- name: Read the QEMU status per present VM
+  when:
+    - teardown_vm_present | length > 0
+    - not ansible_check_mode
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ node.name }}.sh"
+      - --status
+  loop: "{{ teardown_vm_present }}"
+  loop_control:
+    loop_var: node
+    label: "{{ node.name }}"
+  register: teardown_vm_status
+  failed_when: false
+  changed_when: false
+  tags: vms
+
+- name: Set the wedged guest fact
+  when: not ansible_check_mode
+  ansible.builtin.set_fact:
+    teardown_vm_wedged: >-
+      {{ teardown_vm_status.results | default([])
+         | selectattr('rc', 'ne', 3) | map(attribute='node.name') | list }}
+  tags: vms
+
+- name: Force-stop the wedged guests
+  when:
+    - not ansible_check_mode
+    - teardown_vm_wedged | length > 0
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ item }}.sh"
+      - --stop
+  loop: "{{ teardown_vm_wedged }}"
+  changed_when: true
+  tags: vms
+
+- name: Confirm all QEMU processes exited
+  when:
+    - teardown_vm_present | length > 0
+    - not ansible_check_mode
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ node.name }}.sh"
+      - --status
+  loop: "{{ teardown_vm_present }}"
+  loop_control:
+    loop_var: node
+    label: "{{ node.name }}"
+  register: teardown_vm_confirm
+  failed_when: false
+  changed_when: false
+  tags: vms
+
+- name: Assert all QEMU processes exited
+  when: not ansible_check_mode
+  ansible.builtin.assert:
+    that:
+      - teardown_vm_confirm.results | default([]) | selectattr('rc', 'ne', 3) | list | length == 0
+    fail_msg: >-
+      QEMU did not exit on {{ teardown_vm_confirm.results | default([])
+      | selectattr('rc', 'ne', 3) | map(attribute='node.name') | join(', ') }}
+      even after the --stop force fallback.
+  tags: vms
+
+- name: Remove the VM leftovers
+  ansible.builtin.include_tasks: teardown-vm.yml
+  # The included tasks carry `tags: vms` themselves — include_tasks children
+  # do NOT inherit the include task's tags on their own (no `apply` support
+  # in ansible-core 2.19's include refactor).
+  loop: "{{ masters + cxl_workers + dram_workers }}"
+  loop_control:
+    loop_var: node
+    label: "{{ node.name }}"
+  tags: vms
+
+- name: Remove the ignition staging directory
+  ansible.builtin.file:
+    path: "{{ vm_ignition_dir }}"
+    state: absent
+  tags: vms
+
+# --- Layer: network ----------------------------------------------------------
+
+- name: Stop and disable the lab resolver
+  ansible.builtin.service:
+    name: "{{ network_dnsmasq_service }}"
+    state: stopped
+    enabled: false
+  failed_when: false
+  tags: network
+
+- name: Remove the lab resolver config
+  ansible.builtin.file:
+    path: "{{ network_dnsmasq_conf_path }}"
+    state: absent
+  tags: network
+
+- name: Remove the lab masquerade rule (exact spec)
+  ansible.builtin.command:
+    cmd: >-
+      iptables -t nat -D POSTROUTING
+      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
+      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Remove the lab host-resolution block from /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} cxl-lab"
+    state: absent
+  tags: network
+
+- name: Remove the ip_forward sysctl drop-in
+  ansible.builtin.file:
+    path: "/etc/sysctl.d/{{ network_sysctl_conf_name }}"
+    state: absent
+  tags: network
+
+- name: Remove the lab bridge
+  ansible.builtin.command:
+    argv:
+      - ip
+      - link
+      - del
+      - dev
+      - "{{ lab_bridge_name }}"
+  failed_when: false
+  changed_when: false
+  tags: network
+
+# --- Layer: images -----------------------------------------------------------
+
+- name: Remove the lab layered image
+  containers.podman.podman_image:
+    name: "{{ layered_image_local_ref }}"
+    state: absent
+  failed_when: false
+  tags: images
+
+- name: Remove the layered image build directory
+  ansible.builtin.file:
+    path: "{{ layered_image_build_dir }}"
+    state: absent
+  tags: images
+
+- name: Remove the QEMU build directory
+  # The host PREFIX ({{ qemu_install_prefix }}) is NEVER removed — plan §10.6.
+  ansible.builtin.file:
+    path: "{{ qemu_build_dir }}"
+    state: absent
+  tags: images
+
+# --- Layer: artifacts --------------------------------------------------------
+
+- name: Remove the artifact directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ artifacts_kernel_rpms_dir }}"
+    - "{{ artifacts_srpm_dir }}"
+    - "{{ artifacts_downloads_dir }}"
+    - "{{ artifacts_kernel_build_dir }}"
+  tags: artifacts
+
+# --- Layer: install-data (LAST — contains the kubeconfig and secrets) --------
+
+- name: Remove the VM assets tree
+  # Contents were removed per layer above (overlays, scripts, logs, registry
+  # data, artifacts, ignition); this clears the remainder — the RHCOS base
+  # image, the master's boot ISO, install-phase scripts, and empty dirs.
+  ansible.builtin.file:
+    path: "{{ vm_assets_dir }}"
+    state: absent
+  tags: install-data
+
+- name: Remove the install directory
+  ansible.builtin.file:
+    path: "{{ install_dir }}"
+    state: absent
+  tags: install-data
+
+- name: Teardown summary
+  ansible.builtin.debug:
+    msg: >-
+      teardown complete for the requested tags — layers: mco, registry,
+      vms, network, images, artifacts, install-data. The QEMU host prefix
+      ({{ qemu_install_prefix }}) and the pulled third-party base images
+      in the podman store remain (content-addressed caches, re-used on
+      rebuild). For a rebuild, re-run the pipeline from 01 (ignition must
+      be regenerated within a fresh {{ ignition_fresh_window_hours }}h
+      window).
+  tags: always

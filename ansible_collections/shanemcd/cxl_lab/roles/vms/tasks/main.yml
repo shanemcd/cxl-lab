@@ -1,0 +1,424 @@
+---
+# vms (v2, plan §6/§8): one host-QEMU run script per node — the stock
+# upstream QEMU from the builder prefix (never the appstream qemu-kvm,
+# which has no CXL backports). Master = BiP boot model (live ISO + blank
+# virtio install target + merged BiP ignition); workers = stream qcow2
+# overlays + per-node merged ignition (MCS stubs). CXL workers carry the
+# runbook §4 Type-3 graph MINUS host-node binding (plan §7 deviation,
+# §10.7). Boot sequence: master first, then workers once the live-env
+# Machine Config Server answers (their first-boot ignition fetch targets
+# it). No per-VM containers, no QEMU patch image.
+
+- name: Build the node list
+  # Boot order matters: the master must be up (MCS on :22623) before the
+  # workers' first-boot ignition fetch can succeed.
+  ansible.builtin.set_fact:
+    vms_nodes: >-
+      {{ masters | map('combine', {'kind': 'master'}) | list
+         + dram_workers | map('combine', {'kind': 'worker-dram'}) | list
+         + cxl_workers | map('combine', {'kind': 'worker-cxl'}) | list }}
+
+- name: Set the worker node list fact
+  ansible.builtin.set_fact:
+    vms_worker_nodes: "{{ vms_nodes | rejectattr('kind', 'equalto', 'master') | list }}"
+
+- name: Stat per-node ignition configs
+  ansible.builtin.stat:
+    path: "{{ vm_ignition_dir }}/{{ item.name }}.ign"
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_ignition_stat
+
+- name: Assert per-node ignition configs exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Ignition {{ item.item.name }}.ign missing under {{ vm_ignition_dir }}
+      — run 04_ignition.yml first.
+  loop: "{{ vms_ignition_stat.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Stat the downloaded RHCOS artifacts
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ artifacts_downloads_dir }}/{{ rhcos_qemu_image_name }}"
+    - "{{ rhcos_live_iso_path }}"
+  register: vms_artifacts_stat
+
+- name: Assert the RHCOS artifacts were downloaded
+  ansible.builtin.assert:
+    that:
+      - vms_artifacts_stat.results[0].stat.exists
+      - vms_artifacts_stat.results[1].stat.exists
+    fail_msg: >-
+      RHCOS qemu image or live ISO missing under {{ artifacts_downloads_dir }}
+      — run 02_artifacts.yml first.
+
+- name: Stat the decompressed RHCOS base image
+  ansible.builtin.stat:
+    path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+  register: vms_base_stat
+
+- name: Decompress the RHCOS base image
+  ansible.builtin.shell: |
+    set -o pipefail
+    gzip -dc {{ artifacts_downloads_dir }}/{{ rhcos_qemu_image_name }} \
+      > {{ vm_images_dir }}/{{ vms_base_image_name }}
+  args:
+    creates: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+
+- name: Stat the RHCOS base image checksum
+  ansible.builtin.stat:
+    path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+    checksum_algorithm: sha256
+  register: vms_base_checksum
+
+- name: Assert the RHCOS base image checksum
+  ansible.builtin.assert:
+    that:
+      - vms_base_checksum.stat.checksum == rhcos_image_uncompressed_sha256
+    fail_msg: >-
+      RHCOS base image under {{ vm_images_dir }} does not match the pinned
+      uncompressed sha256 — delete it and re-run.
+
+- name: Ensure VM asset directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ vm_images_dir }}"
+    - "{{ vm_logs_dir }}"
+    - "{{ vm_scripts_dir }}"
+    - "{{ vm_run_dir }}"
+
+- name: Assert tap names fit the interface name limit
+  ansible.builtin.assert:
+    that:
+      - (vm_tap_prefix ~ item.name) | length <= 15
+    fail_msg: >-
+      Tap name {{ vm_tap_prefix }}{{ item.name }} exceeds the 15-char Linux
+      ifname limit — shorten the node name or vm_tap_prefix.
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create worker disk overlays
+  # Workers boot the stream qcow2 through a per-node overlay.
+  ansible.builtin.command:
+    argv:
+      - qemu-img
+      - create
+      - "-f"
+      - qcow2
+      - "-F"
+      - qcow2
+      - "-b"
+      - "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+      - "{{ vm_images_dir }}/{{ item.name }}.qcow2"
+      - "{{ item.disk }}"
+    creates: "{{ vm_images_dir }}/{{ item.name }}.qcow2"
+  loop: "{{ vms_worker_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create the master install target disk
+  # BiP: a BLANK disk — coreos-installer writes the installed master to it
+  # (installationDisk /dev/vda) once the live-env bootstrap completes. The
+  # creates-guard keeps an installed target across re-runs.
+  ansible.builtin.command:
+    argv:
+      - qemu-img
+      - create
+      - "-f"
+      - qcow2
+      - "{{ vm_images_dir }}/{{ masters[0].name }}.qcow2"
+      - "{{ masters[0].disk }}"
+    creates: "{{ vm_images_dir }}/{{ masters[0].name }}.qcow2"
+
+- name: Install coreos-installer (master boot-media preparation)
+  ansible.builtin.package:
+    name: coreos-installer
+    state: present
+
+- name: Copy the live ISO as the master's boot medium
+  # force=false: never overwrite a prepared copy (the kargs modification
+  # below would be reverted); the stream original stays untouched.
+  ansible.builtin.copy:
+    src: "{{ rhcos_live_iso_path }}"
+    dest: "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+
+- name: Read the master boot-medium kernel args
+  ansible.builtin.command:
+    argv:
+      - coreos-installer
+      - iso
+      - kargs
+      - show
+      - "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
+  register: vms_master_kargs_show
+  changed_when: false
+
+- name: Prepare the master boot-medium kernel args
+  # platform=qemu makes ignition read the fw_cfg config; the serial console
+  # makes the guest's boot observable in the serial log (runbook §4). Only
+  # appended when absent — coreos-installer does not deduplicate.
+  ansible.builtin.command:
+    argv:
+      - coreos-installer
+      - iso
+      - kargs
+      - modify
+      - "--append"
+      - "{{ vms_master_iso_kargs | join(' ') }}"
+      - "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
+  when: vms_master_iso_kargs | reject('in', vms_master_kargs_show.stdout) | list | length > 0
+  register: vms_master_kargs_modify
+  changed_when: true
+
+- name: Render per-node run scripts
+  ansible.builtin.template:
+    src: vm-run.sh.j2
+    dest: "{{ vm_scripts_dir }}/run-{{ node.name }}.sh"
+    mode: "0755"
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    loop_var: node
+
+- name: Parse-validate node command lines
+  # --validate replays the command line paused (-S) under timeout(1) —
+  # rc 124 means the graph parsed and the process stayed alive.
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+      - --validate
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_validate
+  changed_when: false
+  failed_when: false
+
+- name: Assert node command lines parse
+  ansible.builtin.assert:
+    that:
+      - item.rc == 124
+    fail_msg: >-
+      {{ item.item.name }} command line failed validation (rc={{ item.rc }}):
+      {{ item.stderr | default('') | trim }}
+  loop: "{{ vms_validate.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Read rendered run scripts for shape verification
+  ansible.builtin.slurp:
+    src: "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_scripts_raw
+
+- name: Set run-script content facts
+  ansible.builtin.set_fact:
+    vms_script_contents: >-
+      {{ vms_scripts_raw.results
+         | map(attribute='item.name') | zip(vms_scripts_raw.results
+         | map(attribute='content') | map('b64decode')) | list }}
+
+- name: Assert CXL worker run-script shapes
+  # The runbook §4 CXL shape on CXL workers, MINUS host-node binding
+  # everywhere (plan §7 deviation, §10.7) — encoded as asserts so the
+  # deviation is enforced, not just documented.
+  ansible.builtin.assert:
+    that:
+      # full Type-3 graph: pxb-cxl bus, root port, type-3 device, window
+      - >-
+        'pxb-cxl' in (vms_script_contents
+                      | selectattr(0, 'equalto', item.name)
+                      | map(attribute=1) | first)
+      - >-
+        'cxl-type3' in (vms_script_contents
+                        | selectattr(0, 'equalto', item.name)
+                        | map(attribute=1) | first)
+      - >-
+        'cxl-fmw.0' in (vms_script_contents
+                        | selectattr(0, 'equalto', item.name)
+                        | map(attribute=1) | first)
+      # CPU-less guest NUMA node as the CXL target
+      - >-
+        '-numa node,nodeid=1' in (vms_script_contents
+                                  | selectattr(0, 'equalto', item.name)
+                                  | map(attribute=1) | first)
+      # NO host-node binding (plan §7)
+      - >-
+        'host-nodes' not in (vms_script_contents
+                             | selectattr(0, 'equalto', item.name)
+                             | map(attribute=1) | first)
+    fail_msg: >-
+      {{ item.name }} run script does not match the runbook §4 CXL shape
+      (minus host-nodes) — see {{ vm_scripts_dir }}/run-{{ item.name }}.sh.
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Assert master run-script shape
+  # BiP boot model: live ISO media + bootindex-ranked blank install target;
+  # no CXL graph, no host-node binding.
+  ansible.builtin.assert:
+    that:
+      - >-
+        'media=cdrom' in (vms_script_contents
+                          | selectattr(0, 'equalto', masters[0].name)
+                          | map(attribute=1) | first)
+      - >-
+        ('bootindex=' ~ vms_disk_bootindex) in (vms_script_contents
+                                               | selectattr(0, 'equalto', masters[0].name)
+                                               | map(attribute=1) | first)
+      - >-
+        vms_master_iso_name in (vms_script_contents
+                                | selectattr(0, 'equalto', masters[0].name)
+                                | map(attribute=1) | first)
+      - >-
+        'pxb-cxl' not in (vms_script_contents
+                          | selectattr(0, 'equalto', masters[0].name)
+                          | map(attribute=1) | first)
+      - >-
+        'host-nodes' not in (vms_script_contents
+                             | selectattr(0, 'equalto', masters[0].name)
+                             | map(attribute=1) | first)
+    fail_msg: >-
+      Master run script does not match the BiP boot model — see
+      {{ vm_scripts_dir }}/run-{{ masters[0].name }}.sh.
+
+- name: Assert plain worker run-script shape
+  ansible.builtin.assert:
+    that:
+      - >-
+        'pxb-cxl' not in (vms_script_contents
+                          | selectattr(0, 'equalto', item.name)
+                          | map(attribute=1) | first)
+      - >-
+        'host-nodes' not in (vms_script_contents
+                             | selectattr(0, 'equalto', item.name)
+                             | map(attribute=1) | first)
+      - >-
+        'media=cdrom' not in (vms_script_contents
+                              | selectattr(0, 'equalto', item.name)
+                              | map(attribute=1) | first)
+    fail_msg: >-
+      {{ item.name }} run script shape wrong — see
+      {{ vm_scripts_dir }}/run-{{ item.name }}.sh.
+  loop: "{{ dram_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Start the master
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ masters[0].name }}.sh"
+  register: vms_master_start
+  changed_when: "'started, pid' in vms_master_start.stdout"
+
+- name: Wait for the installed master's Machine Config Server
+  # Workers must fetch their ignition from the INSTALLED master: the
+  # live-env MCS serves the same port but renders bootstrap-era
+  # credentials that die with the live environment at the install-to-disk
+  # reboot (observed live: workers joined against the ephemeral bootstrap
+  # control plane and ended up anonymous). The installed master is
+  # identified by its root living on the BiP installation disk (the
+  # live env runs from the ISO's overlay); the MCS must also answer.
+  ansible.builtin.shell: |
+    set -o pipefail
+    rootdev="$(ssh -o BatchMode=yes -o ConnectTimeout=10 \
+      -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      -i {{ install_ssh_key_path }} core@{{ master_ip }} \
+      'findmnt -n -o SOURCE /sysroot 2>/dev/null' 2>/dev/null || true)"
+    case "${rootdev}" in
+      {{ bip_installation_disk }}*) ;;
+      *)
+        echo "master not installed yet (sysroot: ${rootdev:-unreachable})" >&2
+        exit 1
+        ;;
+    esac
+    exec 3<>/dev/tcp/{{ master_ip }}/{{ vms_mcs_port }}
+  register: vms_mcs_probe
+  until: vms_mcs_probe.rc == 0
+  retries: 120
+  delay: 15
+  changed_when: false
+
+- name: Start the workers (fleet-parallel)
+  # One command for the whole worker fleet — poweroffs/starts fire for all
+  # nodes first (never serial per-VM waits); each script reports started vs
+  # already-running, and the combined stdout drives changed.
+  ansible.builtin.shell: |
+    set -eo pipefail
+    for node in {{ vms_worker_nodes | map(attribute='name') | map('quote') | join(' ') }}; do
+      bash "{{ vm_scripts_dir }}/run-${node}.sh"
+    done
+  register: vms_worker_start
+  changed_when: "'started, pid' in vms_worker_start.stdout"
+
+- name: Read node statuses
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+      - --status
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_status
+  changed_when: false
+  failed_when: false
+
+- name: Assert all nodes run
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      {{ item.item.name }} is not running (rc={{ item.rc }}):
+      {{ item.stdout | default('') | trim }}
+  loop: "{{ vms_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Wait for guest kernel boot evidence in serial logs
+  # ONE poller over the whole fleet (never serial per-VM waits): the
+  # kernel banner in each node's serial log proves all four guests booted.
+  ansible.builtin.shell: |
+    set -o pipefail
+    marked=0
+    for node in {{ vms_nodes | map(attribute='name') | map('quote') | join(' ') }}; do
+      if [ -f "{{ vm_logs_dir }}/${node}.serial.log" ] \
+         && grep -q "{{ vms_boot_marker }}" "{{ vm_logs_dir }}/${node}.serial.log"; then
+        marked=$((marked + 1))
+      fi
+    done
+    echo "booted=${marked}/{{ vms_nodes | length }}"
+    [ "${marked}" -eq {{ vms_nodes | length }} ]
+  register: vms_boot_evidence
+  until: vms_boot_evidence.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+
+- name: VM fleet summary
+  ansible.builtin.debug:
+    msg: >-
+      VM fleet OK — {{ vms_nodes | length }} nodes running on host QEMU
+      (master {{ masters[0].name }}: live ISO + blank install target,
+      BiP; {{ vms_worker_nodes | length }} workers on stream overlays);
+      CXL Type-3 graph on {{ cxl_workers | length }} workers (no host-node
+      binding — plan §7); all serial logs show kernel boot;
+      {{ vms_boot_evidence.stdout | trim }}.

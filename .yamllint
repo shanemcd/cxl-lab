@@ -1,0 +1,25 @@
+---
+extends: default
+rules:
+  line-length:
+    max: 120
+  truthy: disable
+  document-start: disable
+  comments-indentation: disable
+  # Settings required by ansible-lint's yaml rule compatibility check.
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  indentation:
+    indent-sequences: consistent
+ignore: |
+  ansible_collections/community
+  ansible_collections/*.info
+  ansible_collections/containers
+  ansible_collections/kubernetes
+  ansible_collections/ansible
+  .git

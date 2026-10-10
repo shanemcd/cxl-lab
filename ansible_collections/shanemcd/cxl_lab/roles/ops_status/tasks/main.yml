@@ -1,0 +1,129 @@
+---
+# ops_status (v2): read-only summary of the whole lab — cluster state, host
+# QEMU status per node, lab network (bridge, resolver, registry), CXL region
+# state per worker, and the layered image. Everything reports changed=0.
+
+- name: Stat the kubeconfig
+  ansible.builtin.stat:
+    path: "{{ kubeconfig_path }}"
+  register: ops_status_kubeconfig_stat
+
+- name: Read the node states
+  when: ops_status_kubeconfig_stat.stat.exists
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - nodes
+      - "-o"
+      - 'jsonpath={range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: ops_status_nodes
+  changed_when: false
+  failed_when: false
+
+- name: Read the clusterversion
+  vars:
+    ops_status_cv_jsonpath: >-
+      {{ 'jsonpath={.items[0].status.desired.version}{" "}'
+         ~ '{.items[0].status.conditions[?(@.type=="Available")].status}{"\n"}' }}
+  when: ops_status_kubeconfig_stat.stat.exists
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - clusterversion
+      - "-o"
+      - "{{ ops_status_cv_jsonpath }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: ops_status_clusterversion
+  changed_when: false
+  failed_when: false
+
+- name: Read the QEMU status per VM
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ node.name }}.sh"
+      - --status
+  loop: "{{ masters + dram_workers + cxl_workers }}"
+  loop_control:
+    loop_var: node
+    label: "{{ node.name }}"
+  register: ops_status_qemu
+  failed_when: false
+  changed_when: false
+
+- name: Read the lab network state
+  ansible.builtin.shell: |
+    set -o pipefail
+    bridge=$(ip -br link show "{{ lab_bridge_name }}" 2>/dev/null | awk '{print $1, $2, $3}' || true)
+    resolver=$(systemctl is-active "{{ network_dnsmasq_service }}" 2>/dev/null || true)
+    registry=$(podman ps --format '{{ '{{' }}.Names{{ '}}' }}' 2>/dev/null \
+      | grep -x "{{ registry_container_name }}" || true)
+    echo "bridge=[${bridge:-absent}]"
+    echo "resolver=[${resolver:-unknown}]"
+    echo "registry=[${registry:-absent}]"
+  args:
+    executable: /bin/bash
+  register: ops_status_network
+  changed_when: false
+  failed_when: false
+
+- name: Read the CXL region state per worker
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ node.ip_suffix }}"
+      - >-
+        cat /sys/bus/cxl/devices/{{ region_commit_region_name }}/commit
+        /sys/bus/dax/devices/dax0.0/target_node;
+        systemctl is-active {{ region_commit_service_name }}
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    loop_var: node
+    label: "{{ node.name }}"
+  register: ops_status_regions
+  failed_when: false
+  changed_when: false
+
+- name: Read the layered image presence
+  containers.podman.podman_image_info:
+    name: "{{ layered_image_local_ref }}"
+  failed_when: false
+  register: ops_status_layered_image
+
+- name: Lab status summary
+  vars:
+    ops_status_vm_lines: >-
+      {{ ops_status_qemu.results | default([])
+         | map(attribute='stdout') | map('trim') | list }}
+    ops_status_image: >-
+      {{ 'present' if (ops_status_layered_image.images | default([]) | length > 0)
+         else 'absent' }}
+    ops_status_region_pairs: >-
+      {{ ops_status_regions.results | default([]) | map(attribute='node.name') | list
+         | zip(ops_status_regions.results | default([])
+               | map(attribute='stdout') | map('split') | map('join', ' ')
+               | map('trim') | list) | list }}
+  ansible.builtin.debug:
+    msg:
+      cluster: >-
+        {{ ops_status_nodes.stdout_lines | default(['no kubeconfig — cluster not installed'])
+           | join('; ') }}
+      clusterversion: "{{ ops_status_clusterversion.stdout | default('n/a') | trim }}"
+      vms: "{{ ops_status_vm_lines | join(' | ') }}"
+      network: "{{ ops_status_network.stdout_lines | default([]) | join(' | ') }}"
+      cxl_regions: "{{ ops_status_region_pairs | map('join', ': ') | join(' | ') }}"
+      layered_image: "{{ ops_status_image }}"
+      evidence: "{{ verification_dir }} (0600 report from verify.yml)"

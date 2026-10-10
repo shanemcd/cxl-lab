@@ -1,0 +1,7 @@
+---
+- name: Teardown the CXL lab (reverse layer order; runbook §11)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.teardown

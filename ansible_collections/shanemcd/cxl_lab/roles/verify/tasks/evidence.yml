@@ -1,0 +1,30 @@
+---
+# Evidence capture (plan §8 verify.yml row): full checklist output under the
+# verification dir, 0700/0600, stamped test-only / cache-coherency-unverified.
+# The report content is deterministic — re-runs only change the file when a
+# check output actually changes.
+
+- name: Ensure the verification evidence directory
+  ansible.builtin.file:
+    path: "{{ verification_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Write the verification report
+  ansible.builtin.template:
+    src: verify-report.txt.j2
+    dest: "{{ verification_dir }}/{{ verify_evidence_report_name }}"
+    mode: "0600"
+
+- name: Assert the report permissions
+  ansible.builtin.stat:
+    path: "{{ verification_dir }}/{{ verify_evidence_report_name }}"
+  register: verify_report_stat
+
+- name: Assert the evidence is 0600
+  ansible.builtin.assert:
+    that:
+      - verify_report_stat.stat.mode == '0600'
+    fail_msg: >-
+      Evidence report {{ verification_dir }}/{{ verify_evidence_report_name }}
+      is {{ verify_report_stat.stat.mode }}, expected 0600.

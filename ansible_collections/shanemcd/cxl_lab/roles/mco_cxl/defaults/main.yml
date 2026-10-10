@@ -1,0 +1,6 @@
+---
+# mco_cxl role-scoped knobs. The layered image refs live in the versions
+# taxonomy, the authoritative digest stamp in the paths taxonomy, and the
+# role label + pool name in the topology taxonomy (shared with region_commit).
+# One MCO rollout cycle (two nodes, serial reboots into a ~2.5 GiB image).
+mco_cxl_rollout_timeout_minutes: 40

@@ -1,0 +1,5 @@
+---
+# teardown role-scoped knobs. Everything teardown reverses lives in the
+# taxonomy (paths, network rules/container names, image refs, MC names) — the
+# network layer's rules are shared with the network role via group_vars, and
+# the VM lifecycle waits come from the fleet knobs. No role-local literals.

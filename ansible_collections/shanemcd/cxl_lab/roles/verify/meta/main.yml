@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Shane McDonald
+  description: Runbook §10 verification (guests, host gates, cluster) with 0600 evidence (P11).
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  platforms:
+    - name: EL
+      versions:
+        - "10"
+dependencies: []

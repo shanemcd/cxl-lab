@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Managed by cxl_lab.lab.region_commit (MachineConfig) — do not edit (runbook §9).
+# Proven raw-sysfs region commit sequence for kernel {{ kernel_rpm_release }}
+# (the cxl CLI is not in the RHCOS base image). 211.64.1-specific behaviors:
+#   1. regionN/target0 takes the ENDPOINT DECODER name, not the endpoint port
+#      name — store_targetN() requires is_endpoint_decoder().
+#   2. After commit, the region device may need an explicit driver bind for the
+#      cxl_dax_region probe chain to register dax0.0.
+#   3. Self-recovery from the stale DVSEC MEM_ENABLE state: the kernel itself
+#      sets MEM_ENABLE (CXL 2.0 8.1.3.2 Control bit 2) on the first successful
+#      endpoint probe, and QEMU preserves DVSEC config space across guest
+#      reboots and port re-probes. The strict cxl_hdm_decode_init() range
+#      validation then rejects the next probe ("Range register decodes outside
+#      platform defined CXL ranges") and the endpoint decoder never appears.
+#      Fix (validated live): clear the stale MEM_ENABLE bit via setpci and
+#      rebind the cxl_pci driver — no reboot needed. The private QEMU image's
+#      DVSEC ctrl tweak is unrelated to this (.ctrl=0x2 is IO Enable, bit 1,
+#      not MEM Enable, bit 2 — runbook §1).
+D=/sys/bus/cxl/devices
+VMEM_HEX={{ '0x%x' | format((cxl_workers[0].vmem_size | regex_replace('G$', '') | int) * 1024 * 1024 * 1024) }}
+GRAN={{ vmem_interleave_granularity }}
+EP_WAIT={{ region_commit_endpoint_wait_seconds }}
+EP_RECOVER_WAIT={{ region_commit_endpoint_recover_wait_seconds }}
+REBIND_DELAY={{ region_commit_driver_rebind_delay }}
+MEM_ENABLE_MASK={{ region_commit_mem_enable_mask }}
+DVSEC_CTRL_OFFSET={{ region_commit_dvsec_ctrl_offset }}
+REGION_NAME={{ region_commit_region_name }}
+
+set -euo pipefail
+
+find_endpoint_decoder() {
+  # endpoint decoders are the decoder*.* children of endpoint ports
+  local d
+  for d in "$D"/endpoint*/decoder*.*; do
+    [ -e "$d" ] && { basename "$d"; return 0; }
+  done
+  return 1
+}
+
+find_root_decoder() {
+  # the root decoder is the decoder*.* carrying create_ram_region
+  local d
+  for d in "$D"/decoder*.*; do
+    [ -e "$d/create_ram_region" ] && { basename "$d"; return 0; }
+  done
+  return 1
+}
+
+recover_stale_endpoint() {
+  # Clear the kernel-stale DVSEC MEM_ENABLE bit and re-probe the type-3 device.
+  local bdf off cur addr
+  for bdf in $(ls /sys/bus/pci/drivers/cxl_pci/ 2>/dev/null | grep -E '^[0-9a-f]{4}:'); do
+    off=$(lspci -vv -s "$bdf" | grep -B1 'PCIe DVSEC for CXL Devices' \
+      | grep -oE '\[[0-9a-f]+' | head -1 | tr -d '[')
+    [ -n "$off" ] || { echo "[region] FAIL: CXL device DVSEC not found for $bdf"; exit 1; }
+    addr=$(printf '0x%x' $((0x$off + DVSEC_CTRL_OFFSET)))
+    cur=$(setpci -s "$bdf" "$addr.w")
+    echo "[region] clearing stale MEM_ENABLE on $bdf (dvsec ctrl $addr=$cur)"
+    setpci -s "$bdf" "$addr.w=$(printf '0x%04x' $((0x$cur & ~MEM_ENABLE_MASK)))"
+    echo "$bdf" > /sys/bus/pci/drivers/cxl_pci/unbind
+    sleep "$REBIND_DELAY"
+    echo "$bdf" > /sys/bus/pci/drivers/cxl_pci/bind
+  done
+}
+
+EP_NAME=$(find_endpoint_decoder || true)
+if [ -z "$EP_NAME" ]; then
+  for i in $(seq 1 "$EP_WAIT"); do
+    EP_NAME=$(find_endpoint_decoder || true)
+    [ -n "$EP_NAME" ] && break
+    sleep 1
+  done
+fi
+if [ -z "$EP_NAME" ]; then
+  echo "[region] no endpoint decoder after ${EP_WAIT}s; recovering stale MEM_ENABLE state"
+  recover_stale_endpoint
+  for i in $(seq 1 "$EP_RECOVER_WAIT"); do
+    EP_NAME=$(find_endpoint_decoder || true)
+    [ -n "$EP_NAME" ] && break
+    sleep 1
+  done
+fi
+[ -n "$EP_NAME" ] || { echo "[region] FAIL: no endpoint decoder after recovery (inspect dmesg | grep cxl)"; exit 1; }
+
+ROOT_DEC=$(find_root_decoder)
+[ -n "$ROOT_DEC" ] || { echo "[region] FAIL: no root decoder with create_ram_region"; exit 1; }
+echo "[region] endpoint decoder $EP_NAME, root decoder $ROOT_DEC"
+
+# idempotency: tear down any leftover region from a previous run
+if [ -d "$D/$REGION_NAME" ]; then
+  echo "[region] $REGION_NAME exists; deleting for clean re-run"
+  echo 0 > "$D/$REGION_NAME/commit" 2>/dev/null || true
+  echo "$REGION_NAME" > "$D/$ROOT_DEC/delete_region" 2>/dev/null || true
+  sleep 1
+fi
+
+echo "[region] configuring endpoint decoder $EP_NAME (mode ram, {{ cxl_workers[0].vmem_size }} DPA)"
+echo ram > "$D/$EP_NAME/mode"
+echo "${VMEM_HEX}" > "$D/$EP_NAME/dpa_size"
+
+echo "[region] creating ram $REGION_NAME on root decoder $ROOT_DEC"
+# NOTE: value is the region name (kernel parses 'region%d'), not 'ram'.
+echo "$REGION_NAME" > "$D/$ROOT_DEC/create_ram_region"
+R=$D/$REGION_NAME
+[ -d "$R" ] || { echo "[region] FAIL: $REGION_NAME not created"; exit 1; }
+
+echo "[region] region params: ways=1 granularity=${GRAN} size={{ cxl_workers[0].vmem_size }}"
+echo 1 > "$R/interleave_ways"
+echo "${GRAN}" > "$R/interleave_granularity"
+echo "${VMEM_HEX}" > "$R/size"
+
+echo "[region] attaching target0 (endpoint decoder $EP_NAME)"
+echo "$EP_NAME" > "$R/target0"
+
+echo "[region] committing (test bypass kernel)"
+echo 1 > "$R/commit"
+echo "[region] commit=$(cat $R/commit)"
+[ "$(cat $R/commit)" = "1" ] || { echo "[region] FAIL: commit != 1"; exit 1; }
+
+echo "[region] ensuring dax0.0 registered (rebind cxl_region if needed)"
+if [ ! -e /sys/bus/dax/devices/dax0.0 ]; then
+  echo "$REGION_NAME" > /sys/bus/cxl/drivers/cxl_region/bind 2>/dev/null || true
+  sleep 1
+fi
+[ -e /sys/bus/dax/devices/dax0.0 ] || { echo "[region] FAIL: dax0.0 not registered"; exit 1; }
+echo "[region] dax0.0 present: size=$(cat /sys/bus/dax/devices/dax0.0/size) target_node=$(cat /sys/bus/dax/devices/dax0.0/target_node)"
+echo "[region] DONE"

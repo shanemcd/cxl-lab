@@ -1,0 +1,423 @@
+---
+# install_config (v2, plan §6): SNO install-config + bootstrap-in-place.
+# The BiP ignition runs the full bootstrap in a live environment, then
+# coreos-installer (-n: NM connections carry over) writes the installed
+# master and reboots. Per-node ignition (fw_cfg delivery, no HTTP server):
+# the master's merged BiP ignition and the workers' merged MCS-stub
+# ignition, each carrying a static-IP NM keyfile, /etc/hosts and hostname.
+# Shared name resolution + the SNO master hostname persist onto the
+# installed master via install-time MachineConfigs rendered by the
+# bootstrap MCS. Secrets stay path-only; ignition is generated at most once
+# per fresh window: complete + fresh => reuse; stale or partial => fail
+# with teardown guidance.
+
+- name: Stat the pull secret
+  ansible.builtin.stat:
+    path: "{{ pull_secret_path }}"
+  register: install_config_pull_secret_stat
+
+- name: Assert the pull secret exists
+  ansible.builtin.assert:
+    that:
+      - install_config_pull_secret_stat.stat.exists
+    fail_msg: >-
+      Pull secret missing at {{ pull_secret_path }} — provide a valid OpenShift
+      pull secret file (mode 0600) and re-run (runbook §0 prerequisites).
+
+- name: Validate pull secret JSON without exposing contents
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "-c"
+      - >-
+        import json, sys;
+        json.load(open(sys.argv[1]));
+        print('pull secret JSON: valid')
+      - "{{ pull_secret_path }}"
+  register: install_config_pull_secret_json
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Assert the pull secret is valid JSON
+  ansible.builtin.assert:
+    that:
+      - install_config_pull_secret_json.rc == 0
+    fail_msg: >-
+      Pull secret at {{ pull_secret_path }} is not valid JSON — replace it with a
+      valid OpenShift pull secret and re-run.
+
+- name: Ensure the install directory
+  ansible.builtin.file:
+    path: "{{ install_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Ensure the install ssh key directory
+  ansible.builtin.file:
+    path: "{{ install_ssh_key_path | dirname }}"
+    state: directory
+    mode: "0700"
+
+- name: Ensure the VM ignition staging directory
+  ansible.builtin.file:
+    path: "{{ vm_ignition_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Ensure the VM scripts directory
+  ansible.builtin.file:
+    path: "{{ vm_scripts_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate the core user ssh keypair for the install config
+  community.crypto.openssh_keypair:
+    path: "{{ install_ssh_key_path }}"
+    type: ed25519
+    mode: "0600"
+
+- name: Stat existing ignition artifacts
+  ansible.builtin.stat:
+    path: "{{ install_dir }}/{{ item }}"
+  loop:
+    - "{{ install_config_metadata_name }}"
+    - "{{ install_config_bip_name }}"
+    - "{{ install_config_worker_name }}"
+  register: install_config_existing
+
+- name: Set ignition generation state facts
+  ansible.builtin.set_fact:
+    install_config_ignition_complete: >-
+      {{ install_config_existing.results
+         | map(attribute='stat.exists')
+         | select('equalto', false) | list | length == 0 }}
+    install_config_bip_mtime: >-
+      {{ (install_config_existing.results
+          | selectattr('item', 'equalto', install_config_bip_name)
+          | map(attribute='stat.mtime') | list | first) | default(0) | int }}
+
+- name: Set ignition age fact
+  ansible.builtin.set_fact:
+    install_config_ignition_age_hours: >-
+      {{ ((ansible_date_time.epoch | int - install_config_bip_mtime)
+          / 3600) | round(1) }}
+
+- name: Assert existing ignition is inside the fresh window
+  ansible.builtin.assert:
+    that:
+      - install_config_ignition_age_hours | float <= ignition_fresh_window_hours | int
+    fail_msg: >-
+      Ignition under {{ install_dir }} is {{ install_config_ignition_age_hours }}h
+      old — beyond the {{ ignition_fresh_window_hours }}h MCS certificate window.
+      Run the teardown playbook, then re-run to generate fresh ignition
+      (plan §4 gate 6).
+  when: install_config_ignition_complete | bool
+
+- name: Guard against partial or consumed install state
+  ansible.builtin.assert:
+    that:
+      - >-
+        install_config_existing.results
+        | map(attribute='stat.exists') | select('equalto', true)
+        | list | length == 0
+    fail_msg: >-
+      Partial or consumed install artifacts under {{ install_dir }} — run the
+      teardown playbook first (fresh-dir guard, plan §13 P6).
+  when: not install_config_ignition_complete | bool
+
+- name: Generate manifests and the BiP ignition
+  when: not install_config_ignition_complete | bool
+  block:
+
+    - name: Render the install config
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ install_dir }}/{{ install_config_name }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Keep the pristine install config copy
+      ansible.builtin.copy:
+        src: "{{ install_dir }}/{{ install_config_name }}"
+        dest: "{{ install_dir }}/{{ install_config_pristine_name }}"
+        remote_src: true
+        mode: "0600"
+      no_log: true
+
+    - name: Create manifests
+      ansible.builtin.command:
+        argv:
+          - "{{ install_bin_dir }}/openshift-install"
+          - create
+          - manifests
+          - "--dir"
+          - "{{ install_dir }}"
+      changed_when: true
+
+    - name: Set lab hosts-block base64 facts for the node MachineConfigs
+      ansible.builtin.set_fact:
+        install_config_mc_hosts_b64: "{{ network_hosts_block | join('\n') | b64encode }}"
+
+    - name: Set SNO master hostname base64 fact
+      ansible.builtin.set_fact:
+        install_config_mc_hostname_b64: "{{ (masters[0].name ~ '\n') | b64encode }}"
+
+    - name: Ensure the custom manifests directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}/openshift"
+        state: directory
+        mode: "0700"
+
+    - name: Render the master node MachineConfig
+      # SNO has exactly one master, so the role-scoped MC is node-scoped:
+      # it persists /etc/hosts AND the master hostname onto the installed
+      # master via the bootstrap MCS (coreos-installer -n copies only NM
+      # connections). Workers get /etc/hosts from the worker-role MC and
+      # per-node hostname/NM from their merged ignition.
+      ansible.builtin.template:
+        src: lab-node-machineconfig.yaml.j2
+        dest: "{{ install_dir }}/openshift/{{ install_config_hosts_mc_name_prefix }}-master.yaml"
+        mode: "0600"
+      vars:
+        mc_role: "master"
+        mc_hosts_b64: "{{ install_config_mc_hosts_b64 }}"
+        mc_hostname_b64: "{{ install_config_mc_hostname_b64 }}"
+
+    - name: Render the worker node MachineConfig
+      ansible.builtin.template:
+        src: lab-node-machineconfig.yaml.j2
+        dest: "{{ install_dir }}/openshift/{{ install_config_hosts_mc_name_prefix }}-worker.yaml"
+        mode: "0600"
+      vars:
+        mc_role: "worker"
+        mc_hosts_b64: "{{ install_config_mc_hosts_b64 }}"
+
+    - name: Create the single-node (bootstrap-in-place) ignition config
+      ansible.builtin.command:
+        argv:
+          - "{{ install_bin_dir }}/openshift-install"
+          - create
+          - single-node-ignition-config
+          - "--dir"
+          - "{{ install_dir }}"
+      changed_when: true
+
+    - name: Set ignition artifact permissions
+      ansible.builtin.file:
+        path: "{{ install_dir }}/{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ install_config_bip_name }}"
+        - "{{ install_config_worker_name }}"
+
+    - name: Harden the auth directory permissions
+      ansible.builtin.file:
+        path: "{{ install_dir }}/{{ install_config_auth_dir_name }}"
+        state: directory
+        mode: "0700"
+
+    - name: Harden auth file permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ install_dir }}/{{ install_config_kubeconfig_name }}"
+        - "{{ install_dir }}/{{ install_config_kubeadmin_password_name }}"
+
+- name: Read the install metadata
+  ansible.builtin.slurp:
+    src: "{{ install_dir }}/{{ install_config_metadata_name }}"
+  register: install_config_metadata_raw
+
+- name: Set install metadata fact
+  ansible.builtin.set_fact:
+    install_config_metadata: "{{ install_config_metadata_raw.content | b64decode | from_json }}"
+
+- name: Stage the shared hosts snippet for per-node merges
+  ansible.builtin.copy:
+    content: "{{ network_hosts_block | join('\n') }}"
+    dest: "{{ install_config_hosts_snippet_path }}"
+    mode: "0644"
+
+- name: Render the per-node ignition merge script
+  ansible.builtin.template:
+    src: ignition-node-merge.py.j2
+    dest: "{{ install_config_merge_script_path }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Set the node list for per-node ignition assembly
+  ansible.builtin.set_fact:
+    install_config_nodes: >-
+      {{ [{'name': masters[0].name, 'ip_suffix': masters[0].ip_suffix,
+           'mac_suffix': masters[0].mac_suffix,
+           'base': install_config_bip_name}]
+         + (cxl_workers + dram_workers)
+         | map('combine', {'base': install_config_worker_name}) | list }}
+
+- name: Assemble per-node ignition configs
+  # Master: merged BiP ignition (live-env network + hostname). Workers:
+  # merged MCS-stub ignition. Each carries the NM keyfile (static IP,
+  # MAC-bound, lab resolver), /etc/hosts and /etc/hostname for first boot.
+  # The merge is content-aware: the script only rewrites an output whose
+  # content would change, so re-runs are idempotent and edits to the
+  # inputs (resolver, keyfile, taxonomy) propagate automatically.
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ install_config_merge_script_path }}"
+      - "{{ install_dir }}/{{ item.base }}"
+      - "{{ vm_ignition_dir }}/{{ item.name }}.ign"
+      - "{{ item.name }}"
+      - "{{ lab_subnet_prefix }}.{{ item.ip_suffix }}"
+      - "{{ install_config_node_prefix_len }}"
+      - "{{ lab_gateway_ip }}"
+      - "{{ mac_base }}:{{ item.mac_suffix }}"
+      - "{{ lab_gateway_ip }}"
+      - "{{ install_config_hosts_snippet_path }}"
+  loop: "{{ install_config_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: install_config_node_merge
+  changed_when: "'MERGED' in install_config_node_merge.stdout"
+
+- name: Set per-node ignition permissions
+  ansible.builtin.file:
+    path: "{{ vm_ignition_dir }}/{{ item.name }}.ign"
+    mode: "0600"
+  loop: "{{ install_config_nodes }}"
+
+- name: Stat the generated ignition artifacts
+  ansible.builtin.stat:
+    path: "{{ install_dir }}/{{ item }}"
+  loop:
+    - "{{ install_config_bip_name }}"
+    - "{{ install_config_worker_name }}"
+  register: install_config_generated
+
+- name: Stat the per-node ignition artifacts
+  ansible.builtin.stat:
+    path: "{{ vm_ignition_dir }}/{{ item.name }}.ign"
+  loop: "{{ install_config_nodes }}"
+  register: install_config_node_stat
+
+- name: Read the BiP ignition for content verification
+  ansible.builtin.slurp:
+    src: "{{ install_dir }}/{{ install_config_bip_name }}"
+  register: install_config_bip_raw
+
+- name: Read the worker stub ignition for content verification
+  ansible.builtin.slurp:
+    src: "{{ install_dir }}/{{ install_config_worker_name }}"
+  register: install_config_worker_raw
+
+- name: Read the merged master ignition for content verification
+  ansible.builtin.slurp:
+    src: "{{ vm_ignition_dir }}/{{ masters[0].name }}.ign"
+  register: install_config_master_merged_raw
+
+- name: Assert ignition generation and content
+  ansible.builtin.assert:
+    that:
+      # installer outputs present at 0600
+      - >-
+        install_config_generated.results
+        | map(attribute='stat.exists') | select('equalto', true) | list | length == 2
+      - >-
+        install_config_generated.results
+        | map(attribute='stat.mode') | select('equalto', '0600') | list | length == 2
+      # per-node staged ignition present at 0600
+      - >-
+        install_config_node_stat.results
+        | map(attribute='stat.exists') | select('equalto', true) | list | length
+        == install_config_nodes | length
+      - >-
+        install_config_node_stat.results
+        | map(attribute='stat.mode') | select('equalto', '0600') | list | length
+        == install_config_nodes | length
+      - install_config_metadata.infraID is search('^' ~ cluster_name)
+      - install_config_pull_secret_stat.stat.mode == '0600'
+      # BiP shape: install-to-disk unit + our custom node MCs embedded
+      - "'install-to-disk.service' in (install_config_bip_raw.content | b64decode)"
+      - >-
+        (install_config_hosts_mc_name_prefix ~ '-master.yaml')
+        in (install_config_bip_raw.content | b64decode)
+      # worker stub points at the MCS served by the master
+      - >-
+        (install_config_worker_raw.content | b64decode)
+        is search('api-int\.' ~ lab_domain)
+      # merged master ignition carries the per-node plumbing
+      - "'/etc/hostname' in (install_config_master_merged_raw.content | b64decode)"
+      - >-
+        (install_config_nm_connection_file)
+        in (install_config_master_merged_raw.content | b64decode)
+      # the lab resolver must be the NM keyfile's DNS (fetch-time name
+      # resolution depends on it — plan §10.8)
+      - >-
+        ('dns=' ~ lab_gateway_ip)
+        in (install_config_master_merged_raw.content | b64decode | from_json).storage.files
+           | selectattr('path', 'equalto',
+                        '/etc/NetworkManager/system-connections/'
+                        ~ install_config_nm_connection_file)
+           | map(attribute='contents.source') | first
+           | regex_replace('^.*,') | b64decode
+      - >-
+        (install_config_master_merged_raw.content | b64decode | from_json).storage.files
+        | selectattr('path', 'equalto', '/etc/hostname')
+        | map(attribute='contents.source') | first
+        | regex_replace('^.*,') | b64decode == masters[0].name ~ '\n'
+    fail_msg: >-
+      Ignition generation verification failed — stats
+      {{ install_config_generated.results | map(attribute='stat.exists') | list }},
+      node stats {{ install_config_node_stat.results
+      | map(attribute='stat.exists') | list }}, metadata
+      {{ install_config_metadata | default({}) }}.
+
+- name: Stat generated credentials
+  ansible.builtin.stat:
+    path: "{{ install_dir }}/{{ item }}"
+  loop:
+    - "{{ install_config_kubeconfig_name }}"
+    - "{{ install_config_kubeadmin_password_name }}"
+    - "{{ install_config_pristine_name }}"
+  register: install_config_credentials
+
+- name: Assert credentials exist with mode 0600
+  ansible.builtin.assert:
+    that:
+      - >-
+        install_config_credentials.results
+        | map(attribute='stat.exists') | select('equalto', true) | list | length == 3
+      - >-
+        install_config_credentials.results
+        | map(attribute='stat.mode') | select('equalto', '0600') | list | length == 3
+    fail_msg: >-
+      Missing or wrong-mode credentials under {{ install_dir }} — expected
+      kubeconfig, kubeadmin-password, and the pristine install config at 0600.
+
+- name: Stat the current BiP ignition for the generation stamp
+  ansible.builtin.stat:
+    path: "{{ install_dir }}/{{ install_config_bip_name }}"
+  register: install_config_bip_stat_now
+
+- name: Write the ignition generation stamp
+  ansible.builtin.copy:
+    content: >-
+      {{ '%Y-%m-%dT%H:%M:%SZ'
+         | strftime(second=install_config_bip_stat_now.stat.mtime | int, utc=true) }}
+    dest: "{{ install_dir }}/{{ install_config_stamp_name }}"
+    mode: "0600"
+
+- name: Install config summary
+  ansible.builtin.debug:
+    msg: >-
+      ignition OK (BiP) — infraID {{ install_config_metadata.infraID }}, age
+      {{ install_config_ignition_age_hours }}h (window
+      {{ ignition_fresh_window_hours }}h), generated this run:
+      {{ not install_config_ignition_complete | bool }};
+      master ignition = merged BiP (install-to-disk →
+      {{ bip_installation_disk }}), workers = merged MCS stubs;
+      {{ install_config_nodes | length }} per-node ignition files staged at
+      0600 in {{ vm_ignition_dir }} for fw_cfg delivery.

@@ -1,0 +1,3 @@
+---
+# ops_status role-scoped knobs. The summary reads only live state — all names,
+# paths, and timeouts come from the taxonomy.

@@ -1,0 +1,41 @@
+# Managed by cxl_lab.lab.region_commit — do not edit (runbook §9).
+# Ships the proven sysfs region-commit script plus a oneshot service. The
+# script self-recovers from the stale DVSEC MEM_ENABLE state left by the
+# kernel across QEMU-preserved warm reboots (clear bit 2 via setpci + rebind
+# cxl_pci), so the service succeeds directly on MCO reboots; the host-side
+# cold-restart path remains as a fallback.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: {{ region_commit_mc_name }}
+  labels:
+    machineconfiguration.openshift.io/role: {{ mco_cxl_role_label }}
+spec:
+  config:
+    ignition:
+      version: {{ region_commit_ignition_version }}
+    storage:
+      files:
+        - path: {{ region_commit_script_guest_path }}
+          mode: 493
+          user:
+            name: root
+          group:
+            name: root
+          contents:
+            source: "data:text/plain;base64,{{ region_commit_script_b64 }}"
+    systemd:
+      units:
+        - name: {{ region_commit_service_name }}
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Commit the QEMU-emulated CXL region (test-only lab)
+            After=multi-user.target
+            [Service]
+            Type=oneshot
+            ExecStart={{ region_commit_script_guest_path }}
+            TimeoutStartSec={{ region_commit_service_timeout_seconds }}
+            RemainAfterExit=yes
+            [Install]
+            WantedBy=multi-user.target

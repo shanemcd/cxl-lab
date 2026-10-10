@@ -1,0 +1,74 @@
+---
+# Lab network (plan §5). lab_subnet_prefix is the source of truth; every address
+# derives as {{ lab_subnet_prefix }}.{{ <x>_suffix }} and never restates the prefix.
+# No HAProxy, no VIPs: the SNO master serves the API and (pinned)
+# ingress itself. Lab resolver = host-native dnsmasq on the gateway (plan
+# §10.8/P6 verdict: ignition merge-fetch ordering makes a resolver
+# load-bearing for worker stubs); guests resolve internet names through it.
+lab_subnet_prefix: "192.168.124"
+lab_subnet_netmask: "255.255.255.0"
+lab_subnet_cidr: "{{ lab_subnet_prefix }}.0/24"
+cluster_name: "cxl"
+base_domain: "ocp.lab"
+lab_domain: "{{ cluster_name }}.{{ base_domain }}"
+
+# The lab bridge is ours (iproute2, persistent — VM taps enslave to it in
+# P6). Egress NAT = a single reversible masquerade rule tagged 'cxl-lab-nat'
+# (plan §10 decision 3 fallback, made primary by the P4 verdict: netavark's
+# bridge + NAT are container-attachment-scoped and cannot serve VM-only
+# attachment — see plan §5). Kernel ifnames cap at 15 chars.
+lab_bridge_name: "ocpcxlbr0"
+
+host_gateway_suffix: 1
+
+# Egress probe (veth+netns tap emulation) address suffix — must not collide
+# with the gateway or any node suffix (the role asserts this).
+network_probe_suffix: 250
+
+# Convenience derivations (single source of truth = the suffixes above).
+lab_gateway_ip: "{{ lab_subnet_prefix }}.{{ host_gateway_suffix }}"
+master_ip: "{{ lab_subnet_prefix }}.{{ masters[0].ip_suffix }}"
+
+# Web console (ingress on the master; runbook §6 access docs).
+console_url: "https://console-openshift-console.apps.{{ lab_domain }}"
+
+# Upstream resolvers: used by guest NM keyfiles for internet names (the same
+# servers v1's dnsmasq forwarded to).
+upstream_dns_servers:
+  - "10.2.32.85"
+  - "10.11.5.160"
+
+# Cluster-internal SDN (runbook §3 install-config networking block).
+cluster_network_type: "OVNKubernetes"
+cluster_network_cidr: "10.128.0.0/14"
+cluster_network_host_prefix: 23
+service_network_cidr: "172.30.0.0/16"
+
+# Lab registry (the one remaining service container; runbook §7).
+registry_port: 5000
+# Node-facing registry host (gateway-bound; runbook §7).
+registry_host: "{{ lab_gateway_ip }}:{{ registry_port }}"
+registry_container_name: "ocp-cxl-registry"
+
+# Reversible host-network changes (shared by network + teardown — role
+# defaults never cross roles). Teardown reverses exactly these. The bridge
+# carries only the gateway address (no DNS/VIP addresses in v2).
+network_sysctl_conf_name: "99-cxl-lab.conf"
+# Lab resolver config (host-native dnsmasq; teardown removes it).
+network_nat_rule_comment: "cxl-lab-nat"
+network_dnsmasq_conf_name: "99-cxl-lab.conf"
+network_dnsmasq_conf_path: "/etc/dnsmasq.d/{{ network_dnsmasq_conf_name }}"
+network_dnsmasq_service: "dnsmasq"
+
+# DHCP free-range suffixes (reservations pin the nodes; unknown clients
+# only get addresses from this narrow, collision-asserted segment).
+network_dhcp_range_start_suffix: 200
+network_dhcp_range_end_suffix: 209
+network_bridge_addresses:
+  - "{{ lab_subnet_prefix }}.{{ host_gateway_suffix }}/24"
+# api/api-int and the pinned ingress names all live on the SNO master (plan
+# §5/§10 decision 5).
+network_hosts_block:
+  - "{{ master_ip }} api.{{ lab_domain }} api-int.{{ lab_domain }}"
+  - "{{ master_ip }} console-openshift-console.apps.{{ lab_domain }} oauth-openshift.apps.{{ lab_domain }}"
+  - "{{ master_ip }} canary-openshift-ingress-canary.apps.{{ lab_domain }}"

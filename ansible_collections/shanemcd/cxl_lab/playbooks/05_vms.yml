@@ -1,0 +1,7 @@
+---
+- name: VM overlays, run scripts, and host QEMU fleet
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.vms

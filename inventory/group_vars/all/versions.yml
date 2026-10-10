@@ -1,0 +1,113 @@
+---
+# Versions, sources, and image tags (plan §5 taxonomy — the ONLY sanctioned home for
+# these literals). Empty SHA/ref fields are pinned by the roles after the first
+# verified query/download; roles must refuse to proceed on empty required pins.
+ocp_version: "4.22.16"
+# TechPreviewNoUpgrade is REQUIRED for osImageStream (rhel-10) — the installer
+# gates it behind a non-default feature set (runbook §3).
+install_feature_set: "TechPreviewNoUpgrade"
+openshift_client_base_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp"
+openshift_install_tarball_name: "openshift-install-linux-{{ ocp_version }}.tar.gz"
+openshift_client_tarball_name: "openshift-client-linux-{{ ocp_version }}.tar.gz"
+openshift_mirror_sha256sum_name: "sha256sum.txt"
+# Pinned from the mirror's sha256sum.txt (cross-checked by the artifacts role).
+openshift_install_sha256: "6f26860ba4ebaaf346ce7711be166105205e9edfff9993d9f15834c54a2e0fe5"
+oc_sha256: "fcbf48c72307f761021d0507dd9a0a120b8fd46895b2cd254d7cb8f8a28115b2"
+
+# Release payload machine-os-content (plan §6.1): the parent ref the layered
+# image builds FROM. Discovered pre-cluster: `openshift-install version` →
+# release payload ref → `oc adm release info <release> --pullspecs` → the
+# rhel-coreos-10 component pull spec (NOT print-stream-json — its container
+# refs are kubevirt disk wrappers, not bootc-layerable). P3 spike 2026-10-10:
+# discovered digest == the v1 live-node base deployment (bootc status) —
+# cross-validated; the artifacts role asserts discovery == this pin.
+machine_os_content_ref: >-
+  quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cafe8edfbbe864e17e730515a93dc805759e22b884361904f5ac81df3a7f16fc
+# Payload component carrying the rhel-10 RHCOS bootc base (from
+# github.com/openshift/os; rhel-coreos is the rhel-9 sibling).
+machine_os_kernel_component: "rhel-coreos-10"
+
+# Kernel SRPM source (plan §6.2): "cdn" = entitled CDN download inside the
+# CS10 builder (P3 spike 2026-10-10: works — CS10 + --security-opt
+# label=disable + ro entitlement mounts + rendered repo file); "brew" = the
+# v1-proven internal fallback. NOTE: the exact osimage NVR (211.57.1.el10_2,
+# read from rhel-coreos-10) is NOT carried by the CDN source repo (RHCOS-only
+# build; the repo carries 211.7.1-211.64.1), so the pinned point below is the
+# CDN-carried 211.64.1 — the same newer point v1 validated over the 211.57.1
+# base — and the artifacts role asserts the osimage NVR shares this stream
+# prefix (kernel-6.12.0-211.*) to catch release drift.
+kernel_srpm_source: "cdn"
+kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
+kernel_srpm_base_url: "http://download.devel.redhat.com/brewroot/packages/kernel/6.12.0/211.64.1.el10_2/src"
+# CDN artifact sha256 (P3 spike: 159878375 bytes; the brew sibling differs by
+# packaging — signed GA vs internal build — hence per-source pins).
+kernel_srpm_sha256_cdn: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
+# Brew artifact sha256 (159856791 bytes; differs from the CDN artifact — plan
+# §14 Q5).
+kernel_srpm_sha256_brew: "6c464cd591bfaddaa98309b78ec9d18884a1ab436db3ecd1525ded20078aabed"
+# Entitled CDN source repo (repo id for the rendered repo file; RHEL minor is
+# derived from the NVR's el10_2 suffix so a release bump re-points it).
+kernel_srpm_cdn_repo_id: "rhel-10-baseos-source"
+kernel_srpm_rhel_release: "{{ kernel_srpm_nvr | regex_replace('^.*\\.el(\\d+)_(\\d+)$', '\\1.\\2') }}"
+kernel_srpm_cdn_repo_baseurl: >-
+  https://cdn.redhat.com/content/dist/rhel10/{{ kernel_srpm_rhel_release }}/x86_64/baseos/source/SRPMS
+kernel_rpm_buildid: "cxltest"
+kernel_rpm_release: >-
+  {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
+     | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
+kernel_config_overrides:
+  CONFIG_CXL_REGION_INVALIDATION_TEST: "y"
+kernel_builder_image: "quay.io/centos/centos:stream10"
+
+# Stock upstream QEMU (plan §4): release tarball, SHA-pinned, NO patch (the
+# v1 DVSEC patch was proven a no-op). Built in a CS10 builder container
+# (glibc-matched to the RHEL 10 host so the binary runs on the host) and
+# installed to qemu_install_prefix.
+qemu_version: "11.1.2"
+qemu_source_url: "https://download.qemu.org/qemu-{{ qemu_version }}.tar.xz"
+# Pinned from download.qemu.org (no published checksum file; TOFU-verified).
+qemu_source_sha256: "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
+# CS10 builder base (same family as the kernel builder; digest-pinned P3
+# spike 2026-10-10).
+qemu_builder_base_image: >-
+  quay.io/centos/centos:stream10@sha256:e664412637fcadb7d9eef7da6cc48c29cd69fb977d27c871ec3c54d95c91ace9
+qemu_builder_container_name: "cxl-lab-qemu-builder"
+
+# RHCOS for the lab OS stream (osImageStream rhel-10; the installer default
+# stream is rhel-9 and NOT what this lab boots). The artifacts role reads the
+# installer-declared stream metadata via `coreos print-stream-json --stream`.
+rhcos_stream_name: "rhel-10"
+rhcos_qemu_format_key: "qcow2.gz"
+# Stream-json format key for the metal live ISO (the master's boot media).
+rhcos_iso_format_key: "iso"
+# Compressed artifact sha256 (stream-declared + pinned).
+rhcos_image_sha256: "9a5c8fe0894db56165a335ef1423bd2b2fde8e6f122c5e2339c6c86b98df6ebd"
+# Uncompressed qcow2 sha256 (verified after gunzip in the vms phase).
+rhcos_image_uncompressed_sha256: "97dacea542ccc1ff5c0f3503fc98c6dd784a37f71e6bd769cbfb419c97ffb4f6"
+# Pinned artifact filename (stream-declared; the SHAs above bind the content).
+rhcos_qemu_image_name: "rhcos-10.2.20260715-0-qemu.x86_64.qcow2.gz"
+
+# Live ISO (the SNO master's boot media — BiP boot model, plan §6):
+# stream-declared sha256 + pinned filename, same TOFU pattern as the qemu
+# image. The master boots it read-only with a blank virtio install target.
+rhcos_iso_image_name: "rhcos-10.2.20260715-0-live-iso.x86_64.iso"
+rhcos_iso_sha256: "7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462"
+
+kernel_builder_container_name: "cxl-lab-kernel-builder"
+
+# Layered bootc OS image (plan §6.1): built FROM the pinned machine-os-content
+# ref with the cxltest kernel RPMs; pushed to the lab registry, referenced by
+# the osImageURL MachineConfig, and (pre-baked mode) rendered to bootable
+# qcow2s by bootc-image-builder for the CXL workers.
+layered_image_name: "ocp-cxl-worker-os"
+# Derives from the SRPM NVR point (211.64.1) — no separate pin to drift.
+layered_image_tag: "cxltest-{{ kernel_srpm_nvr | regex_replace('^kernel-[0-9.]+-(.*)\\.el.*$', '\\1') }}"
+layered_image_local_ref: "localhost/{{ layered_image_name }}:{{ layered_image_tag }}"
+layered_image_registry_ref: "{{ registry_host }}/{{ layered_image_name }}:{{ layered_image_tag }}"
+
+# bootc-image-builder (plan §6.1 pre-baked node images; digest-pinned at the
+# P3 spike 2026-10-10).
+bootc_image_builder_image: >-
+  quay.io/centos-bootc/bootc-image-builder@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b
+
+registry_image: "docker.io/library/registry:2"

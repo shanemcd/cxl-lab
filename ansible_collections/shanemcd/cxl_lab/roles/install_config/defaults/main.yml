@@ -1,0 +1,39 @@
+---
+# install_config role-scoped knobs; cluster shape/networking/secrets come from
+# the group_vars taxonomy. Installer-fixed output names and the BiP plumbing
+# live here.
+install_config_metadata_name: "metadata.json"
+install_config_name: "install-config.yaml"
+install_config_pristine_name: "install-config.yaml.pristine"
+# Installer-fixed BiP output (bootstrap-in-place ignition for a live-ISO
+# boot; the full bootstrap runs in the live environment, then
+# coreos-installer writes the installed master and reboots).
+install_config_bip_name: "bootstrap-in-place-for-live-iso.ign"
+# Worker ignition stub (MCS pointer) — installer-fixed output.
+install_config_worker_name: "{{ ignition_worker_name }}"
+install_config_auth_dir_name: "auth"
+install_config_kubeconfig_name: "auth/kubeconfig"
+install_config_kubeadmin_password_name: "auth/kubeadmin-password"
+install_config_stamp_name: "ignition-generated-stamp"
+
+# NM connection rendered into every node ignition merge: static address,
+# MAC-bound (one NIC per VM), upstream resolvers for internet names.
+install_config_nm_connection_id: "lab"
+install_config_nm_connection_file: "lab.nmconnection"
+
+# Install-time custom manifests (plan §5 name resolution without DNS
+# infrastructure): the bootstrap MCS renders them into the master
+# ignition, so /etc/hosts + the SNO master hostname persist onto the
+# installed master (coreos-installer -n only copies NM connections).
+install_config_hosts_mc_name_prefix: "99-cxl-lab-node"
+
+# Per-node ignition assembly helpers (staged in the lab scripts dir).
+install_config_merge_script_path: "{{ vm_scripts_dir }}/ignition-node-merge.py"
+install_config_hosts_snippet_path: "{{ vm_scripts_dir }}/node-hosts-block"
+# Guest prefix length for the per-node NM keyfiles (derived from the lab
+# subnet CIDR — single source of truth in the network taxonomy).
+install_config_node_prefix_len: "{{ lab_subnet_cidr | regex_replace('^.*/', '') }}"
+
+# Ignition spec version used by the node MachineConfigs (must match the
+# installer-generated configs' version).
+install_config_mc_ignition_version: "3.2.0"

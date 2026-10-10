@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Managed by cxl_lab.lab.vms — do not edit.
+{% if node.kind == 'worker-cxl' %}
+# CXL worker {{ node.name }}: full emulated Type-3 graph (runbook §4 proven
+# shape) — SRAT via -numa (node 0 cpus+ram0, EMPTY node 1 as the CPU-less CXL
+# target; without these kmem lands on node 0), pxb-cxl on bus
+# {{ node.cxl_bus_nr }} -> cxl-rp -> cxl-type3 volatile memdev, fixed window
+# cxl-fmw.0 ({{ node.vmem_size }} @ granularity {{ vmem_interleave_granularity }}).
+# Host-node binding is intentionally absent (plan §7/§10.7: first-touch
+# placement, no host NUMA handling in v2).
+{% elif node.kind == 'master' %}
+# SNO master {{ node.name }}: BiP boot model (plan §6) — boots the RHCOS live
+# ISO read-only with a blank virtio install target at bootindex
+# {{ vms_disk_bootindex }} (the installed disk wins after install-to-disk;
+# the firmware falls through to the ISO while the target is blank). The
+# merged BiP ignition (fw_cfg) drives the live-env bootstrap and
+# install-to-disk.service.
+{% else %}
+# Worker {{ node.name }} ({{ node.kind }}): stream qcow2 overlay + per-node
+# merged worker ignition (fw_cfg); joins via the MCS stub once the master's
+# Machine Config Server answers.
+{% endif %}
+# --validate replays the command line paused (-S) under timeout(1): exit
+# 124 = the command line parsed and the process stayed alive. --stop is the
+# force fallback for a wedged guest (SIGTERM then SIGKILL to the pidfile
+# pid — pidfiles, never pkill by pattern).
+set -euo pipefail
+
+NODE="{{ node.name }}"
+# Linux ifnames cap at 15 chars (IFNAMSIZ); vm_tap_prefix keeps every
+# t-<node> name legal — the vms role asserts it.
+TAP="{{ vm_tap_prefix }}${NODE}"
+PIDFILE="{{ vm_run_dir }}/${NODE}.pid"
+QEMU_BIN="{{ qemu_binary_path }}"
+
+if [ "${1:-}" = "--status" ]; then
+  if [ -s "${PIDFILE}" ] && kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
+    echo "${NODE}: running, pid $(cat "${PIDFILE}")"
+    exit 0
+  fi
+  echo "${NODE}: not running"
+  exit 3
+fi
+
+if [ "${1:-}" = "--stop" ]; then
+  if [ -s "${PIDFILE}" ] && kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
+    pid=$(cat "${PIDFILE}")
+    echo "${NODE}: SIGTERM ${pid}"
+    kill -TERM "${pid}"
+    for _ in $(seq 1 {{ vm_stop_wait_seconds }}); do
+      kill -0 "${pid}" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "${pid}" 2>/dev/null; then
+      echo "${NODE}: SIGTERM ignored; SIGKILL ${pid}"
+      kill -KILL "${pid}" 2>/dev/null || true
+      sleep 2
+    fi
+    rm -f "${PIDFILE}"
+    echo "${NODE}: stopped"
+    exit 0
+  fi
+  echo "${NODE}: not running"
+  exit 3
+fi
+
+if [ -s "${PIDFILE}" ] && kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
+  echo "${NODE}: already running, pid $(cat "${PIDFILE}")"
+  if [ "${1:-}" = "--validate" ]; then
+    exit 124
+  fi
+  exit 0
+fi
+
+ip tuntap del mode tap dev "${TAP}" 2>/dev/null || true
+ip tuntap add mode tap dev "${TAP}"
+ip link set "${TAP}" master {{ lab_bridge_name }} up
+
+ARGS=(
+  -name "${NODE}"
+  -enable-kvm -cpu host
+{% if node.kind == 'worker-cxl' %}
+  -machine q35,cxl=on,cxl-fmw.0.targets.0={{ vms_cxl_pxb_id }},cxl-fmw.0.size={{ node.vmem_size }},cxl-fmw.0.interleave-granularity={{ vmem_interleave_granularity }}
+  -m {{ node.ram }} -smp {{ node.vcpu }}
+  -numa node,nodeid=0,cpus=0-{{ node.vcpu - 1 }},memdev=ram0
+  -numa node,nodeid=1
+  -object memory-backend-ram,id=ram0,size={{ node.ram }}
+  -object memory-backend-ram,id=vmem0,share=on,size={{ node.vmem_size }}
+  -device pxb-cxl,bus=pcie.0,id={{ vms_cxl_pxb_id }},bus_nr={{ node.cxl_bus_nr }},numa_node=1
+  -device cxl-rp,id=rp0,bus={{ vms_cxl_pxb_id }}
+  -device cxl-type3,bus=rp0,volatile-memdev=vmem0,id=cxl-vmem0
+{% else %}
+  -machine q35
+  -m {{ node.ram }} -smp {{ node.vcpu }}
+{% endif %}
+  -drive file={{ vm_images_dir }}/${NODE}.qcow2,if=none,id=disk,format=qcow2
+  -device virtio-blk-pci,drive=disk,bus=pcie.0{% if node.kind == 'master' %},bootindex={{ vms_disk_bootindex }}{% endif %}
+{% if node.kind == 'master' %}
+  -drive file={{ vm_images_dir }}/{{ vms_master_iso_name }},media=cdrom,format=raw,readonly=on
+{% endif %}
+  -netdev tap,id=n0,ifname="${TAP}",script=no,downscript=no
+  -device virtio-net-pci,netdev=n0,bus=pcie.0,mac={{ mac_base }}:{{ node.mac_suffix }}
+  -fw_cfg name=opt/com.coreos/config,file={{ vm_ignition_dir }}/${NODE}.ign
+  -display none
+  -serial file:{{ vm_logs_dir }}/${NODE}.serial.log
+  -monitor unix:{{ vm_run_dir }}/${NODE}.monitor.sock,server,nowait
+)
+
+if [ "${1:-}" = "--validate" ]; then
+  exec timeout {{ vms_validate_timeout }} "${QEMU_BIN}" "${ARGS[@]}" -S
+fi
+
+"${QEMU_BIN}" "${ARGS[@]}" -pidfile "${PIDFILE}" -daemonize \
+  2>> {{ vm_logs_dir }}/${NODE}.qemu-stderr.log
+echo "${NODE}: started, pid $(cat "${PIDFILE}")"

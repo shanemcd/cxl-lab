@@ -1,0 +1,30 @@
+---
+# layered_image role-scoped knobs; image name/tag/refs live in the versions
+# taxonomy and the build dir in the paths taxonomy.
+# The five boot-relevant cxltest kernel packages baked into the image
+# (runbook §7; the artifacts role built and SHA256SUMS-verified them).
+# kernel-modules-core is REQUIRED — it provides kernel-modules-core-uname-r
+# that kernel/kernel-core/kernel-modules* depsolve against (kernel-devel is
+# headers-only and not needed at runtime).
+layered_image_kernel_pkgs:
+  - kernel
+  - kernel-core
+  - kernel-modules
+  - kernel-modules-core
+  - kernel-modules-extra
+layered_image_sha256sums_name: "SHA256SUMS"
+
+# Throwaway lint runner + polling.
+layered_image_lint_container: "cxl-lab-bootc-lint"
+layered_image_lint_wait_retries: 60
+layered_image_lint_wait_delay: 5
+
+# Full OCI Accept set for the manifest query (plan §11: the authoritative
+# digest is the registry's Docker-Content-Digest — podman's RepoDigest is a
+# local serialization digest and pulling by it fails MANIFEST_UNKNOWN).
+layered_image_manifest_accept: >-
+  application/vnd.oci.image.manifest.v1+json,
+  application/vnd.oci.image.index.v1+json,
+  application/vnd.docker.distribution.manifest.v2+json,
+  application/vnd.docker.distribution.manifest.list.v2+json
+layered_image_manifest_url: "http://{{ registry_host }}/v2/{{ layered_image_name }}/manifests/{{ layered_image_tag }}"

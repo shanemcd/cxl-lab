@@ -1,0 +1,35 @@
+---
+# Global host gate (runbook §10 "Host"): only the CXL worker QEMUs carry the
+# Type-3 device — counted across host QEMU processes (v2 runs on the host;
+# the bash loop skips its own /proc entry since the script text itself
+# matches the pattern).
+
+- name: Count QEMU processes carrying the Type-3 device
+  ansible.builtin.shell: |
+    set -o pipefail
+    n=0
+    for p in /proc/[0-9]*; do
+      [ "$p" = "/proc/$$" ] && continue
+      cmd=$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null || true)
+      case "$cmd" in
+        *qemu-system-x86_64*cxl-type3*) n=$((n + 1)); echo "${p#/proc/}: $(echo "$cmd" | cut -c1-100)" ;;
+      esac
+    done
+    echo "COUNT=$n"
+  args:
+    executable: /bin/bash
+  register: verify_type3_count
+  changed_when: false
+
+- name: Assert only the CXL worker QEMUs carry the Type-3 device
+  vars:
+    verify_type3_total: "{{ verify_type3_count.stdout_lines
+                            | select('match', '^COUNT=') | list | first
+                            | split('=') | last }}"
+  ansible.builtin.assert:
+    that:
+      - verify_type3_total | int == cxl_workers | length
+    fail_msg: >-
+      Expected exactly {{ cxl_workers | length }} QEMU process(es) with a
+      cxl-type3 device, found {{ verify_type3_total }}:
+      {{ verify_type3_count.stdout_lines | reject('match', '^COUNT=') | join(' | ') }}

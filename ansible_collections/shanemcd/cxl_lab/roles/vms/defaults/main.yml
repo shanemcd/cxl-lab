@@ -1,0 +1,33 @@
+---
+# vms role-scoped knobs. Fleet-level knobs (tap prefix, validate timeout,
+# stop wait, CXL window granularity, node shapes/MACs) live in the topology
+# taxonomy since install_config and the ops roles share them.
+
+# Decompressed stream qcow2 (workers' backing image).
+vms_base_image_name: "{{ rhcos_qemu_image_name | regex_replace('\\.gz$', '') }}"
+
+# CXL graph ids (runbook §4 shape): the pxb-cxl bus the fixed memory window
+# targets, and the root port below it.
+vms_cxl_pxb_id: "pxb0"
+vms_cxl_root_port_id: "rp0"
+vms_cxl_type3_id: "cxl-vmem0"
+
+# The master's install target bootindex: the virtio disk outranks the live
+# ISO so the installed disk wins once install-to-disk has written it.
+vms_disk_bootindex: 0
+
+# The metal live ISO boots platform=metal (fw_cfg ignition ignored) with a
+# VGA-only console — useless under -display none. A per-master copy is
+# prepared with qemu-platform + serial-console kernel args (the ignition
+# itself stays in fw_cfg; the ISO copy is only a boot-medium variant).
+vms_master_iso_kargs:
+  - "ignition.platform.id=qemu"
+  - "console=tty0"
+  - "console=ttyS0,115200n8"
+
+# Serial-log boot marker polled for boot evidence (kernel banner).
+vms_boot_marker: "Linux version"
+
+# Machine Config Server port on the master — the live-env bootstrap gate
+# before workers are started (workers' first-boot ignition fetch hits it).
+vms_mcs_port: 22623

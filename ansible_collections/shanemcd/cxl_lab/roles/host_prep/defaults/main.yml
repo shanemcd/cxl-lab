@@ -1,0 +1,50 @@
+---
+# host_prep role-scoped knobs (plan §5: cluster-wide values come from group_vars).
+host_prep_sysfs_net_path: /sys/class/net
+
+# Structural device names (not site configuration).
+host_prep_required_devices:
+  - /dev/kvm
+  - /dev/vhost-net
+  - /dev/net/tun
+
+# Ports the lab services will bind (values from the network taxonomy). The
+# registry container is the only host-side service in v2 — the API and ingress
+# live on the SNO master guest, not on the host.
+host_prep_required_ports:
+  - "{{ registry_port }}"
+
+# Headroom margins for the capacity asserts.
+host_prep_mem_headroom_gib: 16
+host_prep_cpu_headroom: 8
+host_prep_disk_headroom_gib: 100
+
+# podman cgroup path marker — processes inside lab containers live under
+# libpod-* cgroups (used to tell lab-owned listeners from foreign ones).
+host_prep_container_cgroup_marker: "libpod"
+
+# Workspace directories ensured by this role (secrets dirs 0700, plan §4 gate 4).
+host_prep_workspace_dirs:
+  - path: "{{ install_dir }}"
+    mode: "0700"
+  - path: "{{ verification_dir }}"
+    mode: "0700"
+  - path: "{{ vm_assets_dir }}"
+    mode: "0755"
+  - path: "{{ artifacts_dir }}"
+    mode: "0755"
+  - path: "{{ node_image_build_dir }}"
+    mode: "0755"
+  - path: "{{ vm_images_dir }}"
+    mode: "0755"
+  # v2: ignition staging is no longer served over HTTP (no ignition server);
+  # the merged per-node configs carry install-time credentials — 0700,
+  # matching the install_config role's secrets gate.
+  - path: "{{ vm_ignition_dir }}"
+    mode: "0700"
+  - path: "{{ vm_logs_dir }}"
+    mode: "0755"
+  - path: "{{ vm_scripts_dir }}"
+    mode: "0755"
+  - path: "{{ vm_run_dir }}"
+    mode: "0755"

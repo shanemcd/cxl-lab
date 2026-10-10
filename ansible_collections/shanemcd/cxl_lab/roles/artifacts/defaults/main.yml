@@ -1,0 +1,68 @@
+---
+# artifacts role-scoped knobs; versions/URLs/SHAs live in the versions taxonomy
+# (group_vars/all/versions.yml) and paths (including the artifacts subdirs) in
+# the paths taxonomy (group_vars/all/paths.yml).
+
+# Pinned downloads (empty sha256 entries are trust-on-first-use: the role
+# refuses to proceed and prints the computed checksum to pin in versions.yml).
+# The kernel SRPM is NOT here — it is acquired by the plan §6.2 closed loop
+# (entitled CDN download or brew fallback) after the osimage NVR is read.
+artifacts_downloads:
+  - name: openshift_install
+    url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_install_tarball_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_install_tarball_name }}"
+    sha256: "{{ openshift_install_sha256 }}"
+  - name: openshift_client
+    url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_client_tarball_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_client_tarball_name }}"
+    sha256: "{{ oc_sha256 }}"
+  - name: mirror_sha256sum
+    url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_mirror_sha256sum_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_mirror_sha256sum_name }}"
+    sha256: ""
+    pin_required: false
+  - name: qemu_source
+    url: "{{ qemu_source_url }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ qemu_source_url | basename }}"
+    sha256: "{{ qemu_source_sha256 }}"
+
+# The five boot-relevant RPMs produced by the cxltest build (experiment log
+# 2026-10-09); names derive from kernel_rpm_release in versions.yml.
+artifacts_kernel_rpm_packages:
+  - kernel
+  - kernel-core
+  - kernel-devel
+  - kernel-modules
+  - kernel-modules-core
+
+# Kernel build container tuning.
+artifacts_kernel_builder_jobs: 48
+artifacts_kernel_build_wait_retries: 240
+artifacts_kernel_build_wait_delay: 30
+
+# Entitled CDN SRPM download (plan §6.2): repo file + script rendered into
+# artifacts_srpm_dir; the container mounts the host RHSM entitlement read-only
+# (paths discovered at runtime — never hardcoded) and runs with SELinux
+# confinement disabled so it can read the host-labelled certs (P3 spike).
+artifacts_cdn_repo_file_name: "cdn-kernel-source.repo"
+artifacts_cdn_download_script_name: "cdn-srpm-download.sh"
+artifacts_cdn_container_name: "cxl-lab-srpm-downloader"
+artifacts_cdn_download_wait_retries: 40
+artifacts_cdn_download_wait_delay: 15
+
+# Host entitlement locations (directory contents discovered by the role).
+artifacts_entitlement_dir: /etc/pki/entitlement
+artifacts_rhsm_ca_dir: /etc/rhsm/ca
+
+# Version stamp guarding client-tool extraction (unarchive has no content
+# comparison; the stamp makes re-extraction happen only on version change).
+artifacts_client_stamp_name: ".ocp-version"
+
+# Required config lines verified inside the built kernel-core (experiment log
+# 2026-10-09: test-only flip + vendor config preserved — FORTIFY and BTF stay on).
+artifacts_required_kernel_config:
+  - CONFIG_CXL_REGION_INVALIDATION_TEST=y
+  - CONFIG_CXL_REGION=y
+  - CONFIG_FORTIFY_SOURCE=y
+  - CONFIG_DEBUG_INFO_BTF=y
+  - CONFIG_DEV_DAX_CXL=m

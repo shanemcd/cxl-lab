@@ -1,0 +1,9 @@
+---
+# Third-party collections are excluded: they are installed dependencies, not ours.
+exclude_paths:
+  - scripts
+  - ansible_collections/community
+  - ansible_collections/containers
+  - ansible_collections/kubernetes
+  - ansible_collections/*.info
+  - ansible_collections/ansible

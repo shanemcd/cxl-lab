@@ -1,0 +1,10 @@
+---
+# Cold-restart one CXL worker: drain → poweroff → relaunch → Ready → uncordon
+# → region-commit service wait → commit assert. Select with
+# -e target_worker=worker-cxl-0 (asserted against the topology).
+- name: Cold-restart a CXL worker
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.ops_restart_cxl_worker

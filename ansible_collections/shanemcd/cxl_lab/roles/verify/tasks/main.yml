@@ -1,0 +1,54 @@
+---
+# verify: runbook §10 checklist on BOTH CXL workers + host gates + cluster
+# state, then a 0600 evidence report stamped test-only /
+# cache-coherency-unverified. Read-only (plus the bounded tmpfs touch).
+# Host NUMA placement is NOT gated (plan §7 deviation, §10.7) — the host
+# gates check QEMU liveness via the pidfile --status interface and that
+# only the CXL worker QEMUs carry the Type-3 device.
+
+- name: Stat the kubeconfig
+  ansible.builtin.stat:
+    path: "{{ kubeconfig_path }}"
+  register: verify_kubeconfig_stat
+
+- name: Assert the cluster is installed
+  ansible.builtin.assert:
+    that:
+      - verify_kubeconfig_stat.stat.exists
+    fail_msg: >-
+      No kubeconfig at {{ kubeconfig_path }} — run 07_install.yml before
+      verification.
+
+- name: Verify each CXL worker guest
+  ansible.builtin.include_tasks: guest-worker.yml
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    loop_var: worker
+    label: "{{ worker.name }}"
+
+- name: Verify the host safety gates
+  ansible.builtin.include_tasks: host-gates.yml
+
+- name: Verify the per-worker host safety gates
+  ansible.builtin.include_tasks: host-gates-worker.yml
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    loop_var: worker
+    label: "{{ worker.name }}"
+
+- name: Verify the cluster state
+  ansible.builtin.include_tasks: cluster.yml
+
+- name: Write the evidence report
+  ansible.builtin.include_tasks: evidence.yml
+
+- name: Verification summary
+  ansible.builtin.debug:
+    msg: >-
+      verify OK — {{ cxl_workers | map(attribute='name') | join(', ') }}:
+      region committed, dax on node {{ cxl_guest_numa_node }}, kernel
+      {{ kernel_rpm_release }}, service active; host QEMU gates clean
+      (no host-NUMA gating — plan §7 deviation); cluster Ready/Available;
+      evidence at
+      {{ verification_dir }}/{{ verify_evidence_report_name }} (0600,
+      test-only, cache coherency NOT verified).

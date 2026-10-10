@@ -1,0 +1,8 @@
+---
+- name: MCO layered kernel and CXL region commit
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.mco_cxl
+    - role: shanemcd.cxl_lab.region_commit

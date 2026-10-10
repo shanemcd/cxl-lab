@@ -1,0 +1,4 @@
+---
+# ops_restart_cxl_worker role-scoped knobs. The target worker is selected with
+# -e target_worker=<name> (asserted against the CXL workers in the topology).
+# All waits and paths come from the taxonomy.

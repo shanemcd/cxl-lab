@@ -1,0 +1,190 @@
+---
+# ops_restart_cxl_worker: cold-restart cycle for ONE CXL worker (plan §8
+# ops/restart_cxl_worker.yml; the same proven sequence as the region_commit
+# recovery): drain → guest poweroff → QEMU exit wait with --stop fallback →
+# cold-start → Ready → uncordon → region-commit service wait → commit assert.
+# Select the worker with: ansible-playbook ops/restart_cxl_worker.yml
+#                          -e target_worker=worker-cxl-0
+
+- name: Assert a target worker was selected
+  ansible.builtin.assert:
+    that:
+      - target_worker is defined
+      - target_worker in (cxl_workers | map(attribute='name') | list)
+    fail_msg: >-
+      Select a CXL worker with -e target_worker=<name> — valid names:
+      {{ cxl_workers | map(attribute='name') | join(', ') }}.
+
+- name: Set the target worker fact
+  ansible.builtin.set_fact:
+    ops_restart_cxl_worker_node: "{{ cxl_workers | selectattr('name', 'equalto', target_worker) | first }}"
+
+- name: Drain {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - adm
+      - drain
+      - "{{ target_worker }}"
+      - "--ignore-daemonsets"
+      - "--delete-emptydir-data"
+      - "--force"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  # The node may be NotReady already or drained by an interrupted run.
+  failed_when: false
+  changed_when: true
+
+- name: Power off via the guest on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ ops_restart_cxl_worker_node.ip_suffix }}"
+      - "sudo systemctl poweroff"
+  failed_when: false
+  changed_when: true
+
+- name: Wait for the QEMU process to exit on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ target_worker }}.sh"
+      - --status
+  register: ops_restart_cxl_worker_exit_status
+  until: ops_restart_cxl_worker_exit_status.rc == 3
+  retries: "{{ vm_stop_wait_retries }}"
+  delay: "{{ vm_stop_wait_delay }}"
+  failed_when: false
+  changed_when: false
+
+- name: Force-stop the wedged guest on {{ target_worker }}
+  when: ops_restart_cxl_worker_exit_status.rc != 3
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ target_worker }}.sh"
+      - --stop
+  changed_when: true
+
+- name: Confirm the QEMU process exited on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ target_worker }}.sh"
+      - --status
+  register: ops_restart_cxl_worker_exit_confirm
+  # rc 3 (stopped) surfaces as a module error - the assert below owns the check.
+  failed_when: false
+  changed_when: false
+
+- name: Assert the QEMU process exited on {{ target_worker }}
+  ansible.builtin.assert:
+    that:
+      - ops_restart_cxl_worker_exit_confirm.rc == 3
+    fail_msg: >-
+      {{ target_worker }} QEMU did not exit within
+      {{ vm_stop_wait_retries * vm_stop_wait_delay }}s of the poweroff
+      request, and the --stop force fallback failed.
+
+- name: Cold-start {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ target_worker }}.sh"
+  register: ops_restart_cxl_worker_cold_start
+  changed_when: "'already running' not in ops_restart_cxl_worker_cold_start.stdout"
+
+- name: Wait to be Ready on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - wait
+      - "node/{{ target_worker }}"
+      - "--for=condition=Ready"
+      - "--timeout={{ vm_node_ready_timeout_minutes }}m"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  changed_when: false
+
+- name: Uncordon {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - adm
+      - uncordon
+      - "{{ target_worker }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  changed_when: true
+
+- name: Wait for the region commit service on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ ops_restart_cxl_worker_node.ip_suffix }}"
+      - "sudo systemctl is-active {{ region_commit_service_name }}"
+  register: ops_restart_cxl_worker_service
+  until: ops_restart_cxl_worker_service.rc == 0
+  retries: "{{ vm_service_wait_retries }}"
+  delay: "{{ vm_service_wait_delay }}"
+  failed_when: false
+  changed_when: false
+
+- name: Assert the region commit service is active on {{ target_worker }}
+  ansible.builtin.assert:
+    that:
+      - ops_restart_cxl_worker_service.rc == 0
+    fail_msg: >-
+      {{ region_commit_service_name }} not active on {{ target_worker }} after
+      the cold restart — inspect
+      `ssh core@{{ lab_subnet_prefix }}.{{ ops_restart_cxl_worker_node.ip_suffix }}
+      'sudo journalctl -u {{ region_commit_service_name }} --no-pager'`.
+
+- name: Read the region commit state on {{ target_worker }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ ops_restart_cxl_worker_node.ip_suffix }}"
+      - "cat /sys/bus/cxl/devices/{{ region_commit_region_name }}/commit"
+  register: ops_restart_cxl_worker_commit
+  changed_when: false
+
+- name: Assert the region is committed on {{ target_worker }}
+  ansible.builtin.assert:
+    that:
+      - ops_restart_cxl_worker_commit.stdout | trim == '1'
+    fail_msg: >-
+      {{ region_commit_region_name }}/commit is
+      '{{ ops_restart_cxl_worker_commit.stdout | trim }}' on {{ target_worker }},
+      expected 1.
+
+- name: Restart summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ target_worker }} cold-restart complete — Ready, uncordoned,
+      {{ region_commit_service_name }} active, {{ region_commit_region_name }}
+      committed.

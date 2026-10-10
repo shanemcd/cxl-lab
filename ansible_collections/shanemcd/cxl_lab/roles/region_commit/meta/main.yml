@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Shane McDonald
+  description: Region-commit MachineConfig with oneshot service and warm-reboot cold-restart recovery (runbook §9, P10).
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  platforms:
+    - name: EL
+      versions:
+        - "10"
+dependencies: []

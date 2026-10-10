@@ -1,0 +1,24 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: {{ mc_role }}
+  name: {{ install_config_hosts_mc_name_prefix }}-{{ mc_role }}
+spec:
+  config:
+    ignition:
+      version: {{ install_config_mc_ignition_version }}
+    storage:
+      files:
+      - path: /etc/hosts
+        mode: 420
+        overwrite: true
+        contents:
+          source: "data:text/plain;base64,{{ mc_hosts_b64 }}"
+{% if mc_hostname_b64 is defined %}
+      - path: /etc/hostname
+        mode: 420
+        overwrite: true
+        contents:
+          source: "data:text/plain;base64,{{ mc_hostname_b64 }}"
+{% endif %}

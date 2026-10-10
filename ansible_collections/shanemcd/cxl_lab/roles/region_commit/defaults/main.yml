@@ -1,0 +1,34 @@
+---
+# region_commit role-scoped knobs; node data comes from the topology taxonomy
+# and the role label + pool name from the topology taxonomy (mco_cxl shares
+# them).
+region_commit_script_guest_path: "/usr/local/sbin/cxl-region-commit.sh"
+region_commit_ignition_version: "3.2.0"
+
+# The decoders are DISCOVERED at runtime in the guest (the endpoint decoders
+# are the decoder*.* children of endpoint ports; the root decoder carries
+# create_ram_region) — kernel enumeration order is not stable. The unit and
+# region names live in the topology taxonomy (shared with verify).
+
+# Stale-MEM_ENABLE self-recovery (validated live on worker-cxl-0, Oct 9): the
+# kernel sets DVSEC MEM_ENABLE on the first successful endpoint probe, QEMU
+# preserves DVSEC config across reboots/re-probes, and the strict
+# cxl_hdm_decode_init() range validation then rejects the next probe. The unit
+# clears the bit via setpci and rebinds cxl_pci.
+# CXL 2.0 8.1.3.2 Control: bit 2 (0x4) = Mem Enable.
+region_commit_mem_enable_mask: 4
+# CXL 2.0 8.1.3: the Control word sits at DVSEC capability start + 0xC.
+region_commit_dvsec_ctrl_offset: 12
+region_commit_endpoint_wait_seconds: 15
+region_commit_endpoint_recover_wait_seconds: 60
+region_commit_driver_rebind_delay: 2
+region_commit_service_timeout_seconds: 300
+
+# Rollout + recovery timings — values come from the fleet-wide VM lifecycle
+# knobs in the topology taxonomy (shared with teardown and the ops roles).
+region_commit_service_wait_retries: "{{ vm_service_wait_retries }}"
+region_commit_service_wait_delay: "{{ vm_service_wait_delay }}"
+region_commit_rollout_timeout_minutes: 40
+region_commit_node_ready_timeout_minutes: "{{ vm_node_ready_timeout_minutes }}"
+region_commit_stop_wait_retries: "{{ vm_stop_wait_retries }}"
+region_commit_stop_wait_delay: "{{ vm_stop_wait_delay }}"

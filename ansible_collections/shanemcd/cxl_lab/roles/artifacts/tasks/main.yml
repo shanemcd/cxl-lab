@@ -1,0 +1,548 @@
+---
+# artifacts: construct every external input (plan §9) — pinned downloads
+# (SRPM, installer, oc, qemu source, RHCOS image), cxltest kernel RPMs built
+# in a disposable CS10 container, SHA256SUMS. All checksums pinned in
+# versions.yml; trust-on-first-use artifacts refuse to proceed until pinned.
+
+- name: Ensure artifact directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ artifacts_srpm_dir }}"
+    - "{{ artifacts_kernel_rpms_dir }}"
+    - "{{ artifacts_downloads_dir }}"
+    - "{{ artifacts_kernel_build_dir }}"
+    - "{{ install_bin_dir }}"
+
+- name: Download pinned artifacts
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+    checksum: "{{ ('sha256:' ~ item.sha256) if item.sha256 | length > 0 else omit }}"
+  loop: "{{ artifacts_downloads }}"
+
+- name: Stat downloaded artifacts
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+    checksum_algorithm: sha256
+  loop: "{{ artifacts_downloads }}"
+  register: artifacts_stat
+
+- name: Assert pinned artifact checksums
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.checksum == item.item.sha256
+    success_msg: "{{ item.item.name }} sha256 verified ({{ item.stat.checksum }})."
+    fail_msg: >-
+      {{ item.item.name }} sha256 mismatch: expected {{ item.item.sha256 }},
+      got {{ item.stat.checksum | default('missing') }} — remove {{ item.item.dest }}
+      and re-run, or fix the pin in versions.yml.
+  loop: "{{ artifacts_stat.results }}"
+  when: item.item.sha256 | length > 0
+
+- name: Demand pinning for trust-on-first-use artifacts
+  ansible.builtin.assert:
+    that:
+      - item.item.sha256 | length > 0
+    fail_msg: >-
+      {{ item.item.name }} was downloaded without a pinned checksum (computed
+      sha256 {{ item.stat.checksum | default('unknown') }}) — pin it in
+      versions.yml and re-run.
+  loop: "{{ artifacts_stat.results }}"
+  when: item.item.sha256 | length == 0 and item.item.pin_required | default(true)
+
+- name: Read mirror-declared client tool checksums
+  ansible.builtin.slurp:
+    src: "{{ artifacts_downloads_dir }}/{{ openshift_mirror_sha256sum_name }}"
+  register: artifacts_mirror_sums_raw
+
+- name: Set mirror-declared checksums fact
+  ansible.builtin.set_fact:
+    artifacts_mirror_sums: >-
+      {{ dict((artifacts_mirror_sums_raw.content | b64decode | trim)
+         | regex_findall('(?m)^([0-9a-f]{64})\s+(\S+)$')
+         | map('reverse') | map('list')) }}
+
+- name: Cross-check pinned client checksums against mirror declarations
+  ansible.builtin.assert:
+    that:
+      - artifacts_mirror_sums[openshift_install_tarball_name] == openshift_install_sha256
+      - artifacts_mirror_sums[openshift_client_tarball_name] == oc_sha256
+    fail_msg: >-
+      Pinned client tool checksums disagree with the mirror's sha256sum.txt
+      ({{ artifacts_mirror_sums | dict2items | selectattr('key', 'in',
+      [openshift_install_tarball_name, openshift_client_tarball_name]) | list }}) —
+      re-pin versions.yml for the new release.
+
+- name: Stat client tools stamp
+  ansible.builtin.stat:
+    path: "{{ install_bin_dir }}/{{ artifacts_client_stamp_name }}"
+  register: artifacts_client_stamp_stat
+
+- name: Read client tools stamp
+  ansible.builtin.slurp:
+    src: "{{ install_bin_dir }}/{{ artifacts_client_stamp_name }}"
+  register: artifacts_client_stamp_raw
+  when: artifacts_client_stamp_stat.stat.exists
+
+- name: Set client tools extraction need fact
+  ansible.builtin.set_fact:
+    artifacts_clients_need_extract: >-
+      {{ not artifacts_client_stamp_stat.stat.exists
+         or (artifacts_client_stamp_raw.content | default('') | b64decode | trim) != ocp_version }}
+
+- name: Extract OpenShift client tools
+  ansible.builtin.unarchive:
+    src: "{{ artifacts_downloads_dir }}/{{ item }}"
+    dest: "{{ install_bin_dir }}"
+    remote_src: true
+  loop:
+    - "{{ openshift_install_tarball_name }}"
+    - "{{ openshift_client_tarball_name }}"
+  when: artifacts_clients_need_extract | bool
+
+- name: Write client tools stamp
+  ansible.builtin.copy:
+    content: "{{ ocp_version }}"
+    dest: "{{ install_bin_dir }}/{{ artifacts_client_stamp_name }}"
+    mode: "0644"
+  when: artifacts_clients_need_extract | bool
+
+- name: Assert extracted installer matches the pinned version
+  ansible.builtin.command:
+    cmd: "{{ install_bin_dir }}/openshift-install version"
+  register: artifacts_install_version
+  changed_when: false
+
+- name: Assert installer version
+  ansible.builtin.assert:
+    that:
+      - ocp_version in artifacts_install_version.stdout
+    fail_msg: >-
+      {{ install_bin_dir }}/openshift-install does not report {{ ocp_version }} —
+      remove the stamp/binaries and re-run.
+
+# --- plan §6.2: kernel source closed loop -------------------------------
+# Discover the rhel-10 RHCOS bootc base from the release payload (the exact
+# image the layered image builds FROM and the master pivots to at install),
+# read the shipped kernel NVR from it, and acquire the SRPM via the entitled
+# CDN (brew fallback). Discovery is asserted against the machine_os_content_ref
+# pin; the shipped NVR against the pinned SRPM's stream prefix.
+
+- name: Set the release payload reference from the installer
+  ansible.builtin.set_fact:
+    artifacts_release_payload_ref: >-
+      {{ artifacts_install_version.stdout | regex_findall('release image (\S+)') | first }}
+
+- name: Read the release payload pullspecs
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - adm
+      - release
+      - info
+      - "{{ artifacts_release_payload_ref }}"
+      - "--pullspecs"
+  environment:
+    REGISTRY_AUTH_FILE: "{{ pull_secret_path }}"
+  register: artifacts_release_pullspecs
+  changed_when: false
+
+- name: Set the discovered machine OS content reference
+  ansible.builtin.set_fact:
+    artifacts_machine_os_discovered_ref: >-
+      {{ artifacts_release_pullspecs.stdout
+         | regex_findall('(?m)^\s*' ~ machine_os_kernel_component ~ '\s+(\S+)')
+         | first }}
+
+- name: Assert the discovered machine OS reference matches the pin
+  ansible.builtin.assert:
+    that:
+      - artifacts_machine_os_discovered_ref == machine_os_content_ref
+    fail_msg: >-
+      The release payload's {{ machine_os_kernel_component }} component resolved to
+      {{ artifacts_machine_os_discovered_ref }} but versions.yml pins
+      {{ machine_os_content_ref }} — the release moved; re-pin deliberately.
+
+- name: Read the shipped kernel NVR from the machine OS image
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --authfile
+      - "{{ pull_secret_path }}"
+      - --entrypoint
+      - /usr/bin/rpm
+      - "{{ machine_os_content_ref }}"
+      - -q
+      - kernel
+  register: artifacts_osimage_kernel_raw
+  changed_when: false
+
+- name: Set the shipped kernel NVR fact
+  ansible.builtin.set_fact:
+    artifacts_osimage_kernel_nvr: >-
+      {{ artifacts_osimage_kernel_raw.stdout_lines | first | regex_replace('\.x86_64$', '') }}
+
+- name: Set the pinned SRPM stream prefix
+  ansible.builtin.set_fact:
+    artifacts_kernel_stream_prefix: >-
+      {{ kernel_srpm_nvr | regex_replace('^(kernel-\d+\.\d+\.\d+-\d+)\..*$', '\1') }}
+
+- name: Assert the shipped kernel shares the pinned SRPM stream
+  ansible.builtin.assert:
+    that:
+      - artifacts_osimage_kernel_nvr is match('^' ~ artifacts_kernel_stream_prefix ~ '\.')
+    success_msg: >-
+      osimage kernel {{ artifacts_osimage_kernel_nvr }} shares stream
+      {{ artifacts_kernel_stream_prefix }} with the pinned SRPM {{ kernel_srpm_nvr }}.
+    fail_msg: >-
+      The machine OS image ships {{ artifacts_osimage_kernel_nvr }} but the pinned
+      SRPM {{ kernel_srpm_nvr }} is a different stream — the release moved;
+      re-pin versions.yml.
+
+- name: Set the SRPM sha pin fact
+  ansible.builtin.set_fact:
+    artifacts_srpm_sha_pin: >-
+      {{ kernel_srpm_sha256_cdn if kernel_srpm_source == 'cdn' else kernel_srpm_sha256_brew }}
+
+- name: Stat the kernel SRPM
+  ansible.builtin.stat:
+    path: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
+    checksum_algorithm: sha256
+  register: artifacts_srpm_stat
+
+- name: Set the SRPM acquisition need fact
+  ansible.builtin.set_fact:
+    artifacts_srpm_needed: >-
+      {{ not artifacts_srpm_stat.stat.exists
+         or artifacts_srpm_stat.stat.checksum != artifacts_srpm_sha_pin }}
+
+- name: Download the kernel SRPM from the entitled CDN
+  when:
+    - kernel_srpm_source == 'cdn'
+    - artifacts_srpm_needed | bool
+  block:
+
+    - name: Discover the host RHSM entitlement key
+      ansible.builtin.find:
+        paths: "{{ artifacts_entitlement_dir }}"
+        patterns: '*-key.pem'
+      register: artifacts_entitlement_keys
+
+    - name: Assert exactly one entitlement key exists
+      ansible.builtin.assert:
+        that:
+          - artifacts_entitlement_keys.files | length == 1
+        fail_msg: >-
+          Expected exactly one entitlement key in {{ artifacts_entitlement_dir }},
+          found {{ artifacts_entitlement_keys.files | length }}.
+
+    - name: Set the entitlement certificate facts
+      ansible.builtin.set_fact:
+        artifacts_entitlement_key: "{{ artifacts_entitlement_keys.files[0].path }}"
+        artifacts_entitlement_cert: >-
+          {{ artifacts_entitlement_keys.files[0].path | regex_replace('-key\.pem$', '.pem') }}
+
+    - name: Stat the RHSM CA file
+      ansible.builtin.stat:
+        path: "{{ artifacts_rhsm_ca_dir }}/redhat-uep.pem"
+      register: artifacts_rhsm_ca_stat
+
+    - name: Assert the RHSM CA file exists
+      ansible.builtin.assert:
+        that:
+          - artifacts_rhsm_ca_stat.stat.exists
+        fail_msg: >-
+          {{ artifacts_rhsm_ca_dir }}/redhat-uep.pem missing — the CDN route needs
+          the host's RHSM CA (is the host registered?).
+
+    - name: Set the RHSM CA fact
+      ansible.builtin.set_fact:
+        artifacts_rhsm_ca_file: "{{ artifacts_rhsm_ca_dir }}/redhat-uep.pem"
+
+    - name: Set the CDN repo file path fact
+      ansible.builtin.set_fact:
+        artifacts_cdn_repo_file: "{{ artifacts_srpm_dir }}/{{ artifacts_cdn_repo_file_name }}"
+
+    - name: Render the CDN source repo file
+      ansible.builtin.template:
+        src: cdn-kernel-source.repo.j2
+        dest: "{{ artifacts_cdn_repo_file }}"
+        mode: "0644"
+
+    - name: Render the CDN download script
+      ansible.builtin.template:
+        src: cdn-srpm-download.sh.j2
+        dest: "{{ artifacts_srpm_dir }}/{{ artifacts_cdn_download_script_name }}"
+        mode: "0755"
+
+    - name: Remove stale SRPM downloader container
+      containers.podman.podman_container:
+        name: "{{ artifacts_cdn_container_name }}"
+        state: absent
+
+    - name: Run the SRPM downloader container
+      containers.podman.podman_container:
+        name: "{{ artifacts_cdn_container_name }}"
+        image: "{{ kernel_builder_image }}"
+        state: started
+        command: "bash /workspace/{{ artifacts_cdn_download_script_name }}"
+        security_opt:
+          - label=disable
+        volumes:
+          - "{{ artifacts_srpm_dir }}:/workspace:Z"
+          - "{{ artifacts_cdn_repo_file }}:/etc/yum.repos.d/{{ artifacts_cdn_repo_file_name }}:ro"
+          - "{{ artifacts_entitlement_dir }}:{{ artifacts_entitlement_dir }}:ro"
+          - "{{ artifacts_rhsm_ca_dir }}:{{ artifacts_rhsm_ca_dir }}:ro"
+
+    - name: Wait for the SRPM download to finish
+      containers.podman.podman_container_info:
+        name: "{{ artifacts_cdn_container_name }}"
+      register: artifacts_cdn_state
+      until: >-
+        artifacts_cdn_state.containers | length == 0
+        or not artifacts_cdn_state.containers[0].State.Running
+      retries: "{{ artifacts_cdn_download_wait_retries }}"
+      delay: "{{ artifacts_cdn_download_wait_delay }}"
+
+    - name: Assert the SRPM download succeeded
+      ansible.builtin.assert:
+        that:
+          - artifacts_cdn_state.containers | length == 1
+          - artifacts_cdn_state.containers[0].State.ExitCode == 0
+        fail_msg: >-
+          SRPM downloader exited with
+          {{ artifacts_cdn_state.containers[0].State.ExitCode | default('no state') }} —
+          inspect `podman logs {{ artifacts_cdn_container_name }}`.
+
+    - name: Remove the SRPM downloader container
+      containers.podman.podman_container:
+        name: "{{ artifacts_cdn_container_name }}"
+        state: absent
+
+- name: Download the kernel SRPM from brew (fallback)
+  ansible.builtin.get_url:
+    url: "{{ kernel_srpm_base_url }}/{{ kernel_srpm_nvr }}.src.rpm"
+    dest: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
+    mode: "0644"
+    checksum: "sha256:{{ kernel_srpm_sha256_brew }}"
+  when:
+    - kernel_srpm_source == 'brew'
+    - artifacts_srpm_needed | bool
+
+- name: Stat the kernel SRPM after acquisition
+  ansible.builtin.stat:
+    path: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
+    checksum_algorithm: sha256
+  register: artifacts_srpm_stat_final
+
+- name: Assert the kernel SRPM matches the source pin
+  ansible.builtin.assert:
+    that:
+      - artifacts_srpm_stat_final.stat.exists
+      - artifacts_srpm_stat_final.stat.checksum == artifacts_srpm_sha_pin
+    fail_msg: >-
+      Kernel SRPM {{ kernel_srpm_nvr }}.src.rpm missing or checksum mismatch —
+      remove it and re-run, or fix the pin in versions.yml.
+
+- name: Read RHCOS stream metadata for the lab OS stream
+  ansible.builtin.command:
+    cmd: "{{ install_bin_dir }}/openshift-install coreos print-stream-json --stream {{ rhcos_stream_name }}"
+  register: artifacts_rhcos_stream
+  changed_when: false
+
+- name: Set RHCOS qemu artifact facts from stream metadata
+  ansible.builtin.set_fact:
+    artifacts_rhcos_url: >-
+      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.qemu
+         .formats[rhcos_qemu_format_key].disk.location }}
+    artifacts_rhcos_stream_sha256: >-
+      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.qemu
+         .formats[rhcos_qemu_format_key].disk.sha256 }}
+    artifacts_rhcos_iso_url: >-
+      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
+         .formats[rhcos_iso_format_key].disk.location }}
+    artifacts_rhcos_iso_stream_sha256: >-
+      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
+         .formats[rhcos_iso_format_key].disk.sha256 }}
+
+- name: Assert stream-declared RHCOS checksum matches the pin
+  ansible.builtin.assert:
+    that:
+      - artifacts_rhcos_stream_sha256 == rhcos_image_sha256
+    fail_msg: >-
+      The {{ rhcos_stream_name }} stream declares sha256
+      {{ artifacts_rhcos_stream_sha256 }} but versions.yml pins
+      {{ rhcos_image_sha256 }} — the stream moved; re-pin deliberately.
+
+- name: Download RHCOS qemu image (stream-declared checksum)
+  ansible.builtin.get_url:
+    url: "{{ artifacts_rhcos_url }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ artifacts_rhcos_url | basename }}"
+    mode: "0644"
+    checksum: "sha256:{{ artifacts_rhcos_stream_sha256 }}"
+
+- name: Assert stream-declared RHCOS live ISO matches the pin
+  # The ISO is the master's boot media (BiP); same TOFU pinning as the qemu
+  # image — the name binds the build, the sha binds the content.
+  ansible.builtin.assert:
+    that:
+      - artifacts_rhcos_iso_stream_sha256 == rhcos_iso_sha256
+      - artifacts_rhcos_iso_url | basename == rhcos_iso_image_name
+    fail_msg: >-
+      The {{ rhcos_stream_name }} stream declares ISO
+      {{ artifacts_rhcos_iso_url | basename }} sha256
+      {{ artifacts_rhcos_iso_stream_sha256 }} but versions.yml pins
+      {{ rhcos_iso_image_name }} / {{ rhcos_iso_sha256 }} — the stream
+      moved; re-pin deliberately.
+
+- name: Download RHCOS live ISO (stream-declared checksum)
+  ansible.builtin.get_url:
+    url: "{{ artifacts_rhcos_iso_url }}"
+    dest: "{{ rhcos_live_iso_path }}"
+    mode: "0644"
+    checksum: "sha256:{{ artifacts_rhcos_iso_stream_sha256 }}"
+
+- name: Set expected kernel RPM file names
+  ansible.builtin.set_fact:
+    artifacts_expected_kernel_rpms: >-
+      {{ artifacts_kernel_rpm_packages
+         | map('regex_replace', '$', '-' ~ kernel_rpm_release ~ '.rpm') | list }}
+
+- name: Stat expected kernel RPMs
+  ansible.builtin.stat:
+    path: "{{ artifacts_kernel_rpms_dir }}/{{ item }}"
+  loop: "{{ artifacts_expected_kernel_rpms }}"
+  register: artifacts_kernel_rpms_stat
+
+- name: Set kernel RPMs presence fact
+  ansible.builtin.set_fact:
+    artifacts_kernel_rpms_present: >-
+      {{ artifacts_kernel_rpms_stat.results | selectattr('stat.exists') | list | length
+         == artifacts_expected_kernel_rpms | length }}
+
+- name: Build cxltest kernel RPMs
+  when: not artifacts_kernel_rpms_present
+  block:
+
+    - name: Render the kernel build script
+      ansible.builtin.template:
+        src: cxltest-kernel-build.sh.j2
+        dest: "{{ artifacts_kernel_build_dir }}/cxltest-kernel-build.sh"
+        mode: "0755"
+
+    - name: Remove stale kernel builder container
+      containers.podman.podman_container:
+        name: "{{ kernel_builder_container_name }}"
+        state: absent
+
+    - name: Run the kernel builder container
+      containers.podman.podman_container:
+        name: "{{ kernel_builder_container_name }}"
+        image: "{{ kernel_builder_image }}"
+        state: started
+        command: "bash {{ artifacts_kernel_build_dir }}/cxltest-kernel-build.sh"
+        volumes:
+          - "{{ artifacts_dir }}:{{ artifacts_dir }}:Z"
+
+    - name: Wait for the kernel build to finish
+      containers.podman.podman_container_info:
+        name: "{{ kernel_builder_container_name }}"
+      register: artifacts_builder_state
+      until: >-
+        artifacts_builder_state.containers | length == 0
+        or not artifacts_builder_state.containers[0].State.Running
+      retries: "{{ artifacts_kernel_build_wait_retries }}"
+      delay: "{{ artifacts_kernel_build_wait_delay }}"
+
+    - name: Assert the kernel build succeeded
+      ansible.builtin.assert:
+        that:
+          - artifacts_builder_state.containers | length == 1
+          - artifacts_builder_state.containers[0].State.ExitCode == 0
+        fail_msg: >-
+          Kernel build container exited with
+          {{ artifacts_builder_state.containers[0].State.ExitCode | default('no state') }} —
+          inspect `podman logs {{ kernel_builder_container_name }}`.
+
+    - name: Remove the kernel builder container
+      containers.podman.podman_container:
+        name: "{{ kernel_builder_container_name }}"
+        state: absent
+
+- name: Stat expected kernel RPMs after build
+  ansible.builtin.stat:
+    path: "{{ artifacts_kernel_rpms_dir }}/{{ item }}"
+    checksum_algorithm: sha256
+  loop: "{{ artifacts_expected_kernel_rpms }}"
+  register: artifacts_kernel_rpms_stat_final
+
+- name: Assert expected kernel RPMs exist
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Missing kernel RPM {{ item.item }} in {{ artifacts_kernel_rpms_dir }}."
+  loop: "{{ artifacts_kernel_rpms_stat_final.results }}"
+
+- name: Extract the kernel-core config for verification
+  ansible.builtin.shell: |
+    set -o pipefail
+    rm -rf "{{ artifacts_kernel_build_dir }}/cfgcheck"
+    mkdir -p "{{ artifacts_kernel_build_dir }}/cfgcheck"
+    cd "{{ artifacts_kernel_build_dir }}/cfgcheck"
+    rpm2cpio "{{ artifacts_kernel_rpms_dir }}/kernel-core-{{ kernel_rpm_release }}.rpm" | cpio -idm --quiet
+    find . -type f -name config -path '*modules*'
+  changed_when: false
+  register: artifacts_kernel_cfg_find
+
+- name: Set kernel-core config path fact
+  ansible.builtin.set_fact:
+    artifacts_kernel_cfg_path: >-
+      {{ artifacts_kernel_build_dir }}/cfgcheck/{{ artifacts_kernel_cfg_find.stdout_lines | first }}
+
+- name: Read the kernel-core config
+  ansible.builtin.slurp:
+    src: "{{ artifacts_kernel_cfg_path }}"
+  register: artifacts_kernel_cfg_raw
+
+- name: Set kernel-core config lines fact
+  ansible.builtin.set_fact:
+    artifacts_kernel_cfg_lines: "{{ artifacts_kernel_cfg_raw.content | b64decode | trim | split('\n') }}"
+
+- name: Assert the cxltest kernel config in kernel-core
+  ansible.builtin.assert:
+    that:
+      - item in artifacts_kernel_cfg_lines
+    fail_msg: "Required kernel config line {{ item }} missing from kernel-core."
+  loop: "{{ artifacts_required_kernel_config }}"
+
+- name: Compute SHA256SUMS for the kernel RPMs
+  ansible.builtin.command:
+    cmd: "sha256sum {{ artifacts_expected_kernel_rpms | join(' ') }}"
+    chdir: "{{ artifacts_kernel_rpms_dir }}"
+  register: artifacts_kernel_sums
+  changed_when: false
+
+- name: Write SHA256SUMS (idempotent)
+  ansible.builtin.copy:
+    content: "{{ artifacts_kernel_sums.stdout }}"
+    dest: "{{ artifacts_kernel_rpms_dir }}/SHA256SUMS"
+    mode: "0644"
+
+- name: Artifacts summary
+  ansible.builtin.debug:
+    msg: >-
+      artifacts OK — machine OS ref {{ machine_os_content_ref.split('@')[0] }}@
+      {{ machine_os_content_ref.split('@')[1][:19] }}… (osimage kernel
+      {{ artifacts_osimage_kernel_nvr }}), SRPM {{ kernel_srpm_nvr }} via
+      {{ kernel_srpm_source }} verified, client tools extracted to
+      {{ install_bin_dir }}, RHCOS image
+      {{ artifacts_rhcos_url | basename }} verified (stream
+      {{ rhcos_stream_name }}), kernel RPMs in {{ artifacts_kernel_rpms_dir }}
+      (built: {{ not artifacts_kernel_rpms_present }}).

@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+# Managed by cxl_lab.lab.install_config — do not edit.
+# Assembles a per-node ignition config for fw_cfg delivery (plan §5/§6):
+# merges the node-specific static network + name resolution into a base
+# ignition (the BiP master ignition or the installer's worker.ign MCS stub).
+# The base config is preserved verbatim except for same-path file entries,
+# which are replaced (ignition merge semantics, deterministic).
+import base64
+import json
+import os
+import sys
+
+if len(sys.argv) != 10:
+    sys.stderr.write(
+        "usage: ignition-node-merge.py <base.ign> <out.ign> <node_name> "
+        "<node_ip> <prefix_len> <gateway> <node_mac> <dns_csv> <hosts_snippet>\n"
+    )
+    sys.exit(2)
+
+(
+    base_path,
+    out_path,
+    node_name,
+    node_ip,
+    prefix_len,
+    gateway,
+    node_mac,
+    dns_csv,
+    hosts_snippet_path,
+) = sys.argv[1:]
+
+with open(base_path) as f:
+    config = json.load(f)
+
+storage = config.setdefault("storage", {})
+files = storage.setdefault("files", [])
+
+
+def data_url(text):
+    return "data:text/plain;base64," + base64.b64encode(
+        text.encode()
+    ).decode()
+
+
+def upsert_file(path, mode, text):
+    entry = {
+        "path": path,
+        "mode": mode,
+        "overwrite": True,
+        "contents": {"source": data_url(text)},
+    }
+    for i, existing in enumerate(files):
+        if existing.get("path") == path:
+            files[i] = entry
+            return
+    files.append(entry)
+
+
+# Node hostname (kubelet node name comes from this).
+upsert_file("/etc/hostname", 420, node_name + "\n")
+
+# Static name resolution: the shared lab hosts block plus the node's own
+# entry. The lab resolver (dnsmasq on the gateway, plan §10.8) serves these
+# names at initramfs fetch time; the baked /etc/hosts is belt-and-braces.
+with open(hosts_snippet_path) as f:
+    hosts_text = f.read().rstrip("\n")
+hosts_text += "\n{} {}.{{ lab_domain }} {}\n".format(node_ip, node_name, node_name)
+upsert_file("/etc/hosts", 420, hosts_text + "\n")
+
+# Static network (MAC-bound NM keyfile; one NIC per VM). The lab resolver
+# (the gateway) serves cluster names AND forwards internet names — ignition
+# merge fetches need it before /etc/hosts is applied.
+dns = ";".join(dns_csv.split(",")) + ";"
+nm_keyfile = (
+    "[connection]\n"
+    "id={}\n"
+    "type=ethernet\n"
+    "autoconnect=true\n"
+    "\n"
+    "[ethernet]\n"
+    "mac-address={}\n"
+    "\n"
+    "[ipv4]\n"
+    "method=manual\n"
+    "address1={},{}\n"
+    "dns={}\n"
+    "\n"
+    "[ipv6]\n"
+    "method=disabled\n"
+).format("{{ install_config_nm_connection_id }}", node_mac,
+         "{}/{}".format(node_ip, prefix_len), gateway, dns)
+upsert_file(
+    "/etc/NetworkManager/system-connections/{{ install_config_nm_connection_file }}",
+    384,
+    nm_keyfile,
+)
+
+# Content-aware write: only replace the output when its content would
+# change, so staged ignition stays byte-stable across re-runs (the caller
+# reports changed from the MERGED marker on stdout).
+new_bytes = json.dumps(config, separators=(",", ":")).encode()
+try:
+    with open(out_path, "rb") as f:
+        if f.read() == new_bytes:
+            print("UNCHANGED")
+            raise SystemExit(0)
+except FileNotFoundError:
+    pass
+tmp_path = out_path + ".tmp"
+with open(tmp_path, "wb") as f:
+    f.write(new_bytes)
+os.replace(tmp_path, out_path)
+print("MERGED")

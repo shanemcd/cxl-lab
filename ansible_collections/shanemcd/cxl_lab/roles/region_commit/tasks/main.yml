@@ -1,0 +1,52 @@
+---
+# region_commit: ship the proven sysfs region-commit sequence as a MachineConfig
+# with a oneshot service (runbook §9), wait for the second MCO rollout, then
+# recover each worker from the warm-reboot constraint: the MCO reboot happens
+# INSIDE the running QEMU, stale DVSEC/HDM state makes the service fail BY
+# DESIGN, and the fix is a per-worker QEMU cold restart (drain -> guest
+# poweroff -> QEMU exit -> relaunch -> Ready -> uncordon). Every step queries
+# live state, so interrupted recoveries resume cleanly on re-run.
+
+- name: Assert every CXL worker carries the same vmem size
+  ansible.builtin.assert:
+    that:
+      - cxl_workers | map(attribute='vmem_size') | unique | list | length == 1
+    fail_msg: >-
+      The shared region-commit MachineConfig assumes one vmem size across CXL
+      workers (found {{ cxl_workers | map(attribute='vmem_size') | unique | join(', ') }}).
+
+- name: Set the region commit script fact
+  ansible.builtin.set_fact:
+    region_commit_script_b64: "{{ lookup('template', 'cxl-region-commit.sh.j2') | b64encode }}"
+
+- name: Create the region commit MachineConfig
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'machineconfig-region-commit.yaml.j2') | from_yaml }}"
+
+- name: Wait for the worker-cxl pool to finish the rollout
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - wait
+      - "mcp/{{ mco_cxl_mcp_name }}"
+      - "--for=condition=Updated"
+      - "--timeout={{ region_commit_rollout_timeout_minutes }}m"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  changed_when: false
+
+- name: Recover and verify each CXL worker
+  ansible.builtin.include_tasks: recover-worker.yml
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    loop_var: worker
+
+- name: Region commit summary
+  ansible.builtin.debug:
+    msg: >-
+      region commit OK — {{ cxl_workers | map(attribute='name') | join(', ') }}
+      committed {{ region_commit_region_name }} ({{ cxl_workers[0].vmem_size }});
+      service {{ region_commit_service_name }} active on both (guest-side
+      stale-MEM_ENABLE self-recovery; cold-restart fallback skipped).

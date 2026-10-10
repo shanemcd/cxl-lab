@@ -1,0 +1,220 @@
+---
+# Per-CXL-worker guest checks (runbook §10 "Guest (worker-cxl)" block),
+# included with loop_var: worker. All probes are read-only; the bounded touch
+# mounts and unmounts a tmpfs.
+
+- name: Read the region commit state on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "cat /sys/bus/cxl/devices/{{ region_commit_region_name }}/commit"
+  register: verify_commit
+  changed_when: false
+
+- name: Read the dax device state on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "cat /sys/bus/dax/devices/dax0.0/size /sys/bus/dax/devices/dax0.0/target_node"
+  register: verify_dax
+  changed_when: false
+
+- name: Read the guest NUMA topology on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "numactl -H"
+  register: verify_numactl
+  changed_when: false
+
+- name: Read the CXL node meminfo on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "grep -E 'MemTotal|MemUsed' /sys/devices/system/node/node{{ cxl_guest_numa_node }}/meminfo"
+  register: verify_meminfo
+  changed_when: false
+
+- name: Read the booted kernel on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "uname -r"
+  register: verify_kernel
+  changed_when: false
+
+- name: Read the region commit service state on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "systemctl is-active {{ region_commit_service_name }}"
+  register: verify_service
+  failed_when: false
+  changed_when: false
+
+- name: Read the test-bypass kernel signature on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "sudo journalctl -k -b --no-pager | grep -c '{{ verify_dmesg_signature }}' || true"
+  register: verify_signature
+  failed_when: false
+  changed_when: false
+
+- name: Run the bounded CXL touch test on {{ worker.name }}
+  when: verify_bounded_touch | bool
+  ansible.builtin.shell: |
+    set -o pipefail
+    ssh -i {{ install_ssh_key_path }} \
+        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o ConnectTimeout=10 \
+        core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }} 'sudo bash -s' <<'SCRIPT'
+    set -eu
+    MNT="{{ verify_touch_mount }}"
+    SZ={{ verify_touch_size_mib }}
+    NODE={{ cxl_guest_numa_node }}
+    mkdir -p "${MNT}"
+    mount -t tmpfs -o size=${SZ}M,mpol=bind:${NODE} tmpfs "${MNT}"
+    before=$(awk '/MemUsed/ {print $4}' /sys/devices/system/node/node${NODE}/meminfo)
+    head -c ${SZ}M /dev/urandom > "${MNT}/blob"
+    a=$(md5sum "${MNT}/blob" | cut -d' ' -f1)
+    b=$(md5sum "${MNT}/blob" | cut -d' ' -f1)
+    after=$(awk '/MemUsed/ {print $4}' /sys/devices/system/node/node${NODE}/meminfo)
+    delta=$((after - before))
+    umount "${MNT}"
+    rmdir "${MNT}"
+    echo "TOUCH_DELTA_KIB=${delta}"
+    echo "TOUCH_MD5_OK=$([ "${a}" = "${b}" ] && echo yes || echo no)"
+    SCRIPT
+  args:
+    executable: /bin/bash
+  register: verify_touch
+  changed_when: false
+
+- name: Assert the guest checklist on {{ worker.name }}
+  ansible.builtin.assert:
+    that:
+      - verify_commit.stdout | trim == '1'
+      - verify_dax.stdout_lines | length == 2
+      - verify_dax.stdout_lines[0] | trim | int
+        == (worker.vmem_size | regex_replace('G$', '') | int) * 1024 * 1024 * 1024
+      - verify_dax.stdout_lines[1] | trim | int == cxl_guest_numa_node
+      - >-
+        verify_numactl.stdout_lines
+        | select('search', '^node ' ~ cxl_guest_numa_node ~ ' size: '
+                 ~ (worker.vmem_size | regex_replace('G$', '') | int) * 1024 ~ ' MB$')
+        | list | length == 1
+      - >-
+        verify_numactl.stdout_lines
+        | select('search', '^node ' ~ cxl_guest_numa_node ~ ' cpus:$')
+        | list | length == 1
+      - >-
+        verify_meminfo.stdout_lines
+        | select('search', '^Node ' ~ cxl_guest_numa_node ~ ' MemTotal: +'
+                 ~ (worker.vmem_size | regex_replace('G$', '') | int) * 1024 * 1024 ~ ' kB$')
+        | list | length == 1
+      - verify_kernel.stdout | trim == kernel_rpm_release
+      - verify_service.rc == 0
+      - verify_signature.stdout | trim | int >= 1
+      - not (verify_bounded_touch | bool)
+        or ('TOUCH_MD5_OK=yes' in verify_touch.stdout
+            and (verify_touch.stdout_lines
+                 | select('match', '^TOUCH_DELTA_KIB=') | list | first
+                 | split('=') | last | int) >= verify_touch_min_delta_kib)
+    fail_msg: >-
+      Guest checklist failed on {{ worker.name }} — commit
+      '{{ verify_commit.stdout | default('') | trim }}', dax
+      '{{ verify_dax.stdout | default('') | trim }}', kernel
+      '{{ verify_kernel.stdout | default('') | trim }}', service rc
+      {{ verify_service.rc | default(-1) }}, signature count
+      '{{ verify_signature.stdout | default('') | trim }}', touch
+      '{{ verify_touch.stdout | default('skipped') | trim }}'.
+
+- name: Collect the guest evidence for {{ worker.name }}
+  vars:
+    # Deterministic evidence only: MemUsed and the touch delta drift between
+    # runs (they would break re-run idempotency of the report).
+    verify_touch_summary: >-
+      {{ 'skipped' if not (verify_bounded_touch | bool)
+         else ('bounded ' ~ verify_touch_size_mib ~ ' MiB touch on node '
+               ~ cxl_guest_numa_node ~ ': md5 read-back consistent, MemUsed'
+               ~ ' delta >= ' ~ verify_touch_min_delta_kib ~ ' KiB') }}
+  ansible.builtin.set_fact:
+    verify_guest_report: "{{ verify_guest_report | default({})
+                             | combine({worker.name: {
+                                 'commit': verify_commit.stdout | trim,
+                                 'dax_size': verify_dax.stdout_lines[0] | trim,
+                                 'dax_target_node': verify_dax.stdout_lines[1] | trim,
+                                 'kernel': verify_kernel.stdout | trim,
+                                 'service': 'active',
+                                 'signature_count': verify_signature.stdout | trim,
+                                 'meminfo': verify_meminfo.stdout_lines
+                                            | select('search', 'MemTotal')
+                                            | map('trim') | list,
+                                 'numactl': verify_numactl.stdout_lines
+                                            | reject('search', ' free:'),
+                                 'touch': verify_touch_summary,
+                               }}) }}"

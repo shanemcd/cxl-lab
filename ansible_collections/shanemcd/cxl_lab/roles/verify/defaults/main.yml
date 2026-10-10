@@ -1,0 +1,23 @@
+---
+# verify role-scoped knobs (runbook §10). Shared names (region-commit service,
+# region name, guest CXL node) live in the topology taxonomy; the evidence dir
+# lives in the paths taxonomy. Everything here is read-only probing — all tasks
+# report changed=0.
+verify_evidence_report_name: "verify-report.txt"
+
+# Kernel signature printed when the region commits on the cxltest kernel
+# (CONFIG_CXL_REGION_INVALIDATION_TEST=y bypass path).
+verify_dmesg_signature: "Bypassing cpu_cache_invalidate_memregion"
+
+# Bounded touch (runbook §10, TEST-ONLY): tmpfs bound to the guest CXL node,
+# node MemUsed delta check, md5 read-back, unmount.
+verify_bounded_touch: true
+verify_touch_mount: "/mnt/cxl-verify-touch"
+verify_touch_size_mib: 64
+verify_touch_min_delta_kib: 32768
+
+# Built-in MachineConfigPools that must be Updated alongside the worker-cxl
+# pool (OpenShift-fixed pool names).
+verify_builtin_mcp_names:
+  - "master"
+  - "worker"

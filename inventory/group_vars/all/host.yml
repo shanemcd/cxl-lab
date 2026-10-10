@@ -1,0 +1,25 @@
+---
+# Host preparation knobs (plan §5 taxonomy). The host_prep role gates RHSM checks on
+# ansible_distribution == 'RedHat' (Fedora has no subscription-manager); rhsm_required
+# is an override, not a substitute for that gating.
+#
+# RHSM is assert-only by default: community.general.redhat_subscription with
+# state: present needs credentials ONLY when the system is not already registered.
+# Leave the rhsm_* credential fields empty for assert-only mode.
+rhsm_required: true
+rhsm_username: ""
+rhsm_password: ""
+rhsm_org_id: ""
+rhsm_activationkey: ""
+
+# Host packages ensured by host_prep (var-driven; plan §4 gate 3).
+host_packages:
+  - iptables
+  - qemu-img
+  - python3-pip
+  - policycoreutils-python-utils
+  - openssh-clients
+  - bind-utils
+
+# Python library required on the host by kubernetes.core modules.
+python_kubernetes_package: "kubernetes"

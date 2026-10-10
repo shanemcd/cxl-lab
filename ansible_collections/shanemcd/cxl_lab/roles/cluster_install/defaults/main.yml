@@ -1,0 +1,26 @@
+---
+# cluster_install role-scoped knobs; all timeouts are vars per the DoDs.
+# OpenShift API object names (namespaces, CR names, the machine-os-puller
+# SA) are cluster constants, not lab taxonomy.
+
+# CSR approval loop (platform:none + SNO: no node auto-approver).
+cluster_install_csr_timeout_minutes: 20
+cluster_install_csr_poll_seconds: 30
+cluster_install_csr_script_path: "{{ vm_scripts_dir }}/approve-csrs.sh"
+
+# Operator settle wait (monitoring rolls out slowly on a fresh cluster).
+cluster_install_operator_retries: 60
+cluster_install_operator_delay_seconds: 30
+
+# OpenShift object constants.
+cluster_install_mco_namespace: "openshift-machine-config-operator"
+cluster_install_mos_puller_sa: "machine-os-puller"
+cluster_install_ingress_namespace: "openshift-ingress-operator"
+cluster_install_ingress_name: "default"
+
+# Total node count derived from the topology (used by the CSR script
+# render and the final cluster state asserts).
+cluster_install_node_count: >-
+  {{ (masters | length) + (cxl_workers | length) + (dram_workers | length) }}
+cluster_install_workers_needed: >-
+  {{ (cxl_workers | length) + (dram_workers | length) }}

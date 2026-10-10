@@ -1,0 +1,6 @@
+---
+# Restart the host-native lab resolver when its config changes.
+- name: Restart lab resolver
+  ansible.builtin.service:
+    name: "{{ network_dnsmasq_service }}"
+    state: restarted

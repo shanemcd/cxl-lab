@@ -1,0 +1,123 @@
+---
+# mco_cxl: move both CXL workers onto the layered cxltest OS image via MCO
+# (runbook §8). Labels, worker-cxl MachineConfigPool, an osImageURL MachineConfig
+# referencing the AUTHORITATIVE registry digest (P9 stamp), and a rollout wait;
+# asserts the booted kernel on both workers afterwards.
+
+- name: Stat the layered image digest stamp
+  ansible.builtin.stat:
+    path: "{{ layered_image_digest_stamp_path }}"
+  register: mco_cxl_stamp_stat
+
+- name: Read the layered image digest stamp
+  ansible.builtin.slurp:
+    src: "{{ layered_image_digest_stamp_path }}"
+  register: mco_cxl_stamp_raw
+  when: mco_cxl_stamp_stat.stat.exists
+
+- name: Set the osImageURL fact
+  ansible.builtin.set_fact:
+    mco_cxl_osimage_url: >-
+      {{ registry_host }}/{{ layered_image_name }}@{{ mco_cxl_stamp_raw.content | default('') | b64decode | trim }}
+
+- name: Assert the osImageURL digest
+  ansible.builtin.assert:
+    that:
+      - mco_cxl_osimage_url is match('^.+@sha256:[0-9a-f]{64}$')
+    fail_msg: >-
+      No authoritative layered-image digest at {{ layered_image_digest_stamp_path }}
+      — run 08_os_image.yml first (the osImageURL must reference the registry's
+      Docker-Content-Digest, never podman's RepoDigest).
+
+- name: Label the CXL workers
+  kubernetes.core.k8s:
+    state: patched
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: Node
+    name: "{{ item.name }}"
+    definition:
+      metadata:
+        labels: "{{ {'node-role.kubernetes.io/' ~ mco_cxl_role_label: ''} }}"
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create the worker-cxl MachineConfigPool
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: machineconfiguration.openshift.io/v1
+    kind: MachineConfigPool
+    name: "{{ mco_cxl_mcp_name }}"
+    definition:
+      spec:
+        machineConfigSelector:
+          matchExpressions:
+            - key: machineconfiguration.openshift.io/role
+              operator: In
+              values:
+                - worker
+                - "{{ mco_cxl_role_label }}"
+        nodeSelector:
+          matchLabels: "{{ {'node-role.kubernetes.io/' ~ mco_cxl_role_label: ''} }}"
+
+- name: Create the osImageURL MachineConfig
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: machineconfiguration.openshift.io/v1
+    kind: MachineConfig
+    name: "{{ mco_cxl_osimage_mc_name }}"
+    definition:
+      metadata:
+        labels:
+          machineconfiguration.openshift.io/role: "{{ mco_cxl_role_label }}"
+      spec:
+        osImageURL: "{{ mco_cxl_osimage_url }}"
+
+- name: Wait for the worker-cxl pool to finish the rollout
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - wait
+      - "mcp/{{ mco_cxl_mcp_name }}"
+      - "--for=condition=Updated"
+      - "--timeout={{ mco_cxl_rollout_timeout_minutes }}m"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: mco_cxl_rollout
+  changed_when: false
+
+- name: Read the booted kernel versions
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - "node/{{ item.name }}"
+      - "-o"
+      - "jsonpath={.status.nodeInfo.kernelVersion}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  loop: "{{ cxl_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: mco_cxl_kernels
+  changed_when: false
+
+- name: Assert both CXL workers boot the cxltest kernel
+  ansible.builtin.assert:
+    that:
+      - item.stdout == kernel_rpm_release
+    fail_msg: >-
+      {{ item.item.name }} booted '{{ item.stdout }}', expected
+      '{{ kernel_rpm_release }}' — the layered image rollout did not land.
+  loop: "{{ mco_cxl_kernels.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: MCO rollout summary
+  ansible.builtin.debug:
+    msg: >-
+      mco_cxl OK — both CXL workers on {{ kernel_rpm_release }} via
+      {{ mco_cxl_osimage_url.split('@')[0] }}@{{ mco_cxl_osimage_url.split('@')[1][:19] }}…
+      (pool {{ mco_cxl_mcp_name }} Updated).

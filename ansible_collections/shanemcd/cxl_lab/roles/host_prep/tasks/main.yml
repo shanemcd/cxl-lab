@@ -1,0 +1,237 @@
+---
+# host_prep: assert the lab host is suitable and ensure everything the lab needs
+# (plan §9 phase 2). Read-only asserts + idempotent ensures.
+#
+# NUMA: v2 does NOT pin guest memory (plan §7 — dropped by decision §10.7).
+# Guest RAM is placed by the kernel's default first-touch policy; no NUMA
+# detection, no numactl prefix, no per-node assertions.
+
+- name: Assert RedHat OS family
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+    fail_msg: >-
+      This lab requires a RedHat-family host (RHEL, CentOS, Fedora); found
+      {{ ansible_facts['os_family'] | default('unknown') }}.
+
+- name: Record SELinux status
+  ansible.builtin.set_fact:
+    host_prep_selinux_status: "{{ (ansible_facts.get('selinux') or {}).get('status', 'missing') }}"
+
+- name: Compute guest resource requirements
+  ansible.builtin.set_fact:
+    host_prep_required_mem_gib: >-
+      {{ (masters | map(attribute='ram') | map('regex_replace', 'G$', '') | map('int') | sum)
+         + (dram_workers | map(attribute='ram') | map('regex_replace', 'G$', '') | map('int') | sum)
+         + (cxl_workers | map(attribute='ram') | map('regex_replace', 'G$', '') | map('int') | sum)
+         + (cxl_workers | map(attribute='vmem_size') | map('regex_replace', 'G$', '') | map('int') | sum) }}
+    host_prep_required_vcpu: >-
+      {{ (masters | map(attribute='vcpu') | sum)
+         + (dram_workers | map(attribute='vcpu') | sum)
+         + (cxl_workers | map(attribute='vcpu') | sum) }}
+    host_prep_required_disk_gib: >-
+      {{ (masters | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum)
+         + (dram_workers | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum)
+         + (cxl_workers | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum) }}
+    host_prep_available_mem_gib: "{{ ansible_facts['memfree_mb'] / 1024 }}"
+
+- name: Assert memory capacity
+  ansible.builtin.assert:
+    that:
+      - host_prep_available_mem_gib >= host_prep_required_mem_gib + host_prep_mem_headroom_gib
+    fail_msg: >-
+      Free memory is {{ host_prep_available_mem_gib | round(0) | int }} GiB but the
+      topology needs {{ host_prep_required_mem_gib }} GiB plus
+      {{ host_prep_mem_headroom_gib }} GiB headroom.
+
+- name: Assert CPU capacity
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['processor_vcpus'] >= host_prep_required_vcpu + host_prep_cpu_headroom
+    fail_msg: >-
+      Host has {{ ansible_facts['processor_vcpus'] }} vCPUs but the topology needs
+      {{ host_prep_required_vcpu }} plus {{ host_prep_cpu_headroom }} headroom.
+
+- name: Ensure workspace directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop: "{{ host_prep_workspace_dirs }}"
+
+- name: Read free space at vm_assets_dir
+  ansible.builtin.command:
+    cmd: "df -B1G --output=avail {{ vm_assets_dir }}"
+  register: host_prep_df
+  changed_when: false
+
+- name: Set disk free GiB
+  ansible.builtin.set_fact:
+    host_prep_disk_free_gib: "{{ host_prep_df.stdout_lines | last | trim | int }}"
+
+- name: Assert disk capacity at vm_assets_dir
+  ansible.builtin.assert:
+    that:
+      - host_prep_disk_free_gib >= host_prep_required_disk_gib + host_prep_disk_headroom_gib
+    fail_msg: >-
+      Free space at {{ vm_assets_dir }} is {{ host_prep_disk_free_gib }} GiB but the
+      overlays need {{ host_prep_required_disk_gib }} GiB plus
+      {{ host_prep_disk_headroom_gib }} GiB headroom.
+
+- name: Stat required devices
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ host_prep_required_devices }}"
+  register: host_prep_devices
+
+- name: Assert required devices exist as character devices
+  ansible.builtin.assert:
+    that:
+      - host_prep_devices.results | selectattr('stat.exists') | list | length
+        == host_prep_required_devices | length
+      - host_prep_devices.results | selectattr('stat.ischr') | list | length
+        == host_prep_required_devices | length
+    fail_msg: >-
+      Required character devices missing: compare {{ host_prep_required_devices }}
+      against stat results.
+
+- name: Collect listening TCP ports
+  community.general.listen_ports_facts:
+
+- name: Set listening process ids
+  ansible.builtin.set_fact:
+    host_prep_listener_pids: >-
+      {{ ansible_facts.tcp_listen | selectattr('pid', 'defined')
+         | rejectattr('pid', 'in', [0]) | map(attribute='pid') | unique | list }}
+
+- name: Read listener process cgroups
+  ansible.builtin.command:
+    cmd: "ps -o pid=,cgroup= -p {{ host_prep_listener_pids | join(',') }}"
+  register: host_prep_listener_cgroups_raw
+  changed_when: false
+  failed_when: false
+  when: host_prep_listener_pids | length > 0
+
+- name: Set pids inside lab containers (any process in a podman cgroup)
+  ansible.builtin.set_fact:
+    host_prep_lab_pids: >-
+      {{ host_prep_listener_cgroups_raw.stdout_lines | default([])
+         | map('regex_findall', '^\s*(\d+)\s+.*' ~ host_prep_container_cgroup_marker)
+         | flatten | map('int') | list }}
+
+- name: Set foreign listening ports (not inside any lab container)
+  ansible.builtin.set_fact:
+    host_prep_foreign_tcp_ports: >-
+      {{ ansible_facts.tcp_listen | selectattr('pid', 'defined')
+         | rejectattr('pid', 'in', host_prep_lab_pids + [0])
+         | map(attribute='port') | list | unique }}
+
+- name: Assert required ports are free or held by lab containers
+  ansible.builtin.assert:
+    that:
+      - host_prep_required_ports | intersect(host_prep_foreign_tcp_ports) | length == 0
+    fail_msg: >-
+      Required lab ports {{ host_prep_required_ports }} must be free or held by lab
+      containers; foreign holders: {{ host_prep_required_ports
+      | intersect(host_prep_foreign_tcp_ports) }}.
+
+- name: Stat lab bridge link
+  ansible.builtin.stat:
+    path: "{{ host_prep_sysfs_net_path }}/{{ lab_bridge_name }}"
+  register: host_prep_bridge_link
+
+- name: Stat lab bridge identity (present only on bridge devices)
+  ansible.builtin.stat:
+    path: "{{ host_prep_sysfs_net_path }}/{{ lab_bridge_name }}/bridge"
+  register: host_prep_bridge_dir
+  when: host_prep_bridge_link.stat.exists
+
+- name: Assert lab bridge name is free or already a bridge
+  ansible.builtin.assert:
+    that:
+      - not host_prep_bridge_link.stat.exists or host_prep_bridge_dir.stat.exists | default(false)
+    fail_msg: >-
+      {{ lab_bridge_name }} already exists and is not a bridge — refusing to touch it.
+
+- name: Read host IPv4 addresses as JSON
+  ansible.builtin.command:
+    cmd: ip -j -4 addr show
+  register: host_prep_addrs
+  changed_when: false
+
+- name: Assert lab subnet addresses only exist on the lab bridge
+  ansible.builtin.assert:
+    that:
+      - host_prep_addrs.stdout | from_json | selectattr('ifname', '!=', lab_bridge_name)
+        | selectattr('addr_info', 'defined') | map(attribute='addr_info') | flatten
+        | selectattr('local', 'defined') | map(attribute='local')
+        | select('search', lab_subnet_prefix) | list | length == 0
+    fail_msg: >-
+      Addresses inside {{ lab_subnet_prefix }}.x already exist on interfaces other
+      than {{ lab_bridge_name }} — the lab subnet conflicts with this host.
+
+- name: Read NTP synchronization state
+  ansible.builtin.command:
+    cmd: timedatectl show --property=NTPSynchronized --value
+  register: host_prep_ntp
+  changed_when: false
+
+- name: Assert NTP is synchronized
+  ansible.builtin.assert:
+    that:
+      - host_prep_ntp.stdout | trim == 'yes'
+    fail_msg: NTP is not synchronized — the cluster needs accurate time.
+
+# RHSM is load-bearing in v2: the entitlement backs the CDN kernel-SRPM
+# download (plan §6.2 closed loop). Assert-only when already registered.
+- name: Check RHSM registration (assert-only; no credentials needed when registered)
+  community.general.redhat_subscription:
+    state: present
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - rhsm_required | bool
+    - (rhsm_activationkey | default('') | length == 0) and (rhsm_username | default('') | length == 0)
+
+- name: Ensure RHSM registration with activation key
+  community.general.redhat_subscription:
+    state: present
+    org_id: "{{ rhsm_org_id }}"
+    activationkey: "{{ rhsm_activationkey }}"
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - rhsm_required | bool
+    - rhsm_activationkey | default('') | length > 0
+  no_log: true
+
+- name: Ensure RHSM registration with credentials
+  community.general.redhat_subscription:
+    state: present
+    username: "{{ rhsm_username }}"
+    password: "{{ rhsm_password }}"
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - rhsm_required | bool
+    - rhsm_activationkey | default('') | length == 0
+    - rhsm_username | default('') | length > 0
+  no_log: true
+
+- name: Ensure required host packages
+  ansible.builtin.package:
+    name: "{{ host_packages }}"
+    state: present
+  when: host_packages | length > 0
+
+- name: Ensure the kubernetes Python library for kubernetes.core modules
+  ansible.builtin.pip:
+    name: "{{ python_kubernetes_package }}"
+    executable: pip3
+
+- name: Host preparation summary
+  ansible.builtin.debug:
+    msg: >-
+      host prep OK — os={{ ansible_facts['distribution'] }},
+      selinux={{ host_prep_selinux_status }},
+      mem={{ host_prep_available_mem_gib | round(0) | int }}G free vs
+      {{ host_prep_required_mem_gib }}G required,
+      vcpu={{ ansible_facts['processor_vcpus'] }} vs {{ host_prep_required_vcpu }} required,
+      disk={{ host_prep_disk_free_gib }}G free vs {{ host_prep_required_disk_gib }}G required.

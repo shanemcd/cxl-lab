@@ -1,0 +1,7 @@
+---
+- name: Lab status summary (read-only)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.ops_status

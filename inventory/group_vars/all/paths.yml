@@ -1,0 +1,56 @@
+---
+# Workspace layout (plan §5). install_dir holds secrets: 0700 dir / 0600 files,
+# enforced by the roles that write there. Everything mutable lives under vm_assets_dir.
+install_dir: "/root/ocp-install-cxl"
+install_bin_dir: "{{ install_dir }}/bin"
+vm_assets_dir: "/home/ocp-cxl"
+artifacts_dir: "{{ vm_assets_dir }}/artifacts"
+artifacts_srpm_dir: "{{ artifacts_dir }}/srpm"
+artifacts_kernel_rpms_dir: "{{ artifacts_dir }}/kernel-rpms"
+artifacts_downloads_dir: "{{ artifacts_dir }}/downloads"
+artifacts_kernel_build_dir: "{{ artifacts_dir }}/kernel-build"
+# Stock upstream QEMU builder workspace (plan §4): tarball staging, build
+# script, and the DESTDIR staging tree that is copied to qemu_install_prefix.
+qemu_build_dir: "{{ artifacts_dir }}/qemu-build"
+layered_image_build_dir: "{{ install_dir }}/layered-image"
+vm_registry_data_dir: "{{ vm_assets_dir }}/registry/data"
+vm_images_dir: "{{ vm_assets_dir }}/images"
+# The SNO master's boot media (BiP live-ISO boot model, plan §6) — kept in
+# the artifacts downloads dir, referenced read-only by the master's run
+# script.
+rhcos_live_iso_path: "{{ artifacts_downloads_dir }}/{{ rhcos_iso_image_name }}"
+# Per-master prepared boot-medium copy (kargs-patched live ISO; the vms and
+# teardown roles share the name).
+vms_master_iso_name: "{{ masters[0].name }}-install.iso"
+# Pre-baked node images (plan §6.1): bootc-image-builder qcow2 output for the
+# CXL workers (the cxltest kernel from first boot).
+node_image_build_dir: "{{ vm_assets_dir }}/node-images"
+# Ignition files staged here for fw_cfg delivery (no HTTP server in v2 — the
+# run scripts pass each node's .ign directly via QEMU fw_cfg).
+vm_ignition_dir: "{{ vm_assets_dir }}/ignition"
+vm_logs_dir: "{{ vm_assets_dir }}/logs"
+vm_scripts_dir: "{{ vm_assets_dir }}/scripts"
+vm_run_dir: "{{ vm_assets_dir }}/run"
+
+# Installer-fixed ignition output names (shared by install_config, vms,
+# worker_cxl, and teardown). bootstrap.ign is still emitted by the installer
+# (and consumed by the classic-fallback install path if the BiP spike fails).
+ignition_bootstrap_name: "bootstrap.ign"
+ignition_master_name: "master.ign"
+ignition_worker_name: "worker.ign"
+
+# Stock upstream QEMU installed to a host prefix by the artifacts phase (plan
+# §4: CS10 builder = host-compatible glibc; no patch, no runtime image). The
+# exists-guard keys off the versioned prefix — teardown never removes it
+# (plan §10 decision 6).
+qemu_install_prefix: "/opt/qemu-{{ qemu_version }}"
+qemu_binary_path: "{{ qemu_install_prefix }}/bin/qemu-system-x86_64"
+
+# Install-flow state stamps (idempotency guards that must survive re-runs).
+# Authoritative registry digest of the layered OS image (P8 writes it via
+# Docker-Content-Digest; P9's osImageURL MachineConfig reads it).
+layered_image_digest_stamp_path: "{{ install_dir }}/layered-image-digest"
+
+# Verification evidence (runbook §10): 0700 dir, 0600 report — the verify
+# role writes the full checklist output here (host_prep ensures the dir).
+verification_dir: "{{ install_dir }}/verification"

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Managed by cxl_lab.lab.cluster_install — do not edit (plan §6 BiP flow).
+# platform:none + SNO: no Machine objects and no node auto-approver, so
+# kubelet CSRs need explicit approval once the workers fetch their ignition
+# from the installed master. Approves every pending CSR, then checks
+# whether all {{ cluster_install_workers_needed }} workers are Ready;
+# repeats until then or the timeout. Exits 0 when all workers are Ready,
+# 1 on timeout.
+set -euo pipefail
+export KUBECONFIG="{{ kubeconfig_path }}"
+OC="{{ install_bin_dir }}/oc"
+WORKERS_NEEDED={{ cluster_install_workers_needed }}
+DEADLINE=$(( $(date +%s) + {{ cluster_install_csr_timeout_minutes }} * 60 ))
+
+approve_pending() {
+  local pending
+  pending="$($OC get csr --no-headers 2>/dev/null | awk '$NF == "Pending" {print $1}' || true)"
+  if [ -n "${pending}" ]; then
+    # shellcheck disable=SC2086
+    $OC adm certificate approve ${pending} >/dev/null
+    echo "approved: ${pending}"
+  fi
+}
+
+while [ "$(date +%s)" -lt "${DEADLINE}" ]; do
+  approve_pending
+  ready="$($OC get nodes --no-headers 2>/dev/null \
+    | awk '$2 == "Ready" && $3 ~ /worker/ {n++} END {print n+0}')"
+  if [ "${ready}" -ge "${WORKERS_NEEDED}" ]; then
+    echo "all ${WORKERS_NEEDED} workers Ready"
+    exit 0
+  fi
+  sleep {{ cluster_install_csr_poll_seconds }}
+done
+
+approve_pending
+echo "timeout: only ${ready:-0}/${WORKERS_NEEDED} workers Ready after {{ cluster_install_csr_timeout_minutes }} min" >&2
+exit 1

@@ -1,0 +1,7 @@
+---
+- name: Verify the live CXL lab (runbook §10)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
+    - role: shanemcd.cxl_lab.verify

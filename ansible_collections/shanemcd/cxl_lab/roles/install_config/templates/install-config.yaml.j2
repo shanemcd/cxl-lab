@@ -1,0 +1,30 @@
+# Managed by cxl_lab.lab.install_config — do not edit (plan §6, BiP).
+# Secrets are injected via path-only lookups; the rendering task runs no_log.
+apiVersion: v1
+baseDomain: {{ base_domain }}
+metadata:
+  name: {{ cluster_name }}
+compute:
+- name: worker
+  replicas: {{ upi_compute_replicas | int }}
+controlPlane:
+  name: master
+  replicas: {{ masters | length }}
+platform:
+  none: {}
+bootstrapInPlace:
+  installationDisk: {{ bip_installation_disk }}
+pullSecret: {{ lookup('ansible.builtin.file', pull_secret_path) | to_json }}
+sshKey: {{ lookup('ansible.builtin.file', install_ssh_pubkey_path) | to_json }}
+networking:
+  networkType: {{ cluster_network_type }}
+  machineNetwork:
+  - cidr: {{ lab_subnet_cidr }}
+  clusterNetwork:
+  - cidr: {{ cluster_network_cidr }}
+    hostPrefix: {{ cluster_network_host_prefix | int }}
+  serviceNetwork:
+  - {{ service_network_cidr }}
+fips: {{ cluster_fips | bool | ternary('true', 'false') }}
+featureSet: {{ install_feature_set }}
+osImageStream: {{ rhcos_stream_name }}

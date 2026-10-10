@@ -1,0 +1,113 @@
+---
+# Node topology (plan §3): SNO — 1 schedulable master + 2 CXL workers + 1 DRAM
+# worker. MACs derive as {{ mac_base }}:{{ item.mac_suffix }}; IPs as
+# {{ lab_subnet_prefix }}.{{ item.ip_suffix }}.
+mac_base: "52:54:00:0c:0c"
+
+masters:
+  - name: "cxl-master-0"
+    ip_suffix: 11
+    mac_suffix: "0b"
+    vcpu: 8
+    ram: "24G"
+    disk: "120G"
+
+cxl_workers:
+  - name: "worker-cxl-0"
+    ip_suffix: 20
+    mac_suffix: "14"
+    vcpu: 8
+    ram: "24G"
+    vmem_size: "4G"
+    disk: "120G"
+    cxl_bus_nr: 12
+  - name: "worker-cxl-1"
+    ip_suffix: 22
+    mac_suffix: "16"
+    vcpu: 8
+    ram: "24G"
+    vmem_size: "4G"
+    disk: "120G"
+    cxl_bus_nr: 13
+
+dram_workers:
+  - name: "worker-dram"
+    ip_suffix: 21
+    mac_suffix: "15"
+    vcpu: 8
+    ram: "24G"
+    disk: "120G"
+
+# SNO: the single master is schedulable (carries ingress + registry operators;
+# the default IngressController is pinned to it — plan §10 decision 5).
+masters_schedulable: true
+
+# BiP install target (plan §6): the virtio disk the installer writes the
+# master to — interpolated into install-config (bootstrapInPlace.
+# installationDisk) and used by the vms role as the installed-vs-live
+# gate signal (the installed master's /sysroot lives on this device).
+bip_installation_disk: "/dev/vda"
+
+# Pre-baked node images (plan §6.1): CXL workers would boot
+# bootc-image-builder qcow2s on the cxltest kernel from first boot. The P3
+# spike verdict (plan §6.1 results): image production + ignition re-arm work,
+# but first-boot ignition application is blocked by a systemd
+# boot-transaction anomaly on BIB-produced disks — NOT adopted as default.
+# false = v1 stock-boot + MCO-pivot flow (proven, in-collection).
+use_prebaked_node_images: false
+
+# CXL fixed memory window granularity (QEMU cxl-fmw interleave-granularity, KiB).
+vmem_interleave_granularity: 256
+
+# Install-config cluster shape: workers join post-install via ignition + CSR
+# approval (compute.replicas stays 0 regardless of the worker lists above).
+upi_compute_replicas: 0
+cluster_fips: false
+
+# Ignition must be consumed within this window of generation (MCS cert
+# validity, plan §4 gate 6 / runbook §3 timing note).
+ignition_fresh_window_hours: 12
+
+# Host NUMA (plan §7): NOT handled — no detection, no pinning, no per-node
+# assertions (v2 decision §10.7). Guest RAM is placed by the kernel's default
+# first-touch policy.
+
+# Run-script interface (host QEMU processes, plan §3): the --validate parse
+# check pause, and the tap prefix (Linux ifnames cap at 15 chars — the vms
+# role asserts t-<name> fits).
+vms_validate_timeout: 10
+vm_tap_prefix: "t-"
+# --stop force window: SIGTERM to the pidfile QEMU pid, then SIGKILL after this
+# many seconds (used when a wedged guest ignores ssh poweroff; pidfile-targeted,
+# never pkill — plan §4).
+vm_stop_wait_seconds: 30
+
+# MCO layer for the CXL workers (node label + MachineConfigPool + the
+# MachineConfig role selector; shared by mco_cxl and region_commit).
+mco_cxl_role_label: "worker-cxl"
+mco_cxl_mcp_name: "worker-cxl"
+
+# Region-commit unit + sysfs region name (runbook §9; shared by region_commit
+# and verify — role defaults never cross roles).
+region_commit_service_name: "cxl-region-commit.service"
+region_commit_region_name: "region0"
+# MachineConfig object names (shared by mco_cxl, region_commit, and teardown).
+mco_cxl_osimage_mc_name: "50-cxltest-os-image"
+region_commit_mc_name: "60-cxl-region-commit"
+
+# Guest CXL NUMA node (runbook §4 SRAT shape): the QEMU graphs give every CXL
+# worker a CPU-less guest node that carries the CXL kmem (pxb-cxl numa_node +
+# the empty -numa node); verify asserts dax0.0/target_node and the node's
+# meminfo against it.
+cxl_guest_numa_node: 1
+
+# Fleet-wide VM lifecycle knobs (shared by region_commit recovery, teardown,
+# and the ops roles — role defaults never cross roles): how long to wait for a
+# guest QEMU to exit after poweroff (per the run scripts' --status rc 3), the
+# node-Ready wait after a (re)start, and the poll for the region-commit
+# oneshot to go active after boot.
+vm_stop_wait_retries: 60
+vm_stop_wait_delay: 5
+vm_node_ready_timeout_minutes: 15
+vm_service_wait_retries: 20
+vm_service_wait_delay: 15

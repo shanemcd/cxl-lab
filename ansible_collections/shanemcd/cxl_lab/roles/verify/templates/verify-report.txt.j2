@@ -1,0 +1,38 @@
+CXL LAB VERIFICATION REPORT (runbook §10)
+STAMP: test-only lab; CXL is QEMU-EMULATED; cache coherency NOT verified.
+Kernel: {{ kernel_rpm_release }} (CONFIG_CXL_REGION_INVALIDATION_TEST=y)
+Layered OS image: {{ registry_host }}/{{ layered_image_name }}:{{ layered_image_tag }} (digest pinned at {{ layered_image_digest_stamp_path }})
+
+GUEST CHECKS (per CXL worker)
+{% for name, w in verify_guest_report.items() %}
+--- {{ name }} ---
+region {{ region_commit_region_name }}/commit: {{ w.commit }}
+dax0.0 size: {{ w.dax_size }} bytes, target_node: {{ w.dax_target_node }}
+kernel: {{ w.kernel }}
+service {{ region_commit_service_name }}: {{ w.service }}
+test-bypass signature count: {{ w.signature_count }}
+CXL node {{ cxl_guest_numa_node }} meminfo:
+{% for line in w.meminfo %}  {{ line }}
+{% endfor %}numactl -H:
+{% for line in w.numactl %}  {{ line }}
+{% endfor %}{{ w.touch }} ({{ verify_touch_size_mib }} MiB tmpfs mpol=bind:{{ cxl_guest_numa_node }})
+{% endfor %}
+
+HOST SAFETY GATES (plan §7: host NUMA placement NOT gated — first-touch)
+QEMU processes carrying cxl-type3: {{ verify_guest_report | length }} (expected {{ cxl_workers | length }})
+{% for name, h in verify_host_report.items() %}
+--- {{ name }} (QEMU pid {{ h.pid }}) ---
+pidfile status: {{ h.status }}
+host-nodes binding: intentionally absent (plan §7/§10.7 — NUMA handling dropped)
+{% endfor %}
+
+CLUSTER STATE
+clusterversion: desired {{ verify_cluster_report.clusterversion[0] }}, Available {{ verify_cluster_report.clusterversion[1] }}
+nodes:
+{% for line in verify_cluster_report.nodes %}  {{ line }}
+{% endfor %}machine config pools:
+{% for line in verify_cluster_report.mcps %}  {{ line }}
+{% endfor %}cluster operators Available: {{ verify_cluster_report.operators_available }} / {{ verify_cluster_report.operators_total }}
+
+ALL CHECKS PASSED — region committed on both CXL workers (test-only;
+cache coherency NOT verified).
