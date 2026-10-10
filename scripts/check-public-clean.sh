@@ -21,7 +21,10 @@ fail=0
 check() {
   local label="$1" pattern="$2"
   local hits
-  hits=$(git ls-files | xargs grep -nE "$pattern" 2>/dev/null || true)
+  # This script documents and matches the forbidden tokens itself, so it is
+  # excluded from its own scan.
+  hits=$(git ls-files | grep -vx 'scripts/check-public-clean.sh' \
+          | xargs grep -nE "$pattern" 2>/dev/null || true)
   if [ -n "$hits" ]; then
     echo "public-clean gate: FAILED ($label):" >&2
     echo "$hits" >&2
