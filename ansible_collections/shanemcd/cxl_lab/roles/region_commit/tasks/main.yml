@@ -48,5 +48,5 @@
     msg: >-
       region commit OK — {{ cxl_workers | map(attribute='name') | join(', ') }}
       committed {{ region_commit_region_name }} ({{ cxl_workers[0].vmem_size }});
-      service {{ region_commit_service_name }} active on both (guest-side
+      service {{ region_commit_service_name }} active on every one (guest-side
       stale-MEM_ENABLE self-recovery; cold-restart fallback skipped).

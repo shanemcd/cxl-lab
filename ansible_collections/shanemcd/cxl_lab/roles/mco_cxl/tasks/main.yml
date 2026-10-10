@@ -2,7 +2,7 @@
 # mco_cxl: move every CXL worker onto the layered cxltest OS image via MCO
 # Labels, worker-cxl MachineConfigPool, an osImageURL MachineConfig
 # referencing the authoritative registry digest stamp, and a rollout wait;
-# asserts the booted kernel on both workers afterwards.
+# asserts the booted kernel on every worker afterwards.
 
 - name: Stat the layered image digest stamp
   ansible.builtin.stat:
@@ -75,17 +75,33 @@
       spec:
         osImageURL: "{{ mco_cxl_osimage_url }}"
 
-- name: Wait for the worker-cxl pool to finish the rollout
-  ansible.builtin.command:
-    argv:
-      - "{{ install_bin_dir }}/oc"
-      - wait
-      - "mcp/{{ mco_cxl_mcp_name }}"
-      - "--for=condition=Updated"
-      - "--timeout={{ mco_cxl_rollout_timeout_minutes }}m"
+- name: Wait for the layered image rollout to land on every CXL worker
+  # One poller over the whole fleet (fleet-parallel discipline). The pool's
+  # Updated condition alone races the pivot: a freshly labeled node takes a
+  # beat before the controller flips the condition to Updating, so a
+  # condition wait can return on a stale Updated=True. The booted kernel is
+  # the ground truth.
+  ansible.builtin.shell: |
+    set -o pipefail
+    expected="{{ kernel_rpm_release }}"
+    lines=$("{{ install_bin_dir }}/oc" get nodes \
+      -o 'jsonpath={range .items[*]}{.metadata.name}{" "}{.status.nodeInfo.kernelVersion}{"\n"}{end}' \
+      2>/dev/null | grep -E '^({{ cxl_workers | map(attribute='name') | join('|') }}) ' || true)
+    if [ "$(printf '%s' "${lines}" | grep -c .)" -lt {{ cxl_workers | length }} ]; then
+      echo "some CXL workers are not in the node list yet" >&2
+      exit 1
+    fi
+    bad=$(printf '%s\n' "${lines}" | awk -v k="${expected}" '$2 != k {print $1"="$2}' | grep . || true)
+    if [ -n "${bad}" ]; then
+      echo "not yet on ${expected}: ${bad}" >&2
+      exit 1
+    fi
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: mco_cxl_rollout
+  until: mco_cxl_rollout.rc == 0
+  retries: "{{ mco_cxl_rollout_retries }}"
+  delay: "{{ mco_cxl_rollout_delay_seconds }}"
   changed_when: false
 
 - name: Read the booted kernel versions

@@ -3,4 +3,6 @@
 # taxonomy, the authoritative digest stamp in the paths taxonomy, and the
 # role label + pool name in the topology taxonomy (shared with region_commit).
 # One MCO rollout cycle (two nodes, serial reboots into a ~2.5 GiB image).
-mco_cxl_rollout_timeout_minutes: 40
+# Rollout wait (one kernel poller over the fleet): retries x delay ~= 40 min.
+mco_cxl_rollout_retries: 160
+mco_cxl_rollout_delay_seconds: 15
