@@ -1,10 +1,10 @@
 # cxl-lab
 
 Ansible automation for a **disposable OpenShift + QEMU-emulated CXL Type-3 lab**:
-a single-node OpenShift (SNO) master, 2 CXL workers, and 1 DRAM worker — with a
-committed 4 GiB emulated CXL region exposed as System RAM on a CPU-less guest
-NUMA node on both CXL workers. Built from a bare Red Hat family server with
-nothing but podman and SSH.
+a single-node OpenShift (SNO) master plus a configurable fleet of CXL and DRAM
+workers (one of each by default) — with a committed 4 GiB emulated CXL region
+exposed as System RAM on a CPU-less guest NUMA node on every CXL worker. Built
+from a bare Red Hat family server with nothing but podman and SSH.
 
 All results are **test-only / cache-coherency-unverified**: the region commit
 relies on the guest kernel's `CONFIG_CXL_REGION_INVALIDATION_TEST=y` bypass of
@@ -15,8 +15,8 @@ demos, not for cache-coherency validation.
 
 After the pipeline runs you have, all idempotent and re-runnable:
 
-- an OpenShift single-node cluster (schedulable master) + 3 workers, all Ready
-  with operators Available;
+- an OpenShift single-node cluster (schedulable master) + the worker fleet
+  (one CXL + one DRAM worker by default), all Ready with operators Available;
 - every VM as **host-native QEMU** under per-node run scripts (pidfile,
   `--status`/`--stop`/`--validate`), the CXL workers carrying the full emulated
   Type-3 graph (`pxb-cxl` → `cxl-rp` → `cxl-type3` + fixed-memory-window, guest
@@ -53,7 +53,10 @@ After the pipeline runs you have, all idempotent and re-runnable:
 ## Prerequisites
 
 - A dedicated Red Hat family host (developed and validated on RHEL 10) with:
-  - ~104 GiB free RAM for the four guests,
+  - ~36 GiB free RAM for the default three guests — every node is sized to
+    the OpenShift-documented minimum resource requirements, and the pipeline
+    asserts the exact guest RAM/vCPU/disk sums plus headroom against the
+    host before touching anything,
   - podman, python3, and SSH access,
   - internet egress (OpenShift payload pulls, artifact downloads),
   - an RHSM registration + entitlements (backs the CDN kernel-SRPM download),
@@ -140,7 +143,18 @@ self-chosen values):
 |---|---|
 | `inventory/group_vars/all/secrets.yml` | **Paths only** to the pull secret (0600) and the install SSH keypair; kubeconfig location. Tasks touching them are `no_log`. |
 | `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the registry host + dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers, host-resolution block (API/API-int/ingress names on the master IP). |
-| `inventory/group_vars/all/topology.yml` | Node table (names/IP/MAC/vCPU/RAM/CXL size), `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
+| `inventory/group_vars/all/topology.yml` | Worker counts (`cxl_worker_count`/`dram_worker_count`, one each by default) and the node specs they generate, `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
+
+### Scaling the fleet
+
+The worker lists are generated from `cxl_worker_count` and `dram_worker_count` —
+grow the fleet with e.g. `ansible-playbook shanemcd.cxl_lab.site -e
+cxl_worker_count=2`. Node names, IP suffixes, MAC suffixes (the hex of the IP
+suffix) and CXL bus numbers are assigned deterministically — CXL workers at
+IP suffixes 20, 22, 24… with pxb-cxl buses 12, 13, 14…, DRAM workers at 21,
+23, 25… — so scaling appends without renumbering existing nodes. `host_prep`
+fails fast if the grown fleet exceeds the host's free RAM/vCPU/disk or the
+address space reserved for DHCP.
 | `inventory/group_vars/all/versions.yml` | OpenShift version + feature set, installer/oc/RHCOS-ISO URLs **with pinned SHA-256s**, kernel NVR + per-source SHA pins, QEMU version/prefix + source SHA, `machine_os_content_ref`, layered image refs. |
 | `inventory/group_vars/all/paths.yml` | Install dir (secrets, stamps), VM assets dir and its subdirs (images/ignition/logs/scripts/run/registry), verification dir, per-master boot-ISO name. |
 | `inventory/group_vars/all/host.yml` | RHSM knobs + host package list. |

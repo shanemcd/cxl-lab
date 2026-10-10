@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0
+
+Slimmer defaults and a configurable fleet.
+
+- The CXL and DRAM worker fleets are generated from `cxl_worker_count` and
+  `dram_worker_count` (one each by default) with deterministic node names,
+  IP/MAC suffixes and CXL bus numbers — scaling the fleet appends without
+  renumbering existing nodes.
+- Node specs drop to the OpenShift-documented minimum resource requirements:
+  the master at the single-node minimum profile (4 vCPUs, 16 GiB RAM, 120 GiB
+  storage) and workers at the compute-machine minimum (2 vCPUs, 8 GiB RAM,
+  100 GiB storage). The default lab needs ~36 GiB of guest RAM instead of
+  ~104 GiB. The emulated CXL region size is unchanged.
+- `host_prep` now asserts the generated topology is sane — unique IP suffixes
+  below the DHCP free range, unique in-bounds CXL bus numbers — before the
+  host capacity checks.
+
 ## 1.0.0
 
 Initial public release of the `shanemcd.cxl_lab` collection: automation for a
