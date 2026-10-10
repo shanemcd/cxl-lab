@@ -255,6 +255,24 @@
     name: "{{ registry_host }}/{{ layered_image_name }}@{{ layered_image_registry_digest }}"
     state: absent
 
+- name: Wait for the cluster API to be ready
+  # The master can reboot itself a few minutes after the install settles
+  # (machine-config daemon applying a config delta). The build steps above
+  # are host-local, so this is the first cluster-touching task since the
+  # install role — gate it on the API answering.
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - "--raw=/readyz"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: layered_image_api_ready
+  until: layered_image_api_ready.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+
 - name: Teach the cluster to trust the lab registry
   kubernetes.core.k8s:
     state: patched
