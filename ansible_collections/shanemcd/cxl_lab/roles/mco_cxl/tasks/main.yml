@@ -1,5 +1,5 @@
 ---
-# mco_cxl: move both CXL workers onto the layered cxltest OS image via MCO
+# mco_cxl: move every CXL worker onto the layered cxltest OS image via MCO
 # Labels, worker-cxl MachineConfigPool, an osImageURL MachineConfig
 # referencing the authoritative registry digest stamp, and a rollout wait;
 # asserts the booted kernel on both workers afterwards.
@@ -104,7 +104,7 @@
   register: mco_cxl_kernels
   changed_when: false
 
-- name: Assert both CXL workers boot the cxltest kernel
+- name: Assert every CXL worker boots the cxltest kernel
   ansible.builtin.assert:
     that:
       - item.stdout == kernel_rpm_release
@@ -118,6 +118,6 @@
 - name: MCO rollout summary
   ansible.builtin.debug:
     msg: >-
-      mco_cxl OK — both CXL workers on {{ kernel_rpm_release }} via
+      mco_cxl OK — every CXL worker on {{ kernel_rpm_release }} via
       {{ mco_cxl_osimage_url.split('@')[0] }}@{{ mco_cxl_osimage_url.split('@')[1][:19] }}…
       (pool {{ mco_cxl_mcp_name }} Updated).

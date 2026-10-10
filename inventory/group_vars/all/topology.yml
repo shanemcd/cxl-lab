@@ -1,43 +1,70 @@
 ---
-# Node topology: single-node OpenShift — 1 schedulable master + 2 CXL workers
-# + 1 DRAM worker. MACs derive as {{ mac_base }}:{{ item.mac_suffix }}; IPs as
-# {{ lab_subnet_prefix }}.{{ item.ip_suffix }}.
+# Node topology: single-node OpenShift — 1 schedulable master + N CXL
+# workers + M DRAM workers. The worker lists are GENERATED from the counts
+# below, so the fleet size is a two-variable change; per-node specs sit at
+# the OpenShift-documented minimums. MACs derive as
+# {{ mac_base }}:{{ item.mac_suffix }} with mac_suffix the hex of the node's
+# ip_suffix; IPs as {{ lab_subnet_prefix }}.{{ item.ip_suffix }}.
+#
+# Allocation schemes (stable across counts — growing the fleet appends
+# without renumbering):
+#   master:      ip suffix 11
+#   CXL workers: ip suffix 20 + 2*i, pxb-cxl bus 12 + i   (20, 22, 24, ...)
+#   DRAM workers: ip suffix 21 + 2*i                      (21, 23, 25, ...)
+# host_prep asserts the suffixes stay unique and below the dnsmasq free
+# range, and that the CXL bus numbers stay unique and within PCI bounds.
 mac_base: "52:54:00:0c:0c"
+
+# Fleet size. The default lab is one CXL worker + one DRAM worker.
+cxl_worker_count: 1
+dram_worker_count: 1
+
+# Per-node specs — the OpenShift-documented minimum resource requirements:
+# master from "Requirements for installing OpenShift on a single node"
+# (minimum profile: 4 vCPUs, 16 GB RAM, 120 GB storage), workers from
+# "Minimum resource requirements for cluster installation" (compute
+# machines: 2 vCPUs, 8 GB RAM, 100 GB storage).
+master_vcpu: 4
+master_ram: "16G"
+master_disk: "120G"
+worker_vcpu: 2
+worker_ram: "8G"
+worker_disk: "100G"
 
 masters:
   - name: "cxl-master-0"
     ip_suffix: 11
-    mac_suffix: "0b"
-    vcpu: 8
-    ram: "24G"
-    disk: "120G"
+    mac_suffix: "{{ '%02x' % 11 }}"
+    vcpu: "{{ master_vcpu }}"
+    ram: "{{ master_ram }}"
+    disk: "{{ master_disk }}"
 
-cxl_workers:
-  - name: "worker-cxl-0"
-    ip_suffix: 20
-    mac_suffix: "14"
-    vcpu: 8
-    ram: "24G"
-    vmem_size: "4G"
-    disk: "120G"
-    cxl_bus_nr: 12
-  - name: "worker-cxl-1"
-    ip_suffix: 22
-    mac_suffix: "16"
-    vcpu: 8
-    ram: "24G"
-    vmem_size: "4G"
-    disk: "120G"
-    cxl_bus_nr: 13
+# Emulated CXL region size per CXL worker (the cxl-type3 volatile memdev —
+# the guest NUMA node the region commits onto).
+cxl_vmem_size: "4G"
 
-dram_workers:
-  - name: "worker-dram"
-    ip_suffix: 21
-    mac_suffix: "15"
-    vcpu: 8
-    ram: "24G"
-    disk: "120G"
+cxl_workers: >-
+  {%- set out = [] -%}
+  {%- for i in range(cxl_worker_count | int) -%}
+  {%- set suffix = 20 + 2*i -%}
+  {%- set _ = out.append({'name': 'worker-cxl-%d' % i,
+        'ip_suffix': suffix,
+        'mac_suffix': '%02x' % suffix,
+        'vcpu': worker_vcpu, 'ram': worker_ram, 'disk': worker_disk,
+        'vmem_size': cxl_vmem_size, 'cxl_bus_nr': 12 + i}) -%}
+  {%- endfor -%}
+  {{ out }}
 
+dram_workers: >-
+  {%- set out = [] -%}
+  {%- for i in range(dram_worker_count | int) -%}
+  {%- set suffix = 21 + 2*i -%}
+  {%- set _ = out.append({'name': 'worker-dram-%d' % i,
+        'ip_suffix': suffix,
+        'mac_suffix': '%02x' % suffix,
+        'vcpu': worker_vcpu, 'ram': worker_ram, 'disk': worker_disk}) -%}
+  {%- endfor -%}
+  {{ out }}
 # SNO: the single master is schedulable (it carries the ingress and registry
 # operators; the default IngressController is pinned to it).
 masters_schedulable: true

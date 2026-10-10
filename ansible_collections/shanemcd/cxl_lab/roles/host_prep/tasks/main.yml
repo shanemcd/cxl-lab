@@ -18,6 +18,26 @@
   ansible.builtin.set_fact:
     host_prep_selinux_status: "{{ (ansible_facts.get('selinux') or {}).get('status', 'missing') }}"
 
+- name: Assert the generated node topology is sane
+  ansible.builtin.assert:
+    that:
+      - cxl_worker_count | int >= 1
+      - dram_worker_count | int >= 1
+      - (masters + cxl_workers + dram_workers) | map(attribute='ip_suffix') | list
+        | length == (masters + cxl_workers + dram_workers) | map(attribute='ip_suffix')
+        | unique | list | length
+      - (masters + cxl_workers + dram_workers) | map(attribute='ip_suffix') | max
+        < network_dhcp_range_start_suffix
+      - cxl_workers | length == 0 or cxl_workers | map(attribute='cxl_bus_nr') | list
+        | length == cxl_workers | map(attribute='cxl_bus_nr') | unique | list | length
+      - cxl_workers | length == 0 or cxl_workers | map(attribute='cxl_bus_nr') | max < 256
+    fail_msg: >-
+      The generated topology is inconsistent: worker counts must be >= 1,
+      IP suffixes unique and below the dnsmasq free range start
+      ({{ network_dhcp_range_start_suffix }}), CXL bus numbers unique and
+      below 256. Check cxl_worker_count/dram_worker_count and the allocation
+      schemes in topology.yml.
+
 - name: Compute guest resource requirements
   ansible.builtin.set_fact:
     host_prep_required_mem_gib: >-

@@ -34,5 +34,5 @@ nodes:
 {% for line in verify_cluster_report.mcps %}  {{ line }}
 {% endfor %}cluster operators Available: {{ verify_cluster_report.operators_available }} / {{ verify_cluster_report.operators_total }}
 
-ALL CHECKS PASSED — region committed on both CXL workers (test-only;
+ALL CHECKS PASSED — region committed on every CXL worker (test-only;
 cache coherency NOT verified).

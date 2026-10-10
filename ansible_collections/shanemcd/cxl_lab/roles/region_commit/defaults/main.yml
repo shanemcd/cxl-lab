@@ -10,7 +10,7 @@ region_commit_ignition_version: "3.2.0"
 # create_ram_region) — kernel enumeration order is not stable. The unit and
 # region names live in the topology taxonomy (shared with verify).
 
-# Stale-MEM_ENABLE self-recovery (validated live on worker-cxl-0, Oct 9): the
+# Stale-MEM_ENABLE self-recovery (validated live on a CXL worker, Oct 9): the
 # kernel sets DVSEC MEM_ENABLE on the first successful endpoint probe, QEMU
 # preserves DVSEC config across reboots/re-probes, and the strict
 # cxl_hdm_decode_init() range validation then rejects the next probe. The unit
