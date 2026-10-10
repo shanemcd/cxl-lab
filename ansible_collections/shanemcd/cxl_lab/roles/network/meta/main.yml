@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Plain Linux bridge, host addresses, forwarding, NAT, host resolution (plan §8 playbook 03, P3).
+  description: Lab bridge, gateway address, forwarding, NAT, host resolution, and the lab resolver (dnsmasq DNS + DHCP).
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

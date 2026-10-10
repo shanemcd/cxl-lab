@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Build the patched private QEMU runtime image for CXL workers (plan §8 playbook 04, P5).
+  description: Build stock upstream QEMU from source in a pinned builder container and install it to a host prefix.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

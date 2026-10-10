@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Node-reachable container registry on the lab gateway (runbook §7, P9).
+  description: Node-reachable container registry on the lab gateway.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

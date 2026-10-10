@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Per-layer reverse teardown, tagged by layer (runbook §11, P12).
+  description: Per-layer reverse teardown, tagged by layer.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

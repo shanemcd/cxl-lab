@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Full cluster install orchestration through install-complete (runbook §5, P8).
+  description: Drive the bootstrap-in-place install to a converged single-node cluster.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

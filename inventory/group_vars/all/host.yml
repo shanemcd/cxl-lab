@@ -1,7 +1,7 @@
 ---
-# Host preparation knobs (plan §5 taxonomy). The host_prep role gates RHSM checks on
-# ansible_distribution == 'RedHat' (Fedora has no subscription-manager); rhsm_required
-# is an override, not a substitute for that gating.
+# Host preparation knobs. The host_prep role gates RHSM checks on
+# ansible_distribution == 'RedHat' (Fedora has no subscription-manager);
+# rhsm_required is an override, not a substitute for that gating.
 #
 # RHSM is assert-only by default: community.general.redhat_subscription with
 # state: present needs credentials ONLY when the system is not already registered.
@@ -12,7 +12,7 @@ rhsm_password: ""
 rhsm_org_id: ""
 rhsm_activationkey: ""
 
-# Host packages ensured by host_prep (var-driven; plan §4 gate 3).
+# Host packages ensured by host_prep (var-driven).
 host_packages:
   - iptables
   - qemu-img

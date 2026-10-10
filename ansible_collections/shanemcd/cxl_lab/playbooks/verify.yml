@@ -1,5 +1,5 @@
 ---
-- name: Verify the live CXL lab (runbook §10)
+- name: Verify the live CXL lab
   hosts: all
   become: true
   gather_facts: false

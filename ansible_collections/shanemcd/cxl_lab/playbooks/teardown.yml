@@ -1,5 +1,5 @@
 ---
-- name: Teardown the CXL lab (reverse layer order; runbook §11)
+- name: Teardown the CXL lab (reverse layer order)
   hosts: all
   become: true
   gather_facts: false

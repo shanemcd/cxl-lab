@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Assert and ensure the lab host is ready (plan §8 playbook 01, P2).
+  description: Assert and ensure the lab host is ready (OS family, capacity, ports, packages, RHSM).
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

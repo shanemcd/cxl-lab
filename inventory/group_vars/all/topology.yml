@@ -1,6 +1,6 @@
 ---
-# Node topology (plan §3): SNO — 1 schedulable master + 2 CXL workers + 1 DRAM
-# worker. MACs derive as {{ mac_base }}:{{ item.mac_suffix }}; IPs as
+# Node topology: single-node OpenShift — 1 schedulable master + 2 CXL workers
+# + 1 DRAM worker. MACs derive as {{ mac_base }}:{{ item.mac_suffix }}; IPs as
 # {{ lab_subnet_prefix }}.{{ item.ip_suffix }}.
 mac_base: "52:54:00:0c:0c"
 
@@ -38,22 +38,22 @@ dram_workers:
     ram: "24G"
     disk: "120G"
 
-# SNO: the single master is schedulable (carries ingress + registry operators;
-# the default IngressController is pinned to it — plan §10 decision 5).
+# SNO: the single master is schedulable (it carries the ingress and registry
+# operators; the default IngressController is pinned to it).
 masters_schedulable: true
 
-# BiP install target (plan §6): the virtio disk the installer writes the
+# Bootstrap-in-place install target: the virtio disk the installer writes the
 # master to — interpolated into install-config (bootstrapInPlace.
-# installationDisk) and used by the vms role as the installed-vs-live
-# gate signal (the installed master's /sysroot lives on this device).
+# installationDisk) and used by the vms role as the installed-vs-live gate
+# signal (the installed master's /sysroot lives on this device).
 bip_installation_disk: "/dev/vda"
 
-# Pre-baked node images (plan §6.1): CXL workers would boot
-# bootc-image-builder qcow2s on the cxltest kernel from first boot. The P3
-# spike verdict (plan §6.1 results): image production + ignition re-arm work,
-# but first-boot ignition application is blocked by a systemd
-# boot-transaction anomaly on BIB-produced disks — NOT adopted as default.
-# false = v1 stock-boot + MCO-pivot flow (proven, in-collection).
+# Pre-baked node images: when true, CXL workers boot bootc-image-builder
+# qcow2s on the cxltest kernel from first boot. NOT the supported default:
+# image production and ignition re-arm work, but first-boot ignition
+# application fails on BIB-produced disks (systemd starts ignition-files
+# while sysroot.mount is still mid-transaction). false keeps the supported
+# flow: stock boot image + MCO-driven pivot onto the cxltest layered image.
 use_prebaked_node_images: false
 
 # CXL fixed memory window granularity (QEMU cxl-fmw interleave-granularity, KiB).
@@ -64,22 +64,22 @@ vmem_interleave_granularity: 256
 upi_compute_replicas: 0
 cluster_fips: false
 
-# Ignition must be consumed within this window of generation (MCS cert
-# validity, plan §4 gate 6 / runbook §3 timing note).
+# Ignition must be consumed within this window of generation (the machine
+# config server certificate validity bounds the useful life of the config).
 ignition_fresh_window_hours: 12
 
-# Host NUMA (plan §7): NOT handled — no detection, no pinning, no per-node
-# assertions (v2 decision §10.7). Guest RAM is placed by the kernel's default
+# Host NUMA: intentionally NOT handled — no detection, no pinning, no
+# per-node assertions. Guest RAM is placed by the kernel's default
 # first-touch policy.
 
-# Run-script interface (host QEMU processes, plan §3): the --validate parse
-# check pause, and the tap prefix (Linux ifnames cap at 15 chars — the vms
-# role asserts t-<name> fits).
+# Run-script interface (host QEMU processes): the --validate parse check
+# pause, and the tap prefix (Linux ifnames cap at 15 chars — the vms role
+# asserts t-<name> fits).
 vms_validate_timeout: 10
 vm_tap_prefix: "t-"
 # --stop force window: SIGTERM to the pidfile QEMU pid, then SIGKILL after this
-# many seconds (used when a wedged guest ignores ssh poweroff; pidfile-targeted,
-# never pkill — plan §4).
+# many seconds (used when a wedged guest ignores ssh poweroff; always
+# pidfile-targeted, never pkill).
 vm_stop_wait_seconds: 30
 
 # MCO layer for the CXL workers (node label + MachineConfigPool + the
@@ -87,17 +87,17 @@ vm_stop_wait_seconds: 30
 mco_cxl_role_label: "worker-cxl"
 mco_cxl_mcp_name: "worker-cxl"
 
-# Region-commit unit + sysfs region name (runbook §9; shared by region_commit
-# and verify — role defaults never cross roles).
+# Region-commit unit + sysfs region name (shared by region_commit and verify
+# — role defaults never cross roles).
 region_commit_service_name: "cxl-region-commit.service"
 region_commit_region_name: "region0"
 # MachineConfig object names (shared by mco_cxl, region_commit, and teardown).
 mco_cxl_osimage_mc_name: "50-cxltest-os-image"
 region_commit_mc_name: "60-cxl-region-commit"
 
-# Guest CXL NUMA node (runbook §4 SRAT shape): the QEMU graphs give every CXL
-# worker a CPU-less guest node that carries the CXL kmem (pxb-cxl numa_node +
-# the empty -numa node); verify asserts dax0.0/target_node and the node's
+# Guest CXL NUMA node (SRAT shape): the QEMU graphs give every CXL worker a
+# CPU-less guest node that carries the CXL kmem (pxb-cxl numa_node + the
+# empty -numa node); verify asserts dax0.0/target_node and the node's
 # meminfo against it.
 cxl_guest_numa_node: 1
 
