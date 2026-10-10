@@ -1,9 +1,8 @@
 ---
-# Per-CXL-worker host gates (plan §7 deviation, §10.7), included with
-# loop_var: worker. v2: the QEMUs run on the HOST under our run scripts —
-# the pidfile --status interface is the authoritative liveness check.
-# Host NUMA placement is intentionally NOT gated (first-touch placement;
-# plan §7 records the deviation from runbook §4/§10).
+# Per-CXL-worker host gates, included with loop_var: worker. The QEMUs
+# run on the HOST under our run scripts — the pidfile --status interface
+# is the authoritative liveness check. Host NUMA placement is
+# intentionally NOT gated (first-touch placement policy).
 
 - name: Read the QEMU status for {{ worker.name }}
   ansible.builtin.command:

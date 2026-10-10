@@ -1,5 +1,5 @@
 ---
-# install_config (v2, plan §6): SNO install-config + bootstrap-in-place.
+# install_config: single-node install-config + bootstrap-in-place.
 # The BiP ignition runs the full bootstrap in a live environment, then
 # coreos-installer (-n: NM connections carry over) writes the installed
 # master and reboots. Per-node ignition (fw_cfg delivery, no HTTP server):
@@ -22,7 +22,7 @@
       - install_config_pull_secret_stat.stat.exists
     fail_msg: >-
       Pull secret missing at {{ pull_secret_path }} — provide a valid OpenShift
-      pull secret file (mode 0600) and re-run (runbook §0 prerequisites).
+      pull secret file (mode 0600) and re-run.
 
 - name: Validate pull secret JSON without exposing contents
   ansible.builtin.command:
@@ -111,7 +111,7 @@
       Ignition under {{ install_dir }} is {{ install_config_ignition_age_hours }}h
       old — beyond the {{ ignition_fresh_window_hours }}h MCS certificate window.
       Run the teardown playbook, then re-run to generate fresh ignition
-      (plan §4 gate 6).
+
   when: install_config_ignition_complete | bool
 
 - name: Guard against partial or consumed install state
@@ -123,7 +123,7 @@
         | list | length == 0
     fail_msg: >-
       Partial or consumed install artifacts under {{ install_dir }} — run the
-      teardown playbook first (fresh-dir guard, plan §13 P6).
+      teardown playbook first (fresh-dir guard).
   when: not install_config_ignition_complete | bool
 
 - name: Generate manifests and the BiP ignition
@@ -354,7 +354,7 @@
         (install_config_nm_connection_file)
         in (install_config_master_merged_raw.content | b64decode)
       # the lab resolver must be the NM keyfile's DNS (fetch-time name
-      # resolution depends on it — plan §10.8)
+      # resolution depends on it)
       - >-
         ('dns=' ~ lab_gateway_ip)
         in (install_config_master_merged_raw.content | b64decode | from_json).storage.files

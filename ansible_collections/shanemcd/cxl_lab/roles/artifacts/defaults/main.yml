@@ -5,7 +5,7 @@
 
 # Pinned downloads (empty sha256 entries are trust-on-first-use: the role
 # refuses to proceed and prints the computed checksum to pin in versions.yml).
-# The kernel SRPM is NOT here — it is acquired by the plan §6.2 closed loop
+# The kernel SRPM is NOT here — it is acquired by the artifacts role
 # (entitled CDN download or brew fallback) after the osimage NVR is read.
 artifacts_downloads:
   - name: openshift_install
@@ -40,10 +40,10 @@ artifacts_kernel_builder_jobs: 48
 artifacts_kernel_build_wait_retries: 240
 artifacts_kernel_build_wait_delay: 30
 
-# Entitled CDN SRPM download (plan §6.2): repo file + script rendered into
+# Entitled CDN SRPM download: repo file + script rendered into
 # artifacts_srpm_dir; the container mounts the host RHSM entitlement read-only
 # (paths discovered at runtime — never hardcoded) and runs with SELinux
-# confinement disabled so it can read the host-labelled certs (P3 spike).
+# confinement disabled so it can read the host-labelled certs.
 artifacts_cdn_repo_file_name: "cdn-kernel-source.repo"
 artifacts_cdn_download_script_name: "cdn-srpm-download.sh"
 artifacts_cdn_container_name: "cxl-lab-srpm-downloader"

@@ -1,9 +1,8 @@
 ---
 # qemu_builder: build stock upstream QEMU in a digest-pinned CS10 builder
-# container and install it to the host prefix (plan §4) — no patch, no
-# podman commit, no runtime image. The exists-guard keys off the versioned
-# prefix, so re-runs skip the build and teardown never removes the prefix
-# (plan §10 decision 6).
+# container and install it to the host prefix — no patch, no podman commit,
+# no runtime image. The exists-guard keys off the versioned prefix, so
+# re-runs skip the build and teardown never removes the prefix.
 
 - name: Stat the installed QEMU binary (exists-guard)
   ansible.builtin.stat:

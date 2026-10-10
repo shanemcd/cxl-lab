@@ -1,8 +1,8 @@
 ---
-# host_prep: assert the lab host is suitable and ensure everything the lab needs
-# (plan §9 phase 2). Read-only asserts + idempotent ensures.
+# host_prep: assert the lab host is suitable and ensure everything the lab
+# needs. Read-only asserts + idempotent ensures.
 #
-# NUMA: v2 does NOT pin guest memory (plan §7 — dropped by decision §10.7).
+# NUMA: guest memory is NOT pinned.
 # Guest RAM is placed by the kernel's default first-touch policy; no NUMA
 # detection, no numactl prefix, no per-node assertions.
 
@@ -182,8 +182,8 @@
       - host_prep_ntp.stdout | trim == 'yes'
     fail_msg: NTP is not synchronized — the cluster needs accurate time.
 
-# RHSM is load-bearing in v2: the entitlement backs the CDN kernel-SRPM
-# download (plan §6.2 closed loop). Assert-only when already registered.
+# RHSM is load-bearing: the entitlement backs the CDN kernel-SRPM
+# download. Assert-only when already registered.
 - name: Check RHSM registration (assert-only; no credentials needed when registered)
   community.general.redhat_subscription:
     state: present

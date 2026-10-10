@@ -1,5 +1,5 @@
 ---
-# Per-CXL-worker guest checks (runbook §10 "Guest (worker-cxl)" block),
+# Per-CXL-worker guest checks (per-worker guest checklist),
 # included with loop_var: worker. All probes are read-only; the bounded touch
 # mounts and unmounts a tmpfs.
 

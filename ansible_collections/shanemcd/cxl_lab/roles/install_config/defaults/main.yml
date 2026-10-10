@@ -21,7 +21,7 @@ install_config_stamp_name: "ignition-generated-stamp"
 install_config_nm_connection_id: "lab"
 install_config_nm_connection_file: "lab.nmconnection"
 
-# Install-time custom manifests (plan §5 name resolution without DNS
+# Install-time custom manifests (name resolution without DNS
 # infrastructure): the bootstrap MCS renders them into the master
 # ignition, so /etc/hosts + the SNO master hostname persist onto the
 # installed master (coreos-installer -n only copies NM connections).

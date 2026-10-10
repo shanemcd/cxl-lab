@@ -1,5 +1,5 @@
 ---
-# ops_status (v2): read-only summary of the whole lab — cluster state, host
+# ops_status: read-only summary of the whole lab — cluster state, host
 # QEMU status per node, lab network (bridge, resolver, registry), CXL region
 # state per worker, and the layered image. Everything reports changed=0.
 

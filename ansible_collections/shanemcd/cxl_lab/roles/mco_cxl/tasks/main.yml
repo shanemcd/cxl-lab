@@ -1,7 +1,7 @@
 ---
 # mco_cxl: move both CXL workers onto the layered cxltest OS image via MCO
-# (runbook §8). Labels, worker-cxl MachineConfigPool, an osImageURL MachineConfig
-# referencing the AUTHORITATIVE registry digest (P9 stamp), and a rollout wait;
+# Labels, worker-cxl MachineConfigPool, an osImageURL MachineConfig
+# referencing the authoritative registry digest stamp, and a rollout wait;
 # asserts the booted kernel on both workers afterwards.
 
 - name: Stat the layered image digest stamp

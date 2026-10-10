@@ -1,5 +1,5 @@
 ---
-# Evidence capture (plan §8 verify.yml row): full checklist output under the
+# Evidence capture : full checklist output under the
 # verification dir, 0700/0600, stamped test-only / cache-coherency-unverified.
 # The report content is deterministic — re-runs only change the file when a
 # check output actually changes.

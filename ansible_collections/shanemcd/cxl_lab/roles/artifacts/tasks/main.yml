@@ -1,5 +1,5 @@
 ---
-# artifacts: construct every external input (plan §9) — pinned downloads
+# artifacts: construct every external input — pinned downloads
 # (SRPM, installer, oc, qemu source, RHCOS image), cxltest kernel RPMs built
 # in a disposable CS10 container, SHA256SUMS. All checksums pinned in
 # versions.yml; trust-on-first-use artifacts refuse to proceed until pinned.
@@ -126,7 +126,7 @@
       {{ install_bin_dir }}/openshift-install does not report {{ ocp_version }} —
       remove the stamp/binaries and re-run.
 
-# --- plan §6.2: kernel source closed loop -------------------------------
+# --- kernel source acquisition -------------------------------------------
 # Discover the rhel-10 RHCOS bootc base from the release payload (the exact
 # image the layered image builds FROM and the master pivots to at install),
 # read the shipped kernel NVR from it, and acquire the SRPM via the entitled

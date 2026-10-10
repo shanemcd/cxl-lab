@@ -6,7 +6,7 @@
 # Decompressed stream qcow2 (workers' backing image).
 vms_base_image_name: "{{ rhcos_qemu_image_name | regex_replace('\\.gz$', '') }}"
 
-# CXL graph ids (runbook §4 shape): the pxb-cxl bus the fixed memory window
+# CXL graph ids: the pxb-cxl bus the fixed memory window
 # targets, and the root port below it.
 vms_cxl_pxb_id: "pxb0"
 vms_cxl_root_port_id: "rp0"

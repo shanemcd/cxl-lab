@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Managed by cxl_lab.lab.region_commit (MachineConfig) — do not edit (runbook §9).
+# Managed by shanemcd.cxl_lab.region_commit (MachineConfig) — do not edit.
 # Proven raw-sysfs region commit sequence for kernel {{ kernel_rpm_release }}
 # (the cxl CLI is not in the RHCOS base image). 211.64.1-specific behaviors:
 #   1. regionN/target0 takes the ENDPOINT DECODER name, not the endpoint port
@@ -15,7 +15,7 @@
 #      Fix (validated live): clear the stale MEM_ENABLE bit via setpci and
 #      rebind the cxl_pci driver — no reboot needed. The private QEMU image's
 #      DVSEC ctrl tweak is unrelated to this (.ctrl=0x2 is IO Enable, bit 1,
-#      not MEM Enable, bit 2 — runbook §1).
+#      not MEM Enable, bit 2).
 D=/sys/bus/cxl/devices
 VMEM_HEX={{ '0x%x' | format((cxl_workers[0].vmem_size | regex_replace('G$', '') | int) * 1024 * 1024 * 1024) }}
 GRAN={{ vmem_interleave_granularity }}

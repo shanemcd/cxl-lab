@@ -1,8 +1,8 @@
 ---
-# layered_image: build the bootc layered OS image (plan §6.2/§8, runbook
-# §7) — base = the TAXONOMY-pinned payload machine-os-content ref (P3
-# TOFU-pin, cross-validated against the master's booted osImageURL by the
-# install role), verify + bake the five cxltest kernel RPMs, bootc lint,
+# layered_image: build the bootc layered OS image — base = the
+# taxonomy-pinned payload machine-os-content ref (cross-validated against
+# the master's booted osImageURL by the install role), verify + bake the
+# five cxltest kernel RPMs, bootc lint,
 # push to the lab registry, fetch the AUTHORITATIVE Docker-Content-Digest
 # with full OCI Accept headers, verify pull-by-digest, and teach the
 # cluster to trust the registry.
@@ -247,7 +247,7 @@
     fail_msg: >-
       Pull-by-digest {{ layered_image_registry_digest }} did not resolve to the
       built image ({{ layered_image_local_info_final.images[0].Id }}) — the
-      authoritative-digest handling regressed (plan §11).
+      authoritative-digest handling regressed.
 
 - name: Untag the pulled digest reference
   when: layered_image_push_needed | bool

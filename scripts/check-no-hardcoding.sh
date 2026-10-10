@@ -44,7 +44,7 @@ for f in "${FILES[@]}"; do
 done
 
 if [ "$fail" -ne 0 ]; then
-  echo "hardcoding gate: FAILED — move values into variables (plan §5)" >&2
+  echo "hardcoding gate: FAILED — move values into variables" >&2
   exit 1
 fi
 echo "hardcoding gate: OK (${#FILES[@]} files checked)"

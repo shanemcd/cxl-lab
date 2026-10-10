@@ -1,5 +1,5 @@
 ---
-# Cluster state checks (runbook §10 "Cluster" block): expected nodes Ready,
+# Cluster state checks (cluster checklist): expected nodes Ready,
 # clusterversion Available at the pinned version, all operators Available,
 # master/worker/worker-cxl MachineConfigPools Updated.
 

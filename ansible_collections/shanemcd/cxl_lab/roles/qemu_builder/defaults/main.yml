@@ -10,9 +10,9 @@ qemu_builder_script_path: "{{ qemu_build_dir }}/qemu-build.sh"
 qemu_builder_staging_dir: "{{ qemu_build_dir }}/staging"
 qemu_builder_workspace_mount: /workspace
 
-# Build dependencies installed inside the digest-pinned CS10 builder (same
-# set the v1 Fedora Containerfile validated, minus git/iproute/numactl — no
-# patch step, no in-container networking, no host-nodes binding in v2).
+# Build dependencies installed inside the digest-pinned CS10 builder
+# (git/iproute/numactl deliberately excluded — no patch step, no
+# in-container networking).
 qemu_builder_build_deps:
   - gcc
   - gcc-c++
@@ -27,9 +27,9 @@ qemu_builder_build_deps:
   - xz
   - python3
 
-# Host runtime libraries the CS10-built binary links against (verified via
-# ldd on the RHEL 10 host, P3: libfdt.so.1 is the only CS10-only linkage —
-# RHEL 10 AppStream carries the same SONAME).
+# Host runtime libraries the CS10-built binary links against (libfdt.so.1
+# is the only CS10-only linkage — RHEL 10 AppStream carries the same
+# SONAME).
 qemu_builder_runtime_packages:
   - libfdt
 

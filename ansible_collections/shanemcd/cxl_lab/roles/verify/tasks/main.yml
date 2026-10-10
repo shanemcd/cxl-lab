@@ -1,8 +1,8 @@
 ---
-# verify: runbook §10 checklist on BOTH CXL workers + host gates + cluster
+# verify: the full checklist on BOTH CXL workers + host gates + cluster
 # state, then a 0600 evidence report stamped test-only /
 # cache-coherency-unverified. Read-only (plus the bounded tmpfs touch).
-# Host NUMA placement is NOT gated (plan §7 deviation, §10.7) — the host
+# Host NUMA placement is NOT gated (intentional — first-touch policy); the host
 # gates check QEMU liveness via the pidfile --status interface and that
 # only the CXL worker QEMUs carry the Type-3 device.
 
@@ -48,7 +48,7 @@
       verify OK — {{ cxl_workers | map(attribute='name') | join(', ') }}:
       region committed, dax on node {{ cxl_guest_numa_node }}, kernel
       {{ kernel_rpm_release }}, service active; host QEMU gates clean
-      (no host-NUMA gating — plan §7 deviation); cluster Ready/Available;
+      (no host-NUMA gating); cluster Ready/Available;
       evidence at
       {{ verification_dir }}/{{ verify_evidence_report_name }} (0600,
       test-only, cache coherency NOT verified).

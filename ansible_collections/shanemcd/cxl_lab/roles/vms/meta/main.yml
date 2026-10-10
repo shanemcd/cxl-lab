@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: RHCOS base image, overlays, run scripts, and per-VM QEMU containers for non-CXL nodes (P7).
+  description: RHCOS boot media, disk overlays, and one host-QEMU run script per node.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

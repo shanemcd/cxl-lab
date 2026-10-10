@@ -1,11 +1,11 @@
 ---
-# teardown (v2): reverse-layer rollback. Layers are TAGGED; a bare run
+# teardown: reverse-layer rollback. Layers are TAGGED; a bare run
 # executes every layer in file order (reverse build order): mco → registry
 # → vms → network → images → artifacts → install-data. Use --tags <layer>
 # for a single layer. Every task is idempotent — a second teardown run is
 # a no-op. Destructive command tasks are check-guarded, so --check
 # dry-runs the whole playbook. The QEMU host PREFIX is never removed
-# (plan §10.6 — the exists-guard makes a same-version rebuild a no-op).
+# (the exists-guard makes a same-version rebuild a no-op).
 #
 # NOTE (documented behavior): the network layer deletes the lab bridge
 # while the VM taps may still exist; the run scripts re-enslave taps at
@@ -348,7 +348,7 @@
   tags: images
 
 - name: Remove the QEMU build directory
-  # The host PREFIX ({{ qemu_install_prefix }}) is NEVER removed — plan §10.6.
+  # The host PREFIX ({{ qemu_install_prefix }}) is NEVER removed.
   ansible.builtin.file:
     path: "{{ qemu_build_dir }}"
     state: absent

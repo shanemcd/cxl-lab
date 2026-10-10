@@ -1,11 +1,9 @@
 ---
-# network (v2, plan §5 + §10.3 P4 verdict): plain persistent Linux bridge via
-# iproute2 (ours — netavark bridges are container-attachment-scoped and
-# cannot serve VM-only attachment), single reversible masquerade rule for
-# egress NAT (the podman-network route was evaluated live in P4 and set
-# aside — see plan §5), persistent ip_forward drop-in, and the host
-# /etc/hosts block. The egress path is proven by a veth+netns probe that
-# emulates a VM tap on the bridge.
+# network: plain persistent Linux bridge via iproute2 (ours — netavark
+# bridges are container-attachment-scoped and cannot serve host-QEMU VM
+# taps), single reversible masquerade rule for egress NAT, persistent
+# ip_forward drop-in, and the host /etc/hosts block. The egress path is
+# proven by a veth+netns probe that emulates a VM tap on the bridge.
 
 - name: Set all node IP suffixes fact (probe-collision check)
   ansible.builtin.set_fact:
@@ -18,7 +16,7 @@
     that:
       # kernel ifnames cap at 15 chars
       - lab_bridge_name | length <= 15
-      # the bridge carries only the gateway address in v2 (no DNS/VIP/LB)
+      # the bridge carries only the gateway address (no DNS/VIP/LB)
       - network_bridge_addresses | length == 1
       - network_bridge_addresses[0] | regex_replace('/.*', '') == lab_gateway_ip
       # the egress probe IP must not collide with the gateway or any node
@@ -88,8 +86,7 @@
     reload: true
 
 - name: Check lab masquerade rule
-  # The single reversible NAT rule (plan §10 decision 3 fallback, made
-  # primary by the P4 verdict). Teardown removes it by this exact spec.
+  # The single reversible NAT rule. Teardown removes it by this exact spec.
   ansible.builtin.command:
     cmd: >-
       iptables -t nat -C POSTROUTING
@@ -115,9 +112,9 @@
     block: "{{ network_hosts_block | join('\n') }}"
 
 - name: Install dnsmasq (host-native lab resolver)
-  # Plan §10.8 (P6 verdict): ignition fetches config.merge sources before
-  # applying storage, so worker stubs need api-int resolvable at initramfs
-  # fetch time with only the NM keyfile resolver. DNS-only on the gateway.
+  # Ignition fetches config.merge sources before applying storage, so
+  # worker stubs need api-int resolvable at initramfs fetch time with only
+  # the NM keyfile resolver — hence a resolver on the gateway.
   ansible.builtin.package:
     name: dnsmasq
     state: present

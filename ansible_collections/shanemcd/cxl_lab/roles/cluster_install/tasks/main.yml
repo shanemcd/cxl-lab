@@ -1,12 +1,12 @@
 ---
-# cluster_install (v2, plan §6/§9 P7): by the time this role runs the BiP
-# install is already underway — the master installed itself (P6) and the
+# cluster_install: by the time this role runs the bootstrap-in-place
+# install is already underway — the master installed itself and the
 # workers fetched fresh ignition from the installed master's MCS. This
-# role drives the cluster to a converged SNO state: heals the BiP
+# role drives the cluster to a converged single-node state: heals the
 # machine-os-puller pivot race (if present), approves kubelet CSRs until
 # every worker is Ready, keeps masters schedulable (SNO — asserted, never
 # changed), pins the ingress router to the master (stable *.apps hosts
-# entries across worker restarts — plan §10 decision 5), and asserts the
+# entries across worker restarts), and asserts the
 # final state: all nodes Ready, clusteroperators Available, clusterversion
 # Available, master's booted osimage == the pinned payload
 # machine-os-content. No stamps: every step is naturally idempotent.
@@ -129,7 +129,7 @@
     success_msg: masters schedulable ({{ masters_schedulable }}) — SNO OK.
 
 - name: Pin the ingress router to the master
-  # Plan §10 decision 5: the default IngressController runs only on the
+  # The default IngressController runs only on the
   # master so the *.apps hosts entries (master IP) stay valid across
   # worker restarts.
   kubernetes.core.k8s:

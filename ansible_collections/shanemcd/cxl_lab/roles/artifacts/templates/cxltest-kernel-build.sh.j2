@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Managed by cxl_lab.lab.artifacts — do not edit.
+# Managed by shanemcd.cxl_lab.artifacts — do not edit.
 # Builds the cxltest kernel RPMs from the RHEL SRPM inside the disposable
-# CentOS Stream 10 builder container (runbook §0 artifacts; experiment log
-# 2026-10-09 recipe: config flip only, vendor config otherwise preserved,
-# baseonly, unsigned eln-style build, {{ kernel_rpm_buildid }} buildid).
+# CentOS Stream 10 builder container (single config flip, vendor config
+# otherwise preserved, baseonly, unsigned eln-style build,
+# {{ kernel_rpm_buildid }} buildid).
 set -euo pipefail
 
 RPMS_DIR="{{ artifacts_kernel_rpms_dir }}"

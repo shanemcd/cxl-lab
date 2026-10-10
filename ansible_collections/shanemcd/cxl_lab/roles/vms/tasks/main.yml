@@ -1,11 +1,11 @@
 ---
-# vms (v2, plan §6/§8): one host-QEMU run script per node — the stock
+# vms: one host-QEMU run script per node — the stock
 # upstream QEMU from the builder prefix (never the appstream qemu-kvm,
 # which has no CXL backports). Master = BiP boot model (live ISO + blank
 # virtio install target + merged BiP ignition); workers = stream qcow2
 # overlays + per-node merged ignition (MCS stubs). CXL workers carry the
-# runbook §4 Type-3 graph MINUS host-node binding (plan §7 deviation,
-# §10.7). Boot sequence: master first, then workers once the live-env
+# emulated Type-3 graph MINUS host-node binding (host NUMA placement is
+# intentionally first-touch). Boot sequence: master first, then workers once the live-env
 # Machine Config Server answers (their first-boot ignition fetch targets
 # it). No per-VM containers, no QEMU patch image.
 
@@ -169,7 +169,7 @@
 
 - name: Prepare the master boot-medium kernel args
   # platform=qemu makes ignition read the fw_cfg config; the serial console
-  # makes the guest's boot observable in the serial log (runbook §4). Only
+  # makes the guest's boot observable in the serial log. Only
   # appended when absent — coreos-installer does not deduplicate.
   ansible.builtin.command:
     argv:
@@ -235,8 +235,8 @@
          | map(attribute='content') | map('b64decode')) | list }}
 
 - name: Assert CXL worker run-script shapes
-  # The runbook §4 CXL shape on CXL workers, MINUS host-node binding
-  # everywhere (plan §7 deviation, §10.7) — encoded as asserts so the
+  # The emulated CXL shape on CXL workers, MINUS host-node binding
+  # everywhere — encoded as asserts so the
   # deviation is enforced, not just documented.
   ansible.builtin.assert:
     that:
@@ -258,13 +258,13 @@
         '-numa node,nodeid=1' in (vms_script_contents
                                   | selectattr(0, 'equalto', item.name)
                                   | map(attribute=1) | first)
-      # NO host-node binding (plan §7)
+      # NO host-node binding (host NUMA is not pinned)
       - >-
         'host-nodes' not in (vms_script_contents
                              | selectattr(0, 'equalto', item.name)
                              | map(attribute=1) | first)
     fail_msg: >-
-      {{ item.name }} run script does not match the runbook §4 CXL shape
+      {{ item.name }} run script does not match the expected CXL shape
       (minus host-nodes) — see {{ vm_scripts_dir }}/run-{{ item.name }}.sh.
   loop: "{{ cxl_workers }}"
   loop_control:
@@ -420,5 +420,5 @@
       (master {{ masters[0].name }}: live ISO + blank install target,
       BiP; {{ vms_worker_nodes | length }} workers on stream overlays);
       CXL Type-3 graph on {{ cxl_workers | length }} workers (no host-node
-      binding — plan §7); all serial logs show kernel boot;
+      binding); all serial logs show kernel boot;
       {{ vms_boot_evidence.stdout | trim }}.

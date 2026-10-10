@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Lab egress probe (plan §5): emulates a VM tap on the lab bridge — a veth
+# Lab egress probe: emulates a VM tap on the lab bridge — a veth
 # pair with one end enslaved to the bridge and the other inside a throwaway
 # network namespace holding a default route via the lab gateway. A TCP
 # connect to the external endpoint from inside the namespace proves DNS +
 # routed egress + the masquerade rule, i.e. the exact path the QEMU VMs will
-# use in P6. Fully self-cleaning (trap + idempotent pre-clean).
+# use. Fully self-cleaning (trap + idempotent pre-clean).
 set -euo pipefail
 
 bridge="{{ lab_bridge_name }}"

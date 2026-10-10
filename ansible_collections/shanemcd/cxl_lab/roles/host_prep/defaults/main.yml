@@ -1,5 +1,5 @@
 ---
-# host_prep role-scoped knobs (plan §5: cluster-wide values come from group_vars).
+# host_prep role-scoped knobs (cluster-wide values come from group_vars).
 host_prep_sysfs_net_path: /sys/class/net
 
 # Structural device names (not site configuration).
@@ -23,7 +23,7 @@ host_prep_disk_headroom_gib: 100
 # libpod-* cgroups (used to tell lab-owned listeners from foreign ones).
 host_prep_container_cgroup_marker: "libpod"
 
-# Workspace directories ensured by this role (secrets dirs 0700, plan §4 gate 4).
+# Workspace directories ensured by this role (secrets dirs 0700).
 host_prep_workspace_dirs:
   - path: "{{ install_dir }}"
     mode: "0700"

@@ -1,4 +1,4 @@
-# Managed by cxl_lab.lab.network — do not edit (plan §10.8).
+# Managed by shanemcd.cxl_lab.network — do not edit.
 # Host-native lab resolver on the bridge gateway: DNS-only (no DHCP — node
 # addressing is static via ignition-baked NM keyfiles). Serves the cluster
 # records (the same names as the host /etc/hosts block) plus node FQDNs,
@@ -13,7 +13,7 @@ no-hosts
 no-poll
 cache-size=150
 
-# DHCP with per-MAC reservations (plan §10.8 addendum): initramfs
+# DHCP with per-MAC reservations: initramfs
 # networking is default-DHCP and ignition applies the static NM keyfiles
 # only after the fetch phase — workers need a lease to fetch their MCS
 # config. Reservations pin every node to its taxonomy IP, so first-boot

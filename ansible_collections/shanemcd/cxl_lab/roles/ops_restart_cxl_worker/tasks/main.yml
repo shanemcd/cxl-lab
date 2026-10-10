@@ -1,5 +1,5 @@
 ---
-# ops_restart_cxl_worker: cold-restart cycle for ONE CXL worker (plan §8
+# ops_restart_cxl_worker: cold-restart cycle for ONE CXL worker
 # ops/restart_cxl_worker.yml; the same proven sequence as the region_commit
 # recovery): drain → guest poweroff → QEMU exit wait with --stop fallback →
 # cold-start → Ready → uncordon → region-commit service wait → commit assert.

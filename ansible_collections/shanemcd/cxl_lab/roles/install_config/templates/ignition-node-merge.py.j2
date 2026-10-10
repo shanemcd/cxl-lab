@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Managed by cxl_lab.lab.install_config — do not edit.
-# Assembles a per-node ignition config for fw_cfg delivery (plan §5/§6):
+# Managed by shanemcd.cxl_lab.install_config — do not edit.
+# Assembles a per-node ignition config for fw_cfg delivery:
 # merges the node-specific static network + name resolution into a base
 # ignition (the BiP master ignition or the installer's worker.ign MCS stub).
 # The base config is preserved verbatim except for same-path file entries,
@@ -60,7 +60,7 @@ def upsert_file(path, mode, text):
 upsert_file("/etc/hostname", 420, node_name + "\n")
 
 # Static name resolution: the shared lab hosts block plus the node's own
-# entry. The lab resolver (dnsmasq on the gateway, plan §10.8) serves these
+# entry. The lab resolver (dnsmasq on the gateway) serves these
 # names at initramfs fetch time; the baked /etc/hosts is belt-and-braces.
 with open(hosts_snippet_path) as f:
     hosts_text = f.read().rstrip("\n")

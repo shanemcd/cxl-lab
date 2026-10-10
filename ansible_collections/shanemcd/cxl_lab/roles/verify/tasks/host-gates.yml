@@ -1,6 +1,6 @@
 ---
-# Global host gate (runbook §10 "Host"): only the CXL worker QEMUs carry the
-# Type-3 device — counted across host QEMU processes (v2 runs on the host;
+# Global host gate (host checklist): only the CXL worker QEMUs carry the
+# Type-3 device — counted across host QEMU processes (QEMU runs on the host;
 # the bash loop skips its own /proc entry since the script text itself
 # matches the pattern).
 

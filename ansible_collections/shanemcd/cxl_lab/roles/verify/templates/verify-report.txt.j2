@@ -1,4 +1,4 @@
-CXL LAB VERIFICATION REPORT (runbook §10)
+CXL LAB VERIFICATION REPORT
 STAMP: test-only lab; CXL is QEMU-EMULATED; cache coherency NOT verified.
 Kernel: {{ kernel_rpm_release }} (CONFIG_CXL_REGION_INVALIDATION_TEST=y)
 Layered OS image: {{ registry_host }}/{{ layered_image_name }}:{{ layered_image_tag }} (digest pinned at {{ layered_image_digest_stamp_path }})
@@ -18,12 +18,12 @@ CXL node {{ cxl_guest_numa_node }} meminfo:
 {% endfor %}{{ w.touch }} ({{ verify_touch_size_mib }} MiB tmpfs mpol=bind:{{ cxl_guest_numa_node }})
 {% endfor %}
 
-HOST SAFETY GATES (plan §7: host NUMA placement NOT gated — first-touch)
+HOST SAFETY GATES (host NUMA placement NOT gated - first-touch)
 QEMU processes carrying cxl-type3: {{ verify_guest_report | length }} (expected {{ cxl_workers | length }})
 {% for name, h in verify_host_report.items() %}
 --- {{ name }} (QEMU pid {{ h.pid }}) ---
 pidfile status: {{ h.status }}
-host-nodes binding: intentionally absent (plan §7/§10.7 — NUMA handling dropped)
+host-nodes binding: intentionally absent (host NUMA placement not pinned)
 {% endfor %}
 
 CLUSTER STATE

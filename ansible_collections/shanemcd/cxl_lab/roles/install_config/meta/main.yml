@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Install-config, manifests, and ignition with the 12h fresh window (P6).
+  description: Install-config, manifests, and per-node ignition with a 12h freshness window.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

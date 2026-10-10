@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: Read-only lab status summary — cluster, VMs, CXL regions, host NUMA (P12 ops).
+  description: Read-only lab status summary - cluster, VMs, network, CXL regions.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

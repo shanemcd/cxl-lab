@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Managed by cxl_lab.lab.vms — do not edit.
+# Managed by shanemcd.cxl_lab.vms — do not edit.
 {% if node.kind == 'worker-cxl' %}
-# CXL worker {{ node.name }}: full emulated Type-3 graph (runbook §4 proven
+# CXL worker {{ node.name }}: full emulated Type-3 graph (the proven
 # shape) — SRAT via -numa (node 0 cpus+ram0, EMPTY node 1 as the CPU-less CXL
 # target; without these kmem lands on node 0), pxb-cxl on bus
 # {{ node.cxl_bus_nr }} -> cxl-rp -> cxl-type3 volatile memdev, fixed window
 # cxl-fmw.0 ({{ node.vmem_size }} @ granularity {{ vmem_interleave_granularity }}).
-# Host-node binding is intentionally absent (plan §7/§10.7: first-touch
-# placement, no host NUMA handling in v2).
+# Host-node binding is intentionally absent (first-touch
+# placement; host NUMA is not pinned).
 {% elif node.kind == 'master' %}
-# SNO master {{ node.name }}: BiP boot model (plan §6) — boots the RHCOS live
+# Master {{ node.name }}: bootstrap-in-place boot model — boots the RHCOS live
 # ISO read-only with a blank virtio install target at bootindex
 # {{ vms_disk_bootindex }} (the installed disk wins after install-to-disk;
 # the firmware falls through to the ISO while the target is blank). The

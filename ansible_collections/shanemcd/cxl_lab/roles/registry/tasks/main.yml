@@ -1,5 +1,5 @@
 ---
-# registry: node-reachable image registry (runbook §7) — registry:2 container
+# registry: node-reachable image registry — registry:2 container
 # bound to the lab gateway so nodes pull over plain HTTP (cluster trusts it
 # via the image.config insecureRegistries patch applied by layered_image).
 

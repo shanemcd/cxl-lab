@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Shane McDonald
-  description: worker-cxl MachineConfigPool + osImageURL MachineConfig + rollout wait (P10).
+  description: worker-cxl MachineConfigPool + osImageURL MachineConfig + rollout wait.
   license: GPL-3.0-or-later
   min_ansible_version: "2.19"
   platforms:

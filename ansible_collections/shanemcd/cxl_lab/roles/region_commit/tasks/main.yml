@@ -1,6 +1,6 @@
 ---
 # region_commit: ship the proven sysfs region-commit sequence as a MachineConfig
-# with a oneshot service (runbook §9), wait for the second MCO rollout, then
+# with a oneshot service, wait for the second MCO rollout, then
 # recover each worker from the warm-reboot constraint: the MCO reboot happens
 # INSIDE the running QEMU, stale DVSEC/HDM state makes the service fail BY
 # DESIGN, and the fix is a per-worker QEMU cold restart (drain -> guest
