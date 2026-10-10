@@ -16,6 +16,20 @@ Slimmer defaults and a configurable fleet.
 - `host_prep` now asserts the generated topology is sane — unique IP suffixes
   below the DHCP free range, unique in-bounds CXL bus numbers — before the
   host capacity checks.
+- Reliability fixes found while validating the minimum-spec fleet and the
+  scale-out path, all convergent-wait gates:
+  - `cluster_install` polls API readiness (readyz) before its first cluster
+    interaction; a freshly installed API server can time out requests
+    while it warms up.
+  - the CSR join gate no longer counts the schedulable single-node master
+    as a Ready worker (its role list matches /worker/), which let the gate
+    pass before the last worker joined.
+  - `mco_cxl` waits on the booted kernel of every CXL worker instead of the
+    pool's Updated condition, which can read stale-True before the
+    controller notices a freshly labeled node.
+  - `verify` settles first: a read-only poller waits for every operator and
+    the clusterversion to read Available before asserting, instead of
+    racing post-install churn.
 
 ## 1.0.0
 
