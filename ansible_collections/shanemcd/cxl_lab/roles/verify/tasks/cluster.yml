@@ -3,6 +3,30 @@
 # clusterversion Available at the pinned version, all operators Available,
 # master/worker/worker-cxl MachineConfigPools Updated.
 
+- name: Wait for the cluster to settle
+  # Read-only settle gate: verification asserts steady state, not a
+  # momentary one. Right after a pipeline run (or a master reboot), a
+  # minimum-spec SNO master can briefly backpressure the API server and
+  # flap an operator or the clusterversion. One poller over the whole
+  # operator table (fleet-parallel discipline).
+  ansible.builtin.shell: |
+    set -o pipefail
+    bad=$("{{ install_bin_dir }}/oc" get clusteroperators --no-headers 2>/dev/null \
+      | awk '$3 != "True" || $5 == "True" {print $1"("$3"/"$5")"}' | grep . || true)
+    cv=$("{{ install_bin_dir }}/oc" get clusterversion \
+      -o 'jsonpath={.items[0].status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
+    if [ -n "${bad}" ] || [ "${cv}" != "True" ]; then
+      echo "unsettled: operators not Available=${bad:-none} clusterversion Available=${cv}" >&2
+      exit 1
+    fi
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_cluster_settle
+  until: verify_cluster_settle.rc == 0
+  retries: "{{ verify_cluster_settle_retries }}"
+  delay: "{{ verify_cluster_settle_delay_seconds }}"
+  changed_when: false
+
 - name: Read the node states
   ansible.builtin.command:
     argv:

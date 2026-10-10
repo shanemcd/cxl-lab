@@ -21,3 +21,9 @@ verify_touch_min_delta_kib: 32768
 verify_builtin_mcp_names:
   - "master"
   - "worker"
+
+# Cluster settle gate: before asserting, verification waits up to this window
+# (retries x delay) for every operator and the clusterversion to read
+# Available — a freshly converged minimum-spec cluster can flap briefly.
+verify_cluster_settle_retries: 40
+verify_cluster_settle_delay_seconds: 15
