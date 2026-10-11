@@ -85,17 +85,30 @@
   register: host_prep_df
   changed_when: false
 
-- name: Set disk free GiB
+- name: Read current lab disk usage at vm_assets_dir
+  # Re-runs must not double-count the lab's own footprint: the overlays the
+  # capacity assert reserves space for already exist and hold part of the
+  # disk. Budgeting free + current lab usage keeps the invariant "the lab
+  # can exist at full nominal size" stable across first run and re-runs.
+  ansible.builtin.command:
+    cmd: "du -sBG {{ vm_assets_dir }}"
+  register: host_prep_du
+  changed_when: false
+
+- name: Set disk budget GiB (free + existing lab usage)
   ansible.builtin.set_fact:
-    host_prep_disk_free_gib: "{{ host_prep_df.stdout_lines | last | trim | int }}"
+    host_prep_disk_budget_gib: >-
+      {{ (host_prep_df.stdout_lines | last | trim | int)
+         + (host_prep_du.stdout.split()[0] | regex_replace('G$', '') | int) }}
 
 - name: Assert disk capacity at vm_assets_dir
   ansible.builtin.assert:
     that:
-      - host_prep_disk_free_gib >= host_prep_required_disk_gib + host_prep_disk_headroom_gib
+      - host_prep_disk_budget_gib | int >= host_prep_required_disk_gib | int + host_prep_disk_headroom_gib | int
     fail_msg: >-
-      Free space at {{ vm_assets_dir }} is {{ host_prep_disk_free_gib }} GiB but the
-      overlays need {{ host_prep_required_disk_gib }} GiB plus
+      Disk budget (free + existing lab usage) at {{ vm_assets_dir }} is
+      {{ host_prep_disk_budget_gib }} GiB but the overlays need
+      {{ host_prep_required_disk_gib }} GiB plus
       {{ host_prep_disk_headroom_gib }} GiB headroom.
 
 - name: Stat required devices
@@ -254,4 +267,4 @@
       mem={{ host_prep_available_mem_gib | round(0) | int }}G free vs
       {{ host_prep_required_mem_gib }}G required,
       vcpu={{ ansible_facts['processor_vcpus'] }} vs {{ host_prep_required_vcpu }} required,
-      disk={{ host_prep_disk_free_gib }}G free vs {{ host_prep_required_disk_gib }}G required.
+      disk={{ host_prep_disk_budget_gib }}G budget (free + lab usage) vs {{ host_prep_required_disk_gib }}G required.
