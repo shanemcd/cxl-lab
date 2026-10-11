@@ -9,54 +9,10 @@
 # path) OR bake a bootable qcow2 via bootc-image-builder patched for
 # first-boot ignition (pre-baked path).
 
-- name: Handle the build-side base pin cross-check
-  # MCO path only: the cluster is up by the time 07 runs, so the pinned
-  # base can be compared against the live currentConfig. The pre-baked
-  # path builds BEFORE the cluster exists; the install role performs the
-  # same pin assert against the booted cluster at install time.
-  when: not use_prebaked_node_images | bool
-  block:
-
-    - name: Read the master's current MachineConfig
-      ansible.builtin.command:
-        argv:
-          - "{{ install_bin_dir }}/oc"
-          - get
-          - node
-          - "{{ masters[0].name }}"
-          - "-o"
-          - "jsonpath={.metadata.annotations.machineconfiguration\\.openshift\\.io/currentConfig}"
-      environment:
-        KUBECONFIG: "{{ kubeconfig_path }}"
-      register: layered_image_current_mc
-      changed_when: false
-
-    - name: Read the current MachineConfig osImageURL
-      ansible.builtin.command:
-        argv:
-          - "{{ install_bin_dir }}/oc"
-          - get
-          - machineconfig
-          - "{{ layered_image_current_mc.stdout | trim }}"
-          - "-o"
-          - "jsonpath={.spec.osImageURL}"
-      environment:
-        KUBECONFIG: "{{ kubeconfig_path }}"
-      register: layered_image_mc_osimage
-      changed_when: false
-
-    - name: Assert the pinned base matches the booted cluster
-      # The layered image must extend EXACTLY what the cluster runs, or the
-      # MCO pivot mixes OS contents. The install role asserts the same pin —
-      # this is the build-side half.
-      ansible.builtin.assert:
-        that:
-          - layered_image_mc_osimage.stdout | trim == machine_os_content_ref
-        fail_msg: >-
-          The master's currentConfig MC osImageURL is
-          {{ layered_image_mc_osimage.stdout | trim }} but versions.yml pins
-          {{ machine_os_content_ref }} — the payload moved or the pin is
-          stale; re-pin deliberately before building.
+# Build-side base-pin cross-check: REMOVED. The image stage now runs
+# before the cluster exists, so there is nothing live to compare against;
+# the cluster_install role performs the authoritative pin assert against
+# the booted cluster (same machine_os_content_ref pin from versions.yml).
 
 - name: Set the base image reference fact
   ansible.builtin.set_fact:
@@ -161,7 +117,11 @@
 # pre-baked path consumes the image locally through BIB instead.
 
 - name: Handle the lab registry flow
-  when: not use_prebaked_node_images | bool
+  # Both flows push the layered image to the lab registry and stamp the
+  # authoritative Docker-Content-Digest: the MCO path pivots workers onto
+  # the registry reference at 08, and the pre-baked path points the
+  # install-time osImageURL MachineConfig at it (OpenShift's firstboot
+  # pivot must land somewhere — make it land on the layered image).
   block:
 
     - name: Check the authoritative digest stamp
@@ -273,37 +233,6 @@
         name: "{{ registry_host }}/{{ layered_image_name }}@{{ layered_image_registry_digest }}"
         state: absent
 
-    - name: Wait for the cluster API to be ready
-      # The master can reboot itself a few minutes after the install settles
-      # (machine-config daemon applying a config delta). The build steps above
-      # are host-local, so this is the first cluster-touching task since the
-      # install role — gate it on the API answering.
-      ansible.builtin.command:
-        argv:
-          - "{{ install_bin_dir }}/oc"
-          - get
-          - "--raw=/readyz"
-      environment:
-        KUBECONFIG: "{{ kubeconfig_path }}"
-      register: layered_image_api_ready
-      until: layered_image_api_ready.rc == 0
-      retries: 40
-      delay: 15
-      changed_when: false
-
-    - name: Teach the cluster to trust the lab registry
-      kubernetes.core.k8s:
-        state: patched
-        kubeconfig: "{{ kubeconfig_path }}"
-        api_version: config.openshift.io/v1
-        kind: Image
-        name: cluster
-        definition:
-          spec:
-            registrySources:
-              insecureRegistries:
-                - "{{ registry_host }}"
-
     - name: Layered image summary
       ansible.builtin.debug:
         msg: >-
@@ -313,13 +242,17 @@
           digest {{ layered_image_registry_digest }} (podman RepoDigest
           {{ layered_image_local_info_final.images[0].RepoDigests | default([])
              | map('regex_replace', '^.*@', '') | join(',') }}
-          differs by design), registry trusted cluster-wide.
+          differs by design).
 
 # --- Pre-baked node image path ---------------------------------------------
 # BIB turns the layered image into a bootable qcow2; the disk is patched for
 # first-boot ignition (marker + platform karg + stripped generic root kargs)
-# and the workers boot overlays of it (see the vms role). No registry, no
-# cluster trust, no MCO pivot.
+# and the workers boot overlays of it (see the vms role). The registry still
+# hosts the image: OpenShift's firstboot pivot rebases every node onto the
+# cluster's osImageURL, so the pre-baked path aims that pivot at the layered
+# image via an install-time MachineConfig (see the install_config role) —
+# the pivot becomes a same-content rebase that keeps the cxltest kernel.
+# No MCO rollout, no post-install MachineConfig churn.
 
 - name: Build the pre-baked node image
   when: use_prebaked_node_images | bool

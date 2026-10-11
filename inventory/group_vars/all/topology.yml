@@ -91,8 +91,14 @@ bip_installation_disk: "/dev/vda"
 # cannot create users); (3) the patch re-adds the $ignition_firstboot BLS
 # variable reference that BIB drops — the grub 05_ignition.cfg snippet
 # expands it from the ignition.firstboot marker (armed per fresh overlay,
-# removed by ignition after the first boot). false keeps the MCO flow: stock
-# boot image + registry + osImageURL pivot.
+# removed by ignition after the first boot); (4) OpenShift's firstboot
+# pivot rebases every node onto the cluster's osImageURL — the pre-baked
+# path ships that pool's MachineConfigs (worker-cxl pool + layered
+# osImageURL + lab-registry trust) as install-time manifests, so the
+# pivot lands on the layered image (same kernel) instead of the stock
+# payload and the workers fetch /config/worker-cxl at first boot.
+# false keeps the MCO flow: stock boot image + registry + post-install
+# osImageURL pivot via MachineConfig rollout.
 use_prebaked_node_images: true
 
 # CXL fixed memory window granularity (QEMU cxl-fmw interleave-granularity, KiB).

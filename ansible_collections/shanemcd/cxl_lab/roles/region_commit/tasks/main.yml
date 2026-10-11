@@ -5,15 +5,83 @@
 # warm-reboot constraint (the MCO reboot happens INSIDE the running QEMU,
 # stale DVSEC/HDM state makes the service fail BY DESIGN, and the fix is a
 # per-worker QEMU cold restart: drain -> guest poweroff -> QEMU exit ->
-# relaunch -> Ready -> uncordon). Pre-baked path: the service already ran
-# at first boot (shipped via the worker ignition, see render-snippet.yml)
-# on a fresh QEMU with no stale DVSEC state — only verification remains.
+# relaunch -> Ready -> uncordon). Pre-baked path: the service ships via
+# the worker ignition and runs on the cxltest kernel from the first boot;
+# OpenShift's firstboot pivot then rebases the worker onto the layered
+# image (install-time osImageURL MachineConfig — same content, same
+# kernel), so the service simply re-runs green on the post-pivot boot —
+# no MCO rollout, no cold restart. Only the pool label and verification
+# remain.
 # Every step queries live state, so interrupted recoveries resume cleanly
 # on re-run.
 
 - name: Handle the pre-baked first-boot path
   when: use_prebaked_node_images | bool
   block:
+
+    - name: Label the CXL workers for the worker-cxl pool
+      # The install-time worker-cxl MachineConfigPool exists from bootstrap;
+      # the workers fetch its rendered config via /config/worker-cxl at
+      # first boot but kubelet still registers them with the plain worker
+      # role label — add the pool label so the MCO reconciles the node into
+      # worker-cxl (rendered config == running config: no reboot, no
+      # rollout; the region-commit service from the first boot survives).
+      kubernetes.core.k8s:
+        state: patched
+        kubeconfig: "{{ kubeconfig_path }}"
+        kind: Node
+        name: "{{ item.name }}"
+        definition:
+          metadata:
+            labels: "{{ {'node-role.kubernetes.io/' ~ mco_cxl_role_label: ''} }}"
+      loop: "{{ cxl_workers }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Check the booted OS and kernel on every CXL worker
+      # The firstboot pivot must have landed on the layered image: if it
+      # rebased onto the stock payload instead, the node runs the stock
+      # kernel and the region commit can never succeed (no QEMU cache-sync
+      # bypass) — fail with the reason instead of a generic service error.
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - "-i"
+          - "{{ install_ssh_key_path }}"
+          - "-o"
+          - "StrictHostKeyChecking=no"
+          - "-o"
+          - "UserKnownHostsFile=/dev/null"
+          - "-o"
+          - "ConnectTimeout=10"
+          - "core@{{ lab_subnet_prefix }}.{{ item.ip_suffix }}"
+          - >-
+            rpm-ostree status | grep -m1 '^[* ]' ;
+            uname -r ;
+            systemctl is-active {{ region_commit_service_name }}
+      loop: "{{ cxl_workers }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: region_commit_firstboot_os
+      until: region_commit_firstboot_os.rc == 0
+      retries: "{{ region_commit_service_wait_retries }}"
+      delay: "{{ region_commit_service_wait_delay }}"
+      changed_when: false
+
+    - name: Assert the pivot landed on the layered image and kernel
+      ansible.builtin.assert:
+        that:
+          - item.stdout is search(kernel_rpm_release)
+          - item.stdout is search(layered_image_name)
+        fail_msg: >-
+          {{ item.item.name }} did not pivot onto the layered image: got
+          {{ item.stdout | default('') | replace('\n', ' ; ') }} — expected
+          the {{ layered_image_name }} deployment on kernel {{ kernel_rpm_release }}.
+          If the deployment is the stock payload, the install-time osImageURL
+          MachineConfig did not reach the worker's first-boot config.
+      loop: "{{ region_commit_firstboot_os.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
 
     - name: Check the first-boot region commit service on every CXL worker
       # The service ran at first boot — by the time 08 runs, 06_install has

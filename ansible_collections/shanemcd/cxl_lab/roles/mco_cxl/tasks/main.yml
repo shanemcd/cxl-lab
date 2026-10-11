@@ -26,8 +26,44 @@
       - mco_cxl_osimage_url is match('^.+@sha256:[0-9a-f]{64}$')
     fail_msg: >-
       No authoritative layered-image digest at {{ layered_image_digest_stamp_path }}
-      — run 08_os_image.yml first (the osImageURL must reference the registry's
+      — run the 07_os_image stage first (the osImageURL must reference the
+      registry's
       Docker-Content-Digest, never podman's RepoDigest).
+
+- name: Wait for the cluster API to be ready
+  # Moved from the layered_image stage (which now runs before the cluster
+  # exists): this is the first cluster-touching task of the MCO path. The
+  # master can reboot itself a few minutes after the install settles
+  # (machine-config daemon applying a config delta).
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - "--raw=/readyz"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: mco_cxl_api_ready
+  until: mco_cxl_api_ready.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+
+- name: Teach the cluster to trust the lab registry
+  # The workers' pivot pulls the layered image over plain HTTP from the lab
+  # registry; the cluster's Image config drives the registries.conf the MCO
+  # renders into every node. (The pre-baked path bakes the same trust in as
+  # an install-time manifest — see the install_config role.)
+  kubernetes.core.k8s:
+    state: patched
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: config.openshift.io/v1
+    kind: Image
+    name: cluster
+    definition:
+      spec:
+        registrySources:
+          insecureRegistries:
+            - "{{ registry_host }}"
 
 - name: Label the CXL workers
   kubernetes.core.k8s:

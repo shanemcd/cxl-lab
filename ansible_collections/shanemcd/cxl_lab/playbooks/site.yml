@@ -8,14 +8,19 @@
   import_playbook: 02_artifacts.yml
 - name: Lab network stage
   import_playbook: 03_network.yml
+# The OS-image stage runs BEFORE the install config: the pre-baked flow's
+# install-time MachineConfigs (osImageURL, worker-cxl pool) need the
+# authoritative registry digest, and the MCO flow simply builds/pushes the
+# image earlier than it consumes it. The numeric prefixes are stable stage
+# labels, not a strict import order.
+- name: Layered OS image and registry stage
+  import_playbook: 07_os_image.yml
 - name: Install config and ignition stage
   import_playbook: 04_ignition.yml
 - name: Virtual machines stage
   import_playbook: 05_vms.yml
 - name: Cluster install stage
   import_playbook: 06_install.yml
-- name: Layered OS image and registry stage
-  import_playbook: 07_os_image.yml
 - name: MCO and region commit stage
   import_playbook: 08_mco.yml
 - name: Verification stage

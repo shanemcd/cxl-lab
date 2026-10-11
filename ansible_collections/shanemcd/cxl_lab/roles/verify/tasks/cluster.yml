@@ -55,11 +55,12 @@
 
 - name: Read the machine config pool states
   vars:
-    # The worker-cxl pool only exists on the MCO path (pre-baked workers
-    # boot the cxltest kernel from first boot and are never pivoted).
+    # Both paths end with a worker-cxl pool: the MCO path creates it at
+    # 08, the pre-baked path ships it as an install-time manifest (the
+    # workers fetch its config at first boot so the pivot targets the
+    # layered image).
     verify_mcp_expected_names: >-
-      {{ verify_builtin_mcp_names
-         + ([mco_cxl_mcp_name] if not use_prebaked_node_images | bool else []) }}
+      {{ verify_builtin_mcp_names + [mco_cxl_mcp_name] }}
     verify_mcp_args: >-
       {{ ['get', 'mcp'] + verify_mcp_expected_names
          + ['-o', 'jsonpath={range .items[*]}{.metadata.name}{" "}'

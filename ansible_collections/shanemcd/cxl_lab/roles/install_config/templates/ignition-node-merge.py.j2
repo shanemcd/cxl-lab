@@ -8,17 +8,19 @@
 # service). The base config is preserved verbatim except for same-path
 # file entries, which are replaced (ignition merge semantics,
 # deterministic). Snippet units are upserted by name and snippet files by
-# path.
+# path. An optional MCS pool override rewrites the base stub's
+# config/worker fetch URL (pre-baked CXL workers fetch the worker-cxl
+# pool so the firstboot pivot targets the layered image).
 import base64
 import json
 import os
 import sys
 
-if len(sys.argv) != 11:
+if len(sys.argv) != 12:
     sys.stderr.write(
         "usage: ignition-node-merge.py <base.ign> <out.ign> <node_name> "
         "<node_ip> <prefix_len> <gateway> <node_mac> <dns_csv> "
-        "<hosts_snippet> <extra_snippet>\n"
+        "<hosts_snippet> <extra_snippet> <mcs_pool>\n"
     )
     sys.exit(2)
 
@@ -33,10 +35,28 @@ if len(sys.argv) != 11:
     dns_csv,
     hosts_snippet_path,
     extra_snippet_path,
+    mcs_pool,
 ) = sys.argv[1:]
 
 with open(base_path) as f:
     config = json.load(f)
+
+if mcs_pool != "-":
+    # Rewrite the base stub's MCS fetch URL: /config/worker ->
+    # /config/<pool>. The pool must exist at install time (its MCP +
+    # osImageURL MachineConfig ship as install manifests) and its selector
+    # must include the worker role so the fetched config is complete.
+    sources = (
+        config.setdefault("ignition", {}).setdefault("config", {}).get("merge", [])
+    )
+    for source in sources:
+        url = source.get("source", "")
+        if url.endswith("/config/worker"):
+            source["source"] = url[: -len("/config/worker")] + "/config/" + mcs_pool
+        else:
+            raise SystemExit(
+                "unexpected MCS merge source in base config: " + url
+            )
 
 storage = config.setdefault("storage", {})
 files = storage.setdefault("files", [])

@@ -193,6 +193,63 @@
         mc_role: "worker"
         mc_hosts_b64: "{{ install_config_mc_hosts_b64 }}"
 
+    - name: Handle the pre-baked install-time manifests
+      # Pre-baked path: OpenShift's firstboot pivot rebases every node onto
+      # the cluster's osImageURL. Ship the worker-cxl pool + the layered
+      # osImageURL + the lab-registry trust as install manifests so the
+      # pivot lands on the layered image on the workers' FIRST boot — the
+      # pre-baked BIB disk already boots the cxltest kernel, so the pivot
+      # becomes a same-content rebase and the region-commit service runs
+      # green on the post-pivot boot with no MCO rollout at all.
+      when: use_prebaked_node_images | bool
+      block:
+
+        - name: Stat the layered image digest stamp
+          ansible.builtin.stat:
+            path: "{{ layered_image_digest_stamp_path }}"
+          register: install_config_stamp_stat
+
+        - name: Read the layered image digest stamp
+          ansible.builtin.slurp:
+            src: "{{ layered_image_digest_stamp_path }}"
+          register: install_config_stamp_raw
+          when: install_config_stamp_stat.stat.exists
+
+        - name: Set the pre-baked osImageURL fact
+          ansible.builtin.set_fact:
+            install_config_prebaked_osimage_url: >-
+              {{ registry_host }}/{{ layered_image_name }}@{{
+              install_config_stamp_raw.content | default('') | b64decode | trim }}
+
+        - name: Assert the pre-baked osImageURL digest
+          ansible.builtin.assert:
+            that:
+              - install_config_stamp_stat.stat.exists
+              - install_config_prebaked_osimage_url is match('^.+@sha256:[0-9a-f]{64}$')
+            fail_msg: >-
+              No authoritative layered-image digest at
+              {{ layered_image_digest_stamp_path }} — run the 07_os_image
+              stage first (the osImageURL must reference the registry's
+              Docker-Content-Digest, never podman's RepoDigest).
+
+        - name: Render the lab registry trust manifest
+          ansible.builtin.template:
+            src: prebaked-registry-trust.yaml.j2
+            dest: "{{ install_dir }}/openshift/{{ install_config_registry_trust_manifest_name }}"
+            mode: "0600"
+
+        - name: Render the worker-cxl MachineConfigPool manifest
+          ansible.builtin.template:
+            src: prebaked-worker-cxl-mcp.yaml.j2
+            dest: "{{ install_dir }}/openshift/{{ install_config_worker_cxl_mcp_manifest_name }}"
+            mode: "0600"
+
+        - name: Render the layered osImageURL MachineConfig manifest
+          ansible.builtin.template:
+            src: prebaked-osimageurl.yaml.j2
+            dest: "{{ install_dir }}/openshift/{{ install_config_osimageurl_manifest_name }}"
+            mode: "0600"
+
     - name: Create the single-node (bootstrap-in-place) ignition config
       ansible.builtin.command:
         argv:
@@ -293,6 +350,9 @@
       - "{{ region_commit_ignition_snippet_path
            if (use_prebaked_node_images | bool and item.kind == 'worker-cxl')
            else '-' }}"
+      - "{{ mco_cxl_mcp_name
+           if (use_prebaked_node_images | bool and item.kind == 'worker-cxl')
+           else '-' }}"
   loop: "{{ install_config_nodes }}"
   loop_control:
     label: "{{ item.name }}"
@@ -334,6 +394,12 @@
     src: "{{ vm_ignition_dir }}/{{ masters[0].name }}.ign"
   register: install_config_master_merged_raw
 
+- name: Read the merged pre-baked CXL worker ignition for verification
+  ansible.builtin.slurp:
+    src: "{{ vm_ignition_dir }}/{{ cxl_workers[0].name }}.ign"
+  register: install_config_cxl_worker_merged_raw
+  when: use_prebaked_node_images | bool
+
 - name: Assert ignition generation and content
   ansible.builtin.assert:
     that:
@@ -364,6 +430,24 @@
       - >-
         (install_config_worker_raw.content | b64decode)
         is search('api-int\.' ~ lab_domain)
+      # pre-baked: the BiP ignition embeds the pivot-targeting manifests and
+      # the CXL worker's merged stub fetches the worker-cxl pool
+      - >-
+        not use_prebaked_node_images | bool
+        or (install_config_registry_trust_manifest_name
+            in (install_config_bip_raw.content | b64decode))
+      - >-
+        not use_prebaked_node_images | bool
+        or (install_config_worker_cxl_mcp_manifest_name
+            in (install_config_bip_raw.content | b64decode))
+      - >-
+        not use_prebaked_node_images | bool
+        or (install_config_osimageurl_manifest_name
+            in (install_config_bip_raw.content | b64decode))
+      - >-
+        not use_prebaked_node_images | bool
+        or ((install_config_cxl_worker_merged_raw.content | default('') | b64decode)
+            is search('/config/' ~ mco_cxl_mcp_name))
       # merged master ignition carries the per-node plumbing
       - "'/etc/hostname' in (install_config_master_merged_raw.content | b64decode)"
       - >-

@@ -27,6 +27,15 @@ install_config_nm_connection_file: "lab.nmconnection"
 # installed master (coreos-installer -n only copies NM connections).
 install_config_hosts_mc_name_prefix: "99-cxl-lab-node"
 
+# Pre-baked install-time manifests (worker-cxl pool + layered osImageURL +
+# lab-registry trust) — the CVO applies them during bootstrap so the
+# workers' firstboot pivot targets the layered image. Names/labels come
+# from the shared topology taxonomy (mco_cxl_*) so both flows create the
+# SAME cluster objects.
+install_config_registry_trust_manifest_name: "99-cxl-registry-trust.yaml"
+install_config_worker_cxl_mcp_manifest_name: "99-cxl-worker-cxl-mcp.yaml"
+install_config_osimageurl_manifest_name: "{{ mco_cxl_osimage_mc_name }}.yaml"
+
 # Per-node ignition assembly helpers (staged in the lab scripts dir).
 install_config_merge_script_path: "{{ vm_scripts_dir }}/ignition-node-merge.py"
 install_config_hosts_snippet_path: "{{ vm_scripts_dir }}/node-hosts-block"

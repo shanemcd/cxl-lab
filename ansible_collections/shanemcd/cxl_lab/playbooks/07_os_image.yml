@@ -3,12 +3,15 @@
   hosts: all
   become: true
   gather_facts: false
-  # MCO path only: the registry serves the layered image to the cluster and
-  # the image is built here (after install, so the build-side base-pin
-  # cross-check can read the live cluster). The pre-baked path builds the
-  # image before the VMs boot (see 05_vms.yml) and needs no registry.
+  # Runs between the network and install-config stages (see site.yml): both
+  # flows need the image + registry digest before the workers' ignition is
+  # assembled — the pre-baked flow's install-time MachineConfigs reference
+  # the registry digest, and the MCO flow simply consumes the image later
+  # (08_mco pivots the workers onto it). No task in this stage touches the
+  # cluster: the build-side base-pin cross-check is MCO-path-only and reads
+  # local facts, and the cluster-side registry trust is applied by the MCO
+  # path at 08 (or baked in as an install-time manifest by the pre-baked
+  # path).
   roles:
     - role: shanemcd.cxl_lab.registry
-      when: not use_prebaked_node_images | bool
     - role: shanemcd.cxl_lab.layered_image
-      when: not use_prebaked_node_images | bool
