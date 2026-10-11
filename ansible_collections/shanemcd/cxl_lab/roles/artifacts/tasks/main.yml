@@ -4,7 +4,7 @@
 # entitled CDN route. All checksums pinned in versions.yml;
 # trust-on-first-use artifacts refuse to proceed until pinned. The cxltest
 # kernel RPMs are built from the SRPM by the layered_image role's
-# kernel-builder stage (see 07_os_image).
+# kernel-builder stage (see 04_os_image).
 
 - name: Ensure artifact directories
   ansible.builtin.file:
@@ -424,4 +424,4 @@
       {{ install_bin_dir }}, RHCOS image
       {{ artifacts_rhcos_url | basename }} verified (stream
       {{ rhcos_stream_name }}). The cxltest kernel RPMs are built from the
-      SRPM by the layered image stage (see 07_os_image).
+      SRPM by the layered image stage (see 04_os_image).

@@ -84,7 +84,7 @@
         label: "{{ item.item.name }}"
 
     - name: Check the first-boot region commit service on every CXL worker
-      # The service ran at first boot — by the time 08 runs, 06_install has
+      # The service ran at first boot — by the time 08 runs, 07_install has
       # already waited for every node Ready, so this normally passes on the
       # first probe; the retries only cover a worker whose first-boot units
       # are still settling.

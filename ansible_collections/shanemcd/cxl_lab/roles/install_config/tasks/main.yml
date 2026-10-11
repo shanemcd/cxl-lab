@@ -228,7 +228,7 @@
               - install_config_prebaked_osimage_url is match('^.+@sha256:[0-9a-f]{64}$')
             fail_msg: >-
               No authoritative layered-image digest at
-              {{ layered_image_digest_stamp_path }} — run the 07_os_image
+              {{ layered_image_digest_stamp_path }} — run the 04_os_image
               stage first (the osImageURL must reference the registry's
               Docker-Content-Digest, never podman's RepoDigest).
 
