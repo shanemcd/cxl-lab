@@ -162,6 +162,21 @@
       register: layered_image_kernel_build
       changed_when: true
 
+    - name: Prune the kernel-build intermediate images
+      # buildah keeps the multi-stage intermediate layers as dangling
+      # images — several GB per kernel build. Without this, a cold run's
+      # build products push a subsequent run's disk-budget gate over the
+      # edge. Tagged images (builder base, payload base, layered image) are
+      # never dangling, so the prune cannot touch them.
+      ansible.builtin.command:
+        argv:
+          - podman
+          - image
+          - prune
+          - "-f"
+      register: layered_image_kernel_build_prune
+      changed_when: layered_image_kernel_build_prune.stdout | trim | length > 0
+
 - name: Stat expected kernel RPMs after the build
   ansible.builtin.stat:
     path: "{{ artifacts_kernel_rpms_dir }}/{{ item }}"
