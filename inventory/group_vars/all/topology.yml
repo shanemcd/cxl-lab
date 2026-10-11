@@ -101,6 +101,17 @@ bip_installation_disk: "/dev/vda"
 # osImageURL pivot via MachineConfig rollout.
 use_prebaked_node_images: true
 
+# Host QEMU source: pinned (default) builds the stock upstream QEMU in the
+# CS10 builder container. auto / distro use the distribution's
+# qemu-system-x86_64 when it carries pxb-cxl / cxl-rp / cxl-type3
+# (Fedora's qemu-system-x86-core does) — EXPERIMENTAL: with this lab's
+# machine config (q35 + pxb-cxl graph + virtio NIC placement), Fedora 44's
+# QEMU 10.2.2 enumerated the graph and configured the guest networking
+# (br-ex carried the static IP) but guest<->host frame flow stalled — the
+# fleet came up unreachable. Needs investigation before becoming the
+# default; the pinned build is a ~2 min one-time cost.
+qemu_source: "pinned"
+
 # CXL fixed memory window granularity (QEMU cxl-fmw interleave-granularity, KiB).
 vmem_interleave_granularity: 256
 

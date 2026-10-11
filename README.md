@@ -33,10 +33,15 @@ After the pipeline runs you have, all idempotent and re-runnable:
 - **Install path**: bootstrap-in-place (BiP) — the master installs OpenShift
   onto its own disk from a live ISO; workers join via ignition fetched from the
   master's machine config server.
-- **QEMU**: stock upstream QEMU (11.1.x) built once in a pinned CentOS Stream 10
-  builder container and installed to `/opt/qemu-<version>` on the host. Upstream
-  QEMU carries full CXL Type-3 emulation — nothing is patched. The appstream
-  `qemu-kvm` package is deliberately NOT used (it lacks the CXL backports).
+- **QEMU**: stock upstream QEMU (11.1.x) built once in a pinned CentOS
+  Stream 10 builder container and installed to `/opt/qemu-<version>` on
+  the host (RHEL's path — its appstream `qemu-kvm` deliberately lacks the
+  CXL backports; nothing is patched). `qemu_source: auto | distro`
+  (topology.yml, experimental) switches the lab to the distribution's
+  `qemu-system-x86_64` when it carries `pxb-cxl`/`cxl-rp`/`cxl-type3`
+  (Fedora's `qemu-system-x86-core` qualifies) — with this machine config
+  Fedora 44's QEMU 10.2.2 stalled guest<->host frame flow, so pinned
+  remains the default.
 - **Network**: a private persistent bridge (`ocpcxlbr0`, 192.168.124.0/24) with
   the host as gateway, one reversible tagged MASQUERADE rule for egress, and a
   host-native dnsmasq serving DNS records + per-MAC DHCP reservations. The

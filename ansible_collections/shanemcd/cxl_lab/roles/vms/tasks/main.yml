@@ -1,7 +1,9 @@
 ---
-# vms: one host-QEMU run script per node — the stock
-# upstream QEMU from the builder prefix (never the appstream qemu-kvm,
-# which has no CXL backports). Master = BiP boot model (live ISO + blank
+# vms: one host-QEMU run script per node — a QEMU with CXL Type-3
+# emulation, resolved by the qemu_builder role (distribution binary when
+# it carries pxb-cxl — Fedora's qemu-system-x86-core; otherwise the
+# pinned CS10-built upstream prefix — RHEL's appstream qemu-kvm has no
+# CXL backports). Master = BiP boot model (live ISO + blank
 # virtio install target + merged BiP ignition); workers = per-node merged
 # ignition (MCS stubs) over overlays of EITHER the stock stream qcow2 OR
 # the pre-baked BIB disk (use_prebaked_node_images — workers then boot the
@@ -10,6 +12,28 @@
 # intentionally first-touch). Boot sequence: master first, then workers once the live-env
 # Machine Config Server answers (their first-boot ignition fetch targets
 # it). No per-VM containers, no QEMU patch image.
+
+- name: Stat the resolved QEMU binary stamp
+  # The qemu_builder role resolves qemu_source (auto/distro/pinned) and,
+  # on the distro path, stamps the binary so later plays AND standalone
+  # playbook runs use the same QEMU (a set_fact would not survive across
+  # ansible-playbook invocations).
+  ansible.builtin.stat:
+    path: "{{ vm_scripts_dir }}/{{ qemu_source_stamp_name }}"
+  register: vms_qemu_stamp_stat
+
+- name: Read the resolved QEMU binary stamp
+  when: vms_qemu_stamp_stat.stat.exists
+  ansible.builtin.slurp:
+    src: "{{ vm_scripts_dir }}/{{ qemu_source_stamp_name }}"
+  register: vms_qemu_stamp_raw
+
+- name: Point the lab at the resolved distro QEMU binary
+  # Absent stamp = pinned build = the group-var default is already right.
+  # noqa: var-naming[no-role-prefix]
+  when: vms_qemu_stamp_stat.stat.exists
+  ansible.builtin.set_fact:
+    qemu_binary_path: "{{ vms_qemu_stamp_raw.content | b64decode | trim }}"
 
 - name: Build the node list
   # Boot order matters: the master must be up (MCS on :22623) before the
