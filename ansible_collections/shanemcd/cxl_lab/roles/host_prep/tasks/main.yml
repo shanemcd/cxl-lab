@@ -216,7 +216,10 @@
     fail_msg: NTP is not synchronized — the cluster needs accurate time.
 
 # RHSM is load-bearing: the entitlement backs the CDN kernel-SRPM
-# download. Assert-only when already registered.
+# download. Assert-only when already registered. Fedora note: this check is
+# RHEL-gated, but the CDN download is not — a Fedora host must still be
+# registered (subscription-manager installed + manual registration) before
+# 02_artifacts, or the entitlement assert there fails.
 - name: Check RHSM registration (assert-only; no credentials needed when registered)
   community.general.redhat_subscription:
     state: present

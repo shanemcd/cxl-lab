@@ -61,7 +61,15 @@ After the pipeline runs you have, all idempotent and re-runnable:
     sums plus headroom against the host before touching anything,
   - podman, python3, and SSH access,
   - internet egress (OpenShift payload pulls, artifact downloads),
-  - an RHSM registration + entitlements (backs the CDN kernel-SRPM download),
+  - an RHSM registration + entitlements (backs the CDN kernel-SRPM download).
+    On Fedora: subscription-manager is not part of a default install and the
+    host_prep RHSM assert is RHEL-gated — install it, register the host
+    manually, then run the pipeline (the CDN route needs the entitlement
+    certs on any distro). If registration fails with `Unit with ID "…" could
+    not be found`, the portal holds a stale profile bound to the machine's
+    DMI UUID — common on lab hardware with placeholder firmware UUIDs;
+    override `dmi.system.uuid` with a fresh UUID in
+    /etc/rhsm/facts/redhat.facts and retry,
   - appstream `qemu-kvm` NOT required — the collection builds its own QEMU.
 - An OpenShift pull secret (0600 file).
 - Ansible-core ≥ 2.19 on the control host (the lab host can manage itself over

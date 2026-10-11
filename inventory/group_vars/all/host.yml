@@ -1,6 +1,9 @@
 ---
 # Host preparation knobs. The host_prep role gates RHSM checks on
-# ansible_distribution == 'RedHat' (Fedora has no subscription-manager);
+# ansible_distribution == 'RedHat' because subscription-manager cannot be
+# assumed present on Fedora — but the artifacts CDN route still needs a
+# registered host on ANY distro: on Fedora, install subscription-manager and
+# register manually before the run (see README prerequisites).
 # rhsm_required is an override, not a substitute for that gating.
 #
 # RHSM is assert-only by default: community.general.redhat_subscription with
