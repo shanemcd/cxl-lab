@@ -16,8 +16,11 @@ approve_pending() {
   local pending
   pending="$($OC get csr --no-headers 2>/dev/null | awk '$NF == "Pending" {print $1}' || true)"
   if [ -n "${pending}" ]; then
+    # A CSR may already be approved by another actor between the get and
+    # the approve (benign race); a transient API blip must not kill the
+    # loop — set -e would exit with no diagnostics (observed live).
     # shellcheck disable=SC2086
-    $OC adm certificate approve ${pending} >/dev/null
+    $OC adm certificate approve ${pending} >/dev/null 2>&1 || true
     echo "approved: ${pending}"
   fi
 }
@@ -27,8 +30,11 @@ while [ "$(date +%s)" -lt "${DEADLINE}" ]; do
   # Ready workers only: the SNO master is schedulable, so its role list
   # also matches /worker/ — exclude control-plane roles or the gate
   # passes before the last worker joins.
+  # Guarded: with set -o pipefail a transient API failure inside the
+  # capture would kill the script silently (observed live — rc=1, no
+  # output, 2.5 minutes into the wait).
   ready="$($OC get nodes --no-headers 2>/dev/null \
-    | awk '$2 == "Ready" && $3 ~ /worker/ && $3 !~ /master/ && $3 !~ /control-plane/ {n++} END {print n+0}')"
+    | awk '$2 == "Ready" && $3 ~ /worker/ && $3 !~ /master/ && $3 !~ /control-plane/ {n++} END {print n+0}' || true)"
   if [ "${ready}" -ge "${WORKERS_NEEDED}" ]; then
     echo "all ${WORKERS_NEEDED} workers Ready"
     exit 0

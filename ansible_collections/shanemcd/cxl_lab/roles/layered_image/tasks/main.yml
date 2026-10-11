@@ -394,8 +394,14 @@
         for bls in /mnt/loader/entries/ostree-*.conf; do
           sed -i -E 's/root=UUID=[0-9a-f-]+ //g; s/boot=UUID=[0-9a-f-]+ //g' "${bls}"
           sed -i -E 's/rootflags=[^ ]+ //g; s/(^|[ ])rw([ ]|$)/ /g' "${bls}"
-          grep -q '{{ layered_image_bib_platform_karg }}' "${bls}" \
+          grep -q 'ignition.platform.id=' "${bls}" \
             || sed -i 's/^options /options {{ layered_image_bib_platform_karg }} /' "${bls}"
+          # The stock BLS references the ignition_firstboot grub variable,
+          # expanded by the marker-file conditional in grub.cfg; BIB drops
+          # the reference, so re-add it. See layered_image defaults for the
+          # full mechanism.
+          grep -q '\$ignition_firstboot' "${bls}" \
+            || sed -i 's/^options /options rw \$ignition_firstboot /' "${bls}"
           grep -q ' ostree=' "${bls}" \
             || { echo "${bls} lost its ostree= karg" >&2; exit 1; }
           grep -q 'root=' "${bls}" \

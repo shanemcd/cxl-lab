@@ -19,7 +19,12 @@ region_commit_ignition_version: "3.2.0"
 region_commit_mem_enable_mask: 4
 # CXL 2.0 8.1.3: the Control word sits at DVSEC capability start + 0xC.
 region_commit_dvsec_ctrl_offset: 12
-region_commit_endpoint_wait_seconds: 15
+region_commit_endpoint_wait_seconds: 60
+# 60s: first-boot CXL enumeration can take ~20s amid systemd boot
+# parallelism (observed live); the MCO-path second boot publishes decoders
+# in ~2s. The wait is a cheap 1s poll, so patience is free — and the
+# stale-MEM_ENABLE recovery must NOT fire while the kernel is still probing
+# (it races enumeration into a half-committed region).
 region_commit_endpoint_recover_wait_seconds: 60
 region_commit_driver_rebind_delay: 2
 region_commit_service_timeout_seconds: 300

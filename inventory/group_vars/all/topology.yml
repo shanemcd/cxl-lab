@@ -80,16 +80,19 @@ masters_schedulable: true
 bip_installation_disk: "/dev/vda"
 
 # Pre-baked node images: when true, CXL workers boot bootc-image-builder
-# qcow2s on the cxltest kernel from first boot. Both blockers that made this
-# path unsupported are fixed: (1) the layered image regenerates its
-# initramfs AFTER the rpm-ostree override (the scriptlet-time dracut
-# captured rpm-ostree's useradd interceptor wrapper without its
-# .rpmostreesave companion, so first-boot ignition user creation died);
-# (2) the BIB disk's BLS entries are patched to the stock RHCOS karg shape
-# (BIB writes root=UUID=..., which makes the generic root-mount path skip
+# qcow2s on the cxltest kernel from first boot. The three blockers that made
+# this path unsupported are fixed: (1) the layered image regenerates its
+# initramfs AFTER the rpm-ostree override (the scriptlet-time dracut captured
+# rpm-ostree's useradd interceptor wrapper without its .rpmostreesave
+# companion, so first-boot ignition user creation died); (2) the BIB disk's
+# BLS entries are patched to the stock RHCOS karg shape (BIB writes
+# root=UUID=..., which makes the generic root-mount path skip
 # ostree-prepare-root — /sysroot then has no top-level /etc and ignition
-# cannot create users) and armed for first boot (platform karg + marker).
-# false keeps the MCO flow: stock boot image + registry + osImageURL pivot.
+# cannot create users); (3) the patch re-adds the $ignition_firstboot BLS
+# variable reference that BIB drops — the grub 05_ignition.cfg snippet
+# expands it from the ignition.firstboot marker (armed per fresh overlay,
+# removed by ignition after the first boot). false keeps the MCO flow: stock
+# boot image + registry + osImageURL pivot.
 use_prebaked_node_images: true
 
 # CXL fixed memory window granularity (QEMU cxl-fmw interleave-granularity, KiB).
