@@ -47,6 +47,17 @@ After the pipeline runs you have, all idempotent and re-runnable:
   config flip: `CONFIG_CXL_REGION_INVALIDATION_TEST=y`) in a disposable CS10
   builder container, baked into a bootc layered OS image, and rolled out to the
   CXL workers via the Machine Config Operator.
+- **Worker OS mode** (`use_prebaked_node_images` in topology.yml, default
+  true on this branch): **pre-baked** — the layered image is turned into a
+  bootc-image-builder qcow2 (patched for first-boot ignition) and the CXL
+  workers boot it on the cxltest kernel from second zero; OpenShift's
+  firstboot pivot is aimed at the same layered image via install-time
+  MachineConfigs (worker-cxl pool + osImageURL + registry trust), so the
+  region commit lands at first boot and the MCO rollout, the second
+  per-worker reboot, and the cold-restart recovery machinery are all
+  eliminated. Set it to false for the classic flow: stock boot image +
+  post-install MCO pivot. Both flows share the registry, the layered image,
+  and the verification gates.
 - **Host NUMA**: intentionally not pinned — guest RAM is placed by the kernel's
   default first-touch policy.
 
