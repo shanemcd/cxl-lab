@@ -37,6 +37,6 @@ host-record={{ node.name }}.{{ lab_domain }},{{ lab_subnet_prefix }}.{{ node.ip_
 {% endfor %}
 
 # Upstream forwarders (internet names).
-{% for server in upstream_dns_servers %}
+{% for server in network_upstream_dns %}
 server={{ server }}
 {% endfor %}

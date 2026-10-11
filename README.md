@@ -144,7 +144,7 @@ self-chosen values):
 | File | Key contents |
 |---|---|
 | `inventory/group_vars/all/secrets.yml` | **Paths only** to the pull secret (0600) and the install SSH keypair; kubeconfig location. Tasks touching them are `no_log`. |
-| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the registry host + dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers, host-resolution block (API/API-int/ingress names on the master IP). |
+| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the registry host + dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
 | `inventory/group_vars/all/topology.yml` | Worker counts (`cxl_worker_count`/`dram_worker_count`, one each by default) and the node specs they generate, `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
 
 ### Scaling the fleet

@@ -119,6 +119,87 @@
     name: dnsmasq
     state: present
 
+# --- upstream resolver selection -----------------------------------------
+# The taxonomy may pin upstream_dns_servers; an empty list means
+# auto-detect from the lab host, so the lab works on hosts whose networks
+# block public DNS. Detection prefers real nameservers from resolv.conf,
+# then systemd-resolved's upstreams, then the local resolver stub — never
+# an address inside the lab subnet (self-forwarding loop).
+
+- name: Set pinned upstream resolvers
+  when: upstream_dns_servers | length > 0
+  ansible.builtin.set_fact:
+    network_upstream_dns: "{{ upstream_dns_servers }}"
+
+- name: Auto-detect upstream resolvers from the lab host
+  when: upstream_dns_servers | length == 0
+  block:
+
+    - name: Read the host resolver configuration
+      ansible.builtin.command:
+        cmd: "cat {{ network_dns_resolv_conf_path }}"
+      register: network_dns_resolv_raw
+      changed_when: false
+
+    - name: Set host nameservers fact
+      ansible.builtin.set_fact:
+        network_dns_resolv_nameservers: >-
+          {{ network_dns_resolv_raw.stdout_lines
+             | select('match', '^\s*nameserver\s+\S+') | list
+             | map('regex_replace', '^\s*nameserver\s+', '') | map('trim') | list }}
+
+    - name: Set upstream candidates fact (resolv.conf minus loopbacks and the lab subnet)
+      ansible.builtin.set_fact:
+        network_dns_candidates: >-
+          {{ network_dns_resolv_nameservers
+             | reject('in', network_dns_loopback_addresses)
+             | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
+             | unique | list }}
+
+    - name: Set local resolver stub fact
+      ansible.builtin.set_fact:
+        network_dns_stub_list: >-
+          {{ network_dns_resolv_nameservers
+             | select('in', network_dns_loopback_addresses) | list }}
+
+    - name: Read systemd-resolved upstreams
+      when: network_dns_candidates | length == 0
+      ansible.builtin.command:
+        cmd: resolvectl dns
+      register: network_dns_resolved_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Set detected upstream resolvers fact
+      ansible.builtin.set_fact:
+        network_upstream_dns: "{{ network_dns_candidates }}"
+
+    - name: Fall back to systemd-resolved upstreams
+      when: network_upstream_dns | length == 0
+      ansible.builtin.set_fact:
+        network_upstream_dns: >-
+          {{ (network_dns_resolved_raw.stdout | default(''))
+             | regex_findall(network_dns_ipv4_pattern)
+             | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
+             | unique | list }}
+
+    - name: Fall back to the host's local resolver stub
+      when:
+        - network_upstream_dns | length == 0
+        - network_dns_stub_list | length > 0
+      ansible.builtin.set_fact:
+        network_upstream_dns: "{{ [network_dns_stub_list[0]] }}"
+
+    - name: Assert upstream resolvers were determined
+      ansible.builtin.assert:
+        that:
+          - network_upstream_dns | length > 0
+        fail_msg: >-
+          upstream_dns_servers is empty and no upstream resolvers could be
+          auto-detected from the lab host (resolv.conf nameservers,
+          systemd-resolved upstreams, local stub). Pin upstream_dns_servers
+          in the network taxonomy.
+
 - name: Render lab resolver config (dnsmasq on the bridge gateway)
   ansible.builtin.template:
     src: dnsmasq-lab.conf.j2

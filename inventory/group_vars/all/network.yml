@@ -33,12 +33,13 @@ master_ip: "{{ lab_subnet_prefix }}.{{ masters[0].ip_suffix }}"
 # Web console (ingress on the master).
 console_url: "https://console-openshift-console.apps.{{ lab_domain }}"
 
-# Upstream resolvers: dnsmasq forwards non-lab names here, and guest NM
-# keyfiles point at them directly. Set these to your site's resolvers (or
-# leave the public defaults).
-upstream_dns_servers:
-  - "1.1.1.1"
-  - "8.8.8.8"
+# Upstream resolvers: the lab resolver (dnsmasq on the gateway) forwards
+# non-lab names here — guest NM keyfiles point at the gateway, which
+# forwards. An EMPTY list auto-detects from the lab host (resolv.conf
+# nameservers, systemd-resolved upstreams, then the local stub), so the
+# lab works on hosts whose networks block public DNS. Pin explicitly when
+# the host's view is wrong for the lab, e.g. ["1.1.1.1", "8.8.8.8"].
+upstream_dns_servers: []
 
 # Cluster-internal SDN (install-config networking block).
 cluster_network_type: "OVNKubernetes"
