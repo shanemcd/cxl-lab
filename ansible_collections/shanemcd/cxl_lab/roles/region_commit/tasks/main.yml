@@ -1,52 +1,144 @@
 ---
-# region_commit: ship the proven sysfs region-commit sequence as a MachineConfig
-# with a oneshot service, wait for the second MCO rollout, then
-# recover each worker from the warm-reboot constraint: the MCO reboot happens
-# INSIDE the running QEMU, stale DVSEC/HDM state makes the service fail BY
-# DESIGN, and the fix is a per-worker QEMU cold restart (drain -> guest
-# poweroff -> QEMU exit -> relaunch -> Ready -> uncordon). Every step queries
-# live state, so interrupted recoveries resume cleanly on re-run.
+# region_commit: land the proven sysfs region-commit sequence on the CXL
+# workers. MCO path: ship it as a MachineConfig with a oneshot service,
+# wait for the second MCO rollout, then recover each worker from the
+# warm-reboot constraint (the MCO reboot happens INSIDE the running QEMU,
+# stale DVSEC/HDM state makes the service fail BY DESIGN, and the fix is a
+# per-worker QEMU cold restart: drain -> guest poweroff -> QEMU exit ->
+# relaunch -> Ready -> uncordon). Pre-baked path: the service already ran
+# at first boot (shipped via the worker ignition, see render-snippet.yml)
+# on a fresh QEMU with no stale DVSEC state — only verification remains.
+# Every step queries live state, so interrupted recoveries resume cleanly
+# on re-run.
 
-- name: Assert every CXL worker carries the same vmem size
-  ansible.builtin.assert:
-    that:
-      - cxl_workers | map(attribute='vmem_size') | unique | list | length == 1
-    fail_msg: >-
-      The shared region-commit MachineConfig assumes one vmem size across CXL
-      workers (found {{ cxl_workers | map(attribute='vmem_size') | unique | join(', ') }}).
+- name: Handle the pre-baked first-boot path
+  when: use_prebaked_node_images | bool
+  block:
 
-- name: Set the region commit script fact
-  ansible.builtin.set_fact:
-    region_commit_script_b64: "{{ lookup('template', 'cxl-region-commit.sh.j2') | b64encode }}"
+    - name: Check the first-boot region commit service on every CXL worker
+      # The service ran at first boot — by the time 08 runs, 06_install has
+      # already waited for every node Ready, so this normally passes on the
+      # first probe; the retries only cover a worker whose first-boot units
+      # are still settling.
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - "-i"
+          - "{{ install_ssh_key_path }}"
+          - "-o"
+          - "StrictHostKeyChecking=no"
+          - "-o"
+          - "UserKnownHostsFile=/dev/null"
+          - "-o"
+          - "ConnectTimeout=10"
+          - "core@{{ lab_subnet_prefix }}.{{ item.ip_suffix }}"
+          - "sudo systemctl is-active {{ region_commit_service_name }}"
+      loop: "{{ cxl_workers }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: region_commit_firstboot_service
+      until: region_commit_firstboot_service.rc == 0
+      retries: "{{ region_commit_service_wait_retries }}"
+      delay: "{{ region_commit_service_wait_delay }}"
+      failed_when: false
+      changed_when: false
 
-- name: Create the region commit MachineConfig
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ kubeconfig_path }}"
-    definition: "{{ lookup('template', 'machineconfig-region-commit.yaml.j2') | from_yaml }}"
+    - name: Assert the first-boot service is active on every CXL worker
+      ansible.builtin.assert:
+        that:
+          - item.rc | int == 0
+        fail_msg: >-
+          {{ region_commit_service_name }} not active on {{ item.item.name }} —
+          the pre-baked first-boot ignition did not land the region-commit
+          service; inspect the serial log under {{ vm_logs_dir }}.
+      loop: "{{ region_commit_firstboot_service.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
 
-- name: Wait for the worker-cxl pool to finish the rollout
-  ansible.builtin.command:
-    argv:
-      - "{{ install_bin_dir }}/oc"
-      - wait
-      - "mcp/{{ mco_cxl_mcp_name }}"
-      - "--for=condition=Updated"
-      - "--timeout={{ region_commit_rollout_timeout_minutes }}m"
-  environment:
-    KUBECONFIG: "{{ kubeconfig_path }}"
-  changed_when: false
+    - name: Read the region commit state on every CXL worker
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - "-i"
+          - "{{ install_ssh_key_path }}"
+          - "-o"
+          - "StrictHostKeyChecking=no"
+          - "-o"
+          - "UserKnownHostsFile=/dev/null"
+          - "-o"
+          - "ConnectTimeout=10"
+          - "core@{{ lab_subnet_prefix }}.{{ item.ip_suffix }}"
+          - "sudo cat /sys/bus/cxl/devices/{{ region_commit_region_name }}/commit"
+      loop: "{{ cxl_workers }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: region_commit_firstboot_state
+      changed_when: false
 
-- name: Recover and verify each CXL worker
-  ansible.builtin.include_tasks: recover-worker.yml
-  loop: "{{ cxl_workers }}"
-  loop_control:
-    loop_var: worker
+    - name: Assert the region is committed on every CXL worker
+      ansible.builtin.assert:
+        that:
+          - item.stdout | trim == '1'
+        fail_msg: >-
+          {{ region_commit_region_name }}/commit is
+          '{{ item.stdout | trim }}' on {{ item.item.name }}, expected 1.
+      loop: "{{ region_commit_firstboot_state.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
 
-- name: Region commit summary
-  ansible.builtin.debug:
-    msg: >-
-      region commit OK — {{ cxl_workers | map(attribute='name') | join(', ') }}
-      committed {{ region_commit_region_name }} ({{ cxl_workers[0].vmem_size }});
-      service {{ region_commit_service_name }} active on every one (guest-side
-      stale-MEM_ENABLE self-recovery; cold-restart fallback skipped).
+    - name: Region commit summary
+      ansible.builtin.debug:
+        msg: >-
+          region commit OK (pre-baked first boot) —
+          {{ cxl_workers | map(attribute='name') | join(', ') }} committed
+          {{ region_commit_region_name }} ({{ cxl_workers[0].vmem_size }});
+          service {{ region_commit_service_name }} active on every one
+          (shipped via worker ignition; no MCO, no cold-restart needed).
+
+- name: Handle the MCO rollout path
+  when: not use_prebaked_node_images | bool
+  block:
+
+    - name: Assert every CXL worker carries the same vmem size
+      ansible.builtin.assert:
+        that:
+          - cxl_workers | map(attribute='vmem_size') | unique | list | length == 1
+        fail_msg: >-
+          The shared region-commit MachineConfig assumes one vmem size across CXL
+          workers (found {{ cxl_workers | map(attribute='vmem_size') | unique | join(', ') }}).
+
+    - name: Set the region commit script fact
+      ansible.builtin.set_fact:
+        region_commit_script_b64: "{{ lookup('template', 'cxl-region-commit.sh.j2') | b64encode }}"
+
+    - name: Create the region commit MachineConfig
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig_path }}"
+        definition: "{{ lookup('template', 'machineconfig-region-commit.yaml.j2') | from_yaml }}"
+
+    - name: Wait for the worker-cxl pool to finish the rollout
+      ansible.builtin.command:
+        argv:
+          - "{{ install_bin_dir }}/oc"
+          - wait
+          - "mcp/{{ mco_cxl_mcp_name }}"
+          - "--for=condition=Updated"
+          - "--timeout={{ region_commit_rollout_timeout_minutes }}m"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: false
+
+    - name: Recover and verify each CXL worker
+      ansible.builtin.include_tasks: recover-worker.yml
+      loop: "{{ cxl_workers }}"
+      loop_control:
+        loop_var: worker
+
+    - name: Region commit summary
+      ansible.builtin.debug:
+        msg: >-
+          region commit OK — {{ cxl_workers | map(attribute='name') | join(', ') }}
+          committed {{ region_commit_region_name }} ({{ cxl_workers[0].vmem_size }});
+          service {{ region_commit_service_name }} active on every one (guest-side
+          stale-MEM_ENABLE self-recovery; cold-restart fallback skipped).

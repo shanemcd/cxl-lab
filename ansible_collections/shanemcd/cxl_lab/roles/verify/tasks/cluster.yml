@@ -55,8 +55,13 @@
 
 - name: Read the machine config pool states
   vars:
+    # The worker-cxl pool only exists on the MCO path (pre-baked workers
+    # boot the cxltest kernel from first boot and are never pivoted).
+    verify_mcp_expected_names: >-
+      {{ verify_builtin_mcp_names
+         + ([mco_cxl_mcp_name] if not use_prebaked_node_images | bool else []) }}
     verify_mcp_args: >-
-      {{ ['get', 'mcp'] + (verify_builtin_mcp_names + [mco_cxl_mcp_name])
+      {{ ['get', 'mcp'] + verify_mcp_expected_names
          + ['-o', 'jsonpath={range .items[*]}{.metadata.name}{" "}'
             ~ '{.status.conditions[?(@.type=="Updated")].status}{"\n"}{end}'] }}
   ansible.builtin.command:
@@ -87,7 +92,7 @@
                               | map('split', ' ') | map('first') | sort | list }}"
     verify_ready_count: "{{ verify_nodes.stdout_lines
                              | select('search', ' True$') | list | length }}"
-    verify_mcp_expected: "{{ (verify_builtin_mcp_names + [mco_cxl_mcp_name]) | sort }}"
+    verify_mcp_expected: "{{ verify_mcp_expected_names | sort }}"
     verify_mcp_actual: "{{ verify_mcps.stdout_lines
                             | map('split', ' ') | map('first') | sort | list }}"
     verify_mcp_updated_count: "{{ verify_mcps.stdout_lines
