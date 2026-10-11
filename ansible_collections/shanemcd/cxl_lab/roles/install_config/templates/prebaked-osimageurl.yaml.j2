@@ -1,0 +1,15 @@
+# Managed by shanemcd.cxl_lab.install_config — do not edit.
+# Pre-baked path: the osImageURL MachineConfig for the worker-cxl role,
+# created at install time. OpenShift's firstboot pivot rebases every node
+# onto the cluster's osImageURL; pointing it at the lab registry's layered
+# image (authoritative Docker-Content-Digest, never podman's RepoDigest —
+# same rule as the mco_cxl role) makes the pivot a same-content rebase that
+# keeps the cxltest kernel the worker booted from the pre-baked disk.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: {{ mco_cxl_role_label }}
+  name: {{ mco_cxl_osimage_mc_name }}
+spec:
+  osImageURL: {{ install_config_prebaked_osimage_url }}
