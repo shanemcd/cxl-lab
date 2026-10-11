@@ -1,16 +1,117 @@
 ---
-# qemu_builder: build stock upstream QEMU in a digest-pinned CS10 builder
-# container and install it to the host prefix — no patch, no podman commit,
-# no runtime image. The exists-guard keys off the versioned prefix, so
-# re-runs skip the build and teardown never removes the prefix.
+# qemu_builder: provide the host QEMU with CXL Type-3 emulation.
+#
+# Source resolution (qemu_source: auto | distro | pinned, topology.yml):
+#   - distro: the distribution's qemu-system-x86_64 (Fedora's
+#     qemu-system-x86-core carries upstream CXL — nothing is built);
+#   - pinned: stock upstream QEMU built in a digest-pinned CS10 builder
+#     container and installed to the host prefix — no patch, no podman
+#     commit, no runtime image (RHEL's appstream qemu-kvm lacks CXL, so
+#     this remains the RHEL path);
+#   - auto (default): distro binary when it exists and carries pxb-cxl /
+#     cxl-rp / cxl-type3, else the pinned build.
+# The exists-guard keys off the versioned prefix, so pinned re-runs skip
+# the build and teardown never removes the prefix (the distro binary is a
+# distro package — also never touched).
 
-- name: Stat the installed QEMU binary (exists-guard)
+- name: Stat the distro QEMU binary
+  ansible.builtin.stat:
+    path: "{{ qemu_distro_binary_path }}"
+  register: qemu_builder_distro_stat
+
+- name: Read the distro QEMU device list
+  when:
+    - qemu_builder_distro_stat.stat.exists
+    - qemu_source != 'pinned'
+  ansible.builtin.command:
+    argv:
+      - "{{ qemu_distro_binary_path }}"
+      - "-device"
+      - help
+  register: qemu_builder_distro_devices
+  changed_when: false
+
+- name: Set the resolved QEMU source fact
+  # auto falls back to the pinned build when the distro binary is absent
+  # or lacks CXL; an explicit 'distro' must not silently downgrade.
+  ansible.builtin.set_fact:
+    qemu_builder_source: >-
+      {{ 'distro'
+         if (qemu_source == 'distro'
+             or (qemu_source == 'auto'
+                 and qemu_builder_distro_stat.stat.exists
+                 and qemu_builder_distro_devices.stdout is defined
+                 and qemu_builder_distro_devices.stdout is search('name "pxb-cxl"')
+                 and qemu_builder_distro_devices.stdout is search('name "cxl-rp"')
+                 and qemu_builder_distro_devices.stdout is search('name "cxl-type3"')))
+         else 'pinned' }}
+
+- name: Assert the forced distro QEMU is usable
+  when: qemu_source == 'distro'
+  ansible.builtin.assert:
+    that:
+      - qemu_builder_source == 'distro'
+    fail_msg: >-
+      qemu_source is 'distro' but {{ qemu_distro_binary_path }} is missing
+      or lacks pxb-cxl / cxl-rp / cxl-type3 — install the distro QEMU
+      (Fedora: qemu-system-x86-core) or set qemu_source: pinned.
+
+- name: Handle the distro QEMU path
+  when: qemu_builder_source == 'distro'
+  block:
+
+    - name: Point the lab at the distro QEMU binary
+      # Overrides the pinned-path group var for every later play (02 runs
+      # before the vms role in site.yml).
+      # noqa: var-naming[no-role-prefix]
+      ansible.builtin.set_fact:
+        qemu_binary_path: "{{ qemu_distro_binary_path }}"
+
+    - name: Stamp the resolved binary for later plays and standalone runs
+      # The set_fact above only lives inside one ansible-playbook
+      # invocation; the vms role (standalone or a later run) reads this
+      # stamp instead. The pinned branch removes it, falling the consumers
+      # back to the pinned-path group var.
+      ansible.builtin.copy:
+        content: "{{ qemu_distro_binary_path }}\n"
+        dest: "{{ vm_scripts_dir }}/{{ qemu_source_stamp_name }}"
+        mode: "0644"
+
+    - name: Read the distro QEMU version
+      ansible.builtin.command:
+        argv:
+          - "{{ qemu_distro_binary_path }}"
+          - "--version"
+      register: qemu_builder_distro_version
+      changed_when: false
+
+    - name: Distro QEMU summary
+      ansible.builtin.debug:
+        msg: >-
+          qemu builder OK — using the distribution QEMU at
+          {{ qemu_distro_binary_path }}
+          ({{ (qemu_builder_distro_version.stdout | default('')) | regex_replace('\\n.*', '') }})
+          with pxb-cxl / cxl-rp / cxl-type3 device support; no custom
+          build, no prefix.
+
+- name: Stat the installed pinned QEMU binary (exists-guard)
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.stat:
     path: "{{ qemu_binary_path }}"
   register: qemu_builder_binary_stat
 
+- name: Remove a stale distro-QEMU stamp on the pinned path
+  # Consumers fall back to the pinned-path group var when the stamp is
+  # absent.
+  when: qemu_builder_source == 'pinned'
+  ansible.builtin.file:
+    path: "{{ vm_scripts_dir }}/{{ qemu_source_stamp_name }}"
+    state: absent
+
 - name: Build and install stock upstream QEMU
-  when: not qemu_builder_binary_stat.stat.exists
+  when:
+    - qemu_builder_source == 'pinned'
+    - not qemu_builder_binary_stat.stat.exists
   block:
 
     - name: Ensure the QEMU build workspace
@@ -107,14 +208,18 @@
   ansible.builtin.package:
     name: "{{ qemu_builder_runtime_packages }}"
     state: present
-  when: qemu_builder_runtime_packages | length > 0
+  when:
+    - qemu_builder_source == 'pinned'
+    - qemu_builder_runtime_packages | length > 0
 
 - name: Assert the installed QEMU binary exists
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.stat:
     path: "{{ qemu_binary_path }}"
   register: qemu_builder_binary_final_stat
 
 - name: Assert QEMU binary presence
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.assert:
     that:
       - qemu_builder_binary_final_stat.stat.exists
@@ -122,6 +227,7 @@
     fail_msg: "Host QEMU binary {{ qemu_binary_path }} missing or not executable."
 
 - name: Read the installed QEMU version
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.command:
     argv:
       - "{{ qemu_binary_path }}"
@@ -130,6 +236,7 @@
   changed_when: false
 
 - name: Assert the installed QEMU version
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.assert:
     that:
       - qemu_version in qemu_builder_version_raw.stdout
@@ -138,6 +245,7 @@
       remove the prefix and re-run.
 
 - name: Read the installed QEMU device list
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.command:
     argv:
       - "{{ qemu_binary_path }}"
@@ -147,6 +255,7 @@
   changed_when: false
 
 - name: Assert CXL device support in the host QEMU
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.assert:
     that:
       - qemu_builder_device_help.stdout is search('name "pxb-cxl"')
@@ -157,8 +266,11 @@
       cxl-rp / cxl-type3 device support.
 
 - name: QEMU builder summary
+  when: qemu_builder_source == 'pinned'
   ansible.builtin.debug:
     msg: >-
       qemu builder OK — stock upstream {{ qemu_version }} built in the CS10
       builder and installed to {{ qemu_install_prefix }} (built this run:
       {{ not qemu_builder_binary_stat.stat.exists }}); CXL devices verified.
+      Set qemu_source: distro on hosts whose distribution QEMU carries CXL
+      (Fedora: qemu-system-x86-core) to skip this build entirely.

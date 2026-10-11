@@ -53,9 +53,18 @@ ignition_worker_name: "worker.ign"
 # (built in a CentOS Stream 10 container so the produced binaries run
 # against the host's glibc; no patch, no runtime image). The exists-guard
 # keys off the versioned prefix — teardown never removes it, so a
-# same-version rebuild skips the build entirely.
+# same-version rebuild skips the build entirely. With qemu_source: auto /
+# distro (see topology.yml — experimental) the qemu_builder role instead
+# points the lab at the distribution binary below and never touches this
+# prefix.
 qemu_install_prefix: "/opt/qemu-{{ qemu_version }}"
 qemu_binary_path: "{{ qemu_install_prefix }}/bin/qemu-system-x86_64"
+qemu_distro_binary_path: "/usr/bin/qemu-system-x86_64"
+# Stamp carrying the resolved QEMU binary path when the DISTRO source is
+# used (the pinned path is the group-var default, so the stamp only exists
+# to override it). Written by the qemu_builder role, consumed by the vms
+# role; lives in the scripts dir and dies with the vms teardown layer.
+qemu_source_stamp_name: "qemu-binary-path"
 
 # Install-flow state stamps (idempotency guards that must survive re-runs).
 # Authoritative registry digest of the layered OS image (layered_image
