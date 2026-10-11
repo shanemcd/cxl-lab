@@ -1,9 +1,80 @@
 # Managed by shanemcd.cxl_lab.layered_image — do not edit.
-# bootc layered OS image for the CXL workers: FROM the EXACT stock node
-# deployment digest (queried from the live cluster via `bootc status`, never
-# hardcoded) with the five SHA256-verified cxltest kernel RPMs layered via
-# rpm-ostree override replace (initramfs regenerated automatically), plus the
-# documented repo cache cleanup.
+# Multi-stage Containerfile; ONE source of build truth, rendered per use:
+#
+# kernel-builder — builds the cxltest kernel RPMs from the RHEL SRPM inside
+#   the RHEL 10 GA builder image (single config flip, vendor config
+#   otherwise preserved, baseonly, unsigned eln-style build). Rendered only
+#   when the RPM cache in the artifacts taxonomy is missing; the build is a
+#   single `podman build --target kernel-rpms --output` invocation with the
+#   host RHSM entitlement mounted read-only for the build-dependency
+#   resolution against the entitled CDN binary repos.
+# kernel-rpms — scratch stage exporting just the built RPMs; the --output
+#   invocation writes them to the teardown-protected artifacts dir, where
+#   they are verified (SHA256SUMS + kernel-core config) and cached.
+# layered image — the bootc layered OS image: FROM the taxonomy-pinned
+#   machine-os-content ref (cross-validated against the master's booted
+#   osImageURL by the install role) with the five SHA256-verified cxltest
+#   kernel RPMs layered via rpm-ostree override replace (initramfs
+#   regenerated automatically), plus the documented repo cache cleanup.
+{% if layered_image_render_kernel_stage | default(false) %}
+FROM {{ kernel_builder_image }} AS kernel-builder
+COPY {{ kernel_srpm_nvr }}.src.rpm /tmp/kernel-srpm.rpm
+COPY {{ layered_image_builder_repos_name }} /etc/yum.repos.d/{{ layered_image_builder_repos_name }}
+# Build deps from the entitled CDN binary repos, resolved against the SAME
+# bcond view the build uses (dnf builddep evaluates the spec with default
+# bconds and would demand CRB-only perf/tools deps the baseonly build never
+# touches). rpmbuild --nobuild reports exactly what the baseonly view
+# requires; the loop installs those from baseos+appstream and repeats until
+# no "is needed by" lines remain (rpm 6 --nobuild also runs %files
+# validation against the empty BUILDROOT, so its exit status is not the
+# dep-clean signal).
+RUN set -euxo pipefail \
+    && dnf -y --disablerepo='*' \
+         --enablerepo={{ layered_image_builder_repos | map(attribute='id') | join(' --enablerepo=') }} \
+         install rpm-build \
+    && rpm -ivh --quiet /tmp/kernel-srpm.rpm \
+    && sed -i '/^BuildRequires: glibc-static$/d' /root/rpmbuild/SPECS/kernel.spec \
+    && for round in 1 2 3 4 5; do \
+           rpmbuild -bb --nobuild --with baseonly \
+                --define "buildid .{{ kernel_rpm_buildid }}" \
+                --define "eln 1" \
+                /root/rpmbuild/SPECS/kernel.spec 2>/tmp/missing-deps.log || true; \
+           if ! grep -q ' is needed by' /tmp/missing-deps.log; then \
+               deps_ok=1; break; \
+           fi; \
+           missing="$(sed -n 's/^[[:space:]]*\([^[:space:]]*\).* is needed by.*/\1/p' \
+             /tmp/missing-deps.log | sort -u)"; \
+           [ -n "${missing}" ] || { cat /tmp/missing-deps.log; exit 1; }; \
+           dnf -y --disablerepo='*' \
+             --enablerepo={{ layered_image_builder_repos | map(attribute='id') | join(' --enablerepo=') }} \
+             install ${missing}; \
+       done \
+    && [ "${deps_ok:-}" = 1 ]
+# The glibc-static BuildRequires drop above: the entitled CDN content sets
+# exclude CRB, where glibc-static lives. The spec demands it solely for
+# CONFIG_CC_CAN_LINK_STATIC=y consistency — a build-time probed helper
+# symbol whose ONLY consumer in this tree is arch/um (User Mode Linux, not
+# built for x86_64 baseonly) and which is not pinned in the vendor config.
+# The kernel-core config asserts in this role verify the shipped config.
+# Single test-only config flip, vendor config preserved otherwise, then
+# the baseonly, unsigned eln-style build.
+RUN set -euxo pipefail \
+    && if grep -q '^CONFIG_CXL_REGION_INVALIDATION_TEST=y$' /root/rpmbuild/SOURCES/kernel-x86_64-rhel.config; then \
+           echo "config already flipped"; \
+       elif grep -q '^# CONFIG_CXL_REGION_INVALIDATION_TEST is not set$' /root/rpmbuild/SOURCES/kernel-x86_64-rhel.config; then \
+           sed -i 's/^# CONFIG_CXL_REGION_INVALIDATION_TEST is not set$/CONFIG_CXL_REGION_INVALIDATION_TEST=y/' /root/rpmbuild/SOURCES/kernel-x86_64-rhel.config; \
+       else \
+           echo "FAIL: CONFIG_CXL_REGION_INVALIDATION_TEST not found in vendor config" >&2; exit 1; \
+       fi \
+    && rpmbuild -bb --with baseonly \
+         --define "buildid .{{ kernel_rpm_buildid }}" \
+         --define "eln 1" \
+         --define "_smp_mflags -j{{ layered_image_kernel_builder_jobs }}" \
+         /root/rpmbuild/SPECS/kernel.spec
+
+FROM scratch AS kernel-rpms
+COPY --from=kernel-builder /root/rpmbuild/RPMS/x86_64/*.rpm /
+{% endif %}
 FROM {{ layered_image_base_ref }}
 COPY *.rpm /tmp/kernel-rpms/
 RUN rpm-ostree override replace /tmp/kernel-rpms/*.rpm \

@@ -27,14 +27,15 @@ machine_os_content_ref: >-
 # github.com/openshift/os; rhel-coreos is the rhel-9 sibling).
 machine_os_kernel_component: "rhel-coreos-10"
 
-# Kernel SRPM source: "cdn" = entitled CDN download inside the CS10 builder
-# (requires the host's subscription entitlements); "brew" = an internal
-# build-system fallback (set kernel_srpm_base_url to your organization's
-# mirror if you use it). NOTE: the exact osimage NVR (211.57.1.el10_2, read
-# from rhel-coreos-10) is NOT carried by the CDN source repo (RHCOS-only
-# build; the repo carries 211.7.1-211.64.1), so the pinned point below is
-# the CDN-carried 211.64.1, and the artifacts role asserts the osimage NVR
-# shares this stream prefix (kernel-6.12.0-211.*) to catch release drift.
+# Kernel SRPM source: "cdn" = entitled CDN download inside the RHEL 10
+# builder image (requires the host's subscription entitlements); "brew" = an
+# internal build-system fallback (set kernel_srpm_base_url to your
+# organization's mirror if you use it). NOTE: the exact osimage NVR
+# (211.57.1.el10_2, read from rhel-coreos-10) is NOT carried by the CDN
+# source repo (RHCOS-only build; the repo carries 211.7.1-211.64.1), so the
+# pinned point below is the CDN-carried 211.64.1, and the artifacts role
+# asserts the osimage NVR shares this stream prefix (kernel-6.12.0-211.*)
+# to catch release drift.
 kernel_srpm_source: "cdn"
 kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
 # Only used with kernel_srpm_source: "brew" (no default — point it at your
@@ -52,13 +53,23 @@ kernel_srpm_cdn_repo_id: "rhel-10-baseos-source"
 kernel_srpm_rhel_release: "{{ kernel_srpm_nvr | regex_replace('^.*\\.el(\\d+)_(\\d+)$', '\\1.\\2') }}"
 kernel_srpm_cdn_repo_baseurl: >-
   https://cdn.redhat.com/content/dist/rhel10/{{ kernel_srpm_rhel_release }}/x86_64/baseos/source/SRPMS
+# Entitled CDN binary repo prefix for the kernel-builder builddep
+# (baseos/appstream appended per repo by the repo template).
+kernel_cdn_binary_repo_baseurl: >-
+  https://cdn.redhat.com/content/dist/rhel10/{{ kernel_srpm_rhel_release }}/x86_64
 kernel_rpm_buildid: "cxltest"
 kernel_rpm_release: >-
   {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
      | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
 kernel_config_overrides:
   CONFIG_CXL_REGION_INVALIDATION_TEST: "y"
-kernel_builder_image: "quay.io/centos/centos:stream10"
+# Kernel builder base: the RHEL 10.2 GA bootc image (digest-pinned) — the
+# exact GA userspace the kernel ships into. Two uses: the entitled-CDN
+# SRPM downloader container, and the kernel-builder stage of the layered
+# image Containerfile (dnf builddep + rpmbuild; subscription-manager runs
+# in container mode with the host RHSM entitlement mounted read-only).
+kernel_builder_image: >-
+  registry.redhat.io/rhel10/rhel-bootc:10.2@sha256:88382da54341cb5e8e332fd3baf86a4c8b455aeb11cfe4eb1180891160b75020
 
 # Stock upstream QEMU: release tarball, SHA-pinned, NO patch. Built in a
 # CS10 builder container (glibc-matched to the RHEL 10 host so the binary
@@ -94,8 +105,6 @@ rhcos_qemu_image_name: "rhcos-10.2.20260715-0-qemu.x86_64.qcow2.gz"
 # target.
 rhcos_iso_image_name: "rhcos-10.2.20260715-0-live-iso.x86_64.iso"
 rhcos_iso_sha256: "7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462"
-
-kernel_builder_container_name: "cxl-lab-kernel-builder"
 
 # Layered bootc OS image: built FROM the pinned machine-os-content ref with
 # the cxltest kernel RPMs; pushed to the lab registry, referenced by the
