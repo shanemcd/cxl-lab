@@ -38,6 +38,45 @@
       below 256. Check cxl_worker_count/dram_worker_count and the allocation
       schemes in topology.yml.
 
+- name: Build the lab node list for the capacity assert
+  ansible.builtin.set_fact:
+    host_prep_nodes: >-
+      {{ masters | map('combine', {'kind': 'master'}) | list
+         + dram_workers | map('combine', {'kind': 'worker-dram'}) | list
+         + cxl_workers | map('combine', {'kind': 'worker-cxl'}) | list }}
+
+- name: Set the per-node RAM specs for the committed-RAM measure
+  ansible.builtin.set_fact:
+    host_prep_node_mem_specs: >-
+      {% for n in host_prep_nodes %}{{ n.name }}={{ n.ram | regex_replace('G$', '')
+      }}{% if n.vmem_size is defined %}+{{ n.vmem_size | regex_replace('G$', '') }}{% endif %} {% endfor %}
+
+- name: Measure guest RAM already committed by running lab VMs
+  # Resume path (observed live): a mid-install re-run with part of the
+  # fleet already up failed the bare-host memory assert, although the
+  # running QEMU guests hold exactly the RAM the topology asks for. Their
+  # committed guest RAM therefore counts toward the budget (they are this
+  # lab's own VMs, identified via the run-dir pidfiles with live pids —
+  # the same liveness rule the run scripts' --status uses). Page cache is
+  # reclaimable, so the budget reads MemAvailable, never MemFree.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    committed=0
+    for spec in {{ host_prep_node_mem_specs }}; do
+      name="${spec%%=*}"
+      gib="$(( ${spec#*=} ))"
+      pidfile="{{ vm_run_dir }}/${name}.pid"
+      [ -r "${pidfile}" ] || continue
+      pid="$(cat "${pidfile}" 2>/dev/null || true)"
+      if [ -z "${pid}" ] || ! kill -0 "${pid}" 2>/dev/null; then
+        continue
+      fi
+      committed=$(( committed + gib ))
+    done
+    echo "${committed}"
+  register: host_prep_running_vm_mem
+  changed_when: false
+
 - name: Compute guest resource requirements
   ansible.builtin.set_fact:
     host_prep_required_mem_gib: >-
@@ -53,7 +92,9 @@
       {{ (masters | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum)
          + (dram_workers | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum)
          + (cxl_workers | map(attribute='disk') | map('regex_replace', 'G$', '') | map('int') | sum) }}
-    host_prep_available_mem_gib: "{{ ansible_facts['memfree_mb'] / 1024 }}"
+    host_prep_available_mem_gib: >-
+      {{ (ansible_facts['memory_mb']['nocache']['free'] / 1024)
+         + (host_prep_running_vm_mem.stdout | int) }}
 
 - name: Assert memory capacity
   ansible.builtin.assert:
