@@ -53,10 +53,12 @@ After the pipeline runs you have, all idempotent and re-runnable:
 ## Prerequisites
 
 - A dedicated Red Hat family host (developed and validated on RHEL 10) with:
-  - ~36 GiB free RAM for the default three guests — every node is sized to
-    the OpenShift-documented minimum resource requirements, and the pipeline
-    asserts the exact guest RAM/vCPU/disk sums plus headroom against the
-    host before touching anything,
+  - ~52 GiB free RAM (36 GiB of guests + assert headroom) and ~210 GiB free
+    disk at the VM assets dir (180 GiB nominal overlays + headroom) — vCPU/RAM
+    per node sit at the OpenShift-documented minimums while guest disks are
+    lab-tuned below them (sparse qcow2 overlays, disposable cluster; see
+    topology.yml), and the pipeline asserts the exact guest RAM/vCPU/disk
+    sums plus headroom against the host before touching anything,
   - podman, python3, and SSH access,
   - internet egress (OpenShift payload pulls, artifact downloads),
   - an RHSM registration + entitlements (backs the CDN kernel-SRPM download),

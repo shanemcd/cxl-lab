@@ -19,17 +19,21 @@ mac_base: "52:54:00:0c:0c"
 cxl_worker_count: 1
 dram_worker_count: 1
 
-# Per-node specs — the OpenShift-documented minimum resource requirements:
-# master from "Requirements for installing OpenShift on a single node"
-# (minimum profile: 4 vCPUs, 16 GB RAM, 120 GB storage), workers from
-# "Minimum resource requirements for cluster installation" (compute
-# machines: 2 vCPUs, 8 GB RAM, 100 GB storage).
+# Per-node specs — vCPU/RAM at the OpenShift-documented minimum resource
+# requirements (master from "Requirements for installing OpenShift on a single
+# node" minimum profile: 4 vCPUs, 16 GB RAM; workers from "Minimum resource
+# requirements for cluster installation": 2 vCPUs, 8 GB RAM). Guest DISKS are
+# lab-tuned below the documented minimums (120 GB master / 100 GB workers):
+# the bootstrap-in-place path enforces no disk minimums at install time (only
+# the Assisted Installer does), the overlays are sparse qcow2, and the cluster
+# is disposable — the trade is long-run headroom (etcd + monitoring growth on
+# the master's root LV; expect DiskPressure eventually if left running).
 master_vcpu: 4
 master_ram: "16G"
-master_disk: "120G"
+master_disk: "100G"
 worker_vcpu: 2
 worker_ram: "8G"
-worker_disk: "100G"
+worker_disk: "40G"
 
 masters:
   - name: "cxl-master-0"
