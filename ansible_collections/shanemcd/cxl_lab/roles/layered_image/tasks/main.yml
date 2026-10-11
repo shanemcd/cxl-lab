@@ -258,13 +258,10 @@
   when: use_prebaked_node_images | bool
   block:
 
-    - name: Ensure the node image build directory
-      ansible.builtin.file:
-        path: "{{ node_image_build_dir }}"
-        state: directory
-        mode: "0700"
-
     - name: Stat the BIB disk and the patch stamp
+      # The build directory itself is ensured by host_prep's workspace
+      # list (0755) — no per-role duplicate (a second ensure with a
+      # different mode would fight it every run).
       ansible.builtin.stat:
         path: "{{ item }}"
       loop:
