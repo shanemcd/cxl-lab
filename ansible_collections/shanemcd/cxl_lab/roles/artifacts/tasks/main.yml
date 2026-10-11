@@ -15,7 +15,6 @@
     - "{{ artifacts_srpm_dir }}"
     - "{{ artifacts_kernel_rpms_dir }}"
     - "{{ artifacts_downloads_dir }}"
-    - "{{ artifacts_kernel_build_dir }}"
     - "{{ install_bin_dir }}"
 
 - name: Download pinned artifacts
