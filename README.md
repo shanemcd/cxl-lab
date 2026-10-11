@@ -49,9 +49,11 @@ After the pipeline runs you have, all idempotent and re-runnable:
   **before** applying storage/files, so the initramfs must resolve `api-int`
   via DHCP before the node's static keyfile exists.
 - **CXL kernel**: `cxltest` kernel RPMs are built from the RHEL SRPM (one
-  config flip: `CONFIG_CXL_REGION_INVALIDATION_TEST=y`) in a disposable CS10
-  builder container, baked into a bootc layered OS image, and rolled out to the
-  CXL workers via the Machine Config Operator.
+  config flip: `CONFIG_CXL_REGION_INVALIDATION_TEST=y`) inside the layered
+  image build's kernel-builder stage (RHEL 10 GA builder image, entitled CDN
+  build deps), baked into the bootc layered OS image, and rolled out to the
+  CXL workers — pre-baked from first boot by default, or via the Machine
+  Config Operator.
 - **Worker OS mode** (`use_prebaked_node_images` in topology.yml, default
   true on this branch): **pre-baked** — the layered image is turned into a
   bootc-image-builder qcow2 (patched for first-boot ignition) and the CXL

@@ -27,26 +27,16 @@ machine_os_content_ref: >-
 # github.com/openshift/os; rhel-coreos is the rhel-9 sibling).
 machine_os_kernel_component: "rhel-coreos-10"
 
-# Kernel SRPM source: "cdn" = entitled CDN download inside the RHEL 10
-# builder image (requires the host's subscription entitlements); "brew" = an
-# internal build-system fallback (set kernel_srpm_base_url to your
-# organization's mirror if you use it). NOTE: the exact osimage NVR
-# (211.57.1.el10_2, read from rhel-coreos-10) is NOT carried by the CDN
-# source repo (RHCOS-only build; the repo carries 211.7.1-211.64.1), so the
-# pinned point below is the CDN-carried 211.64.1, and the artifacts role
-# asserts the osimage NVR shares this stream prefix (kernel-6.12.0-211.*)
+# Kernel SRPM source: entitled CDN download inside the RHEL 10 builder
+# image (requires the host's subscription entitlements). NOTE: the exact
+# osimage NVR (211.57.1.el10_2, read from rhel-coreos-10) is NOT carried by
+# the CDN source repo (RHCOS-only build; the repo carries 211.7.1-211.64.1),
+# so the pinned point below is the CDN-carried 211.64.1, and the artifacts
+# role asserts the osimage NVR shares this stream prefix (kernel-6.12.0-211.*)
 # to catch release drift.
-kernel_srpm_source: "cdn"
 kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
-# Only used with kernel_srpm_source: "brew" (no default — point it at your
-# organization's kernel SRPM mirror).
-kernel_srpm_base_url: ""
-# CDN artifact sha256 (the brew sibling differs by packaging — signed GA
-# vs internal build — hence per-source pins).
-kernel_srpm_sha256_cdn: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
-# Brew artifact sha256 (for the mirror you configure; differs from the CDN
-# artifact by packaging).
-kernel_srpm_sha256_brew: "6c464cd591bfaddaa98309b78ec9d18884a1ab436db3ecd1525ded20078aabed"
+# CDN artifact sha256.
+kernel_srpm_sha256: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
 # Entitled CDN source repo (repo id for the rendered repo file; RHEL minor is
 # derived from the NVR's el10_2 suffix so a release bump re-points it).
 kernel_srpm_cdn_repo_id: "rhel-10-baseos-source"
@@ -61,8 +51,6 @@ kernel_rpm_buildid: "cxltest"
 kernel_rpm_release: >-
   {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
      | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
-kernel_config_overrides:
-  CONFIG_CXL_REGION_INVALIDATION_TEST: "y"
 # Kernel builder base: the RHEL 10.2 GA bootc image (digest-pinned) — the
 # exact GA userspace the kernel ships into. Two uses: the entitled-CDN
 # SRPM downloader container, and the kernel-builder stage of the layered

@@ -131,8 +131,8 @@
 # Discover the rhel-10 RHCOS bootc base from the release payload (the exact
 # image the layered image builds FROM and the master pivots to at install),
 # read the shipped kernel NVR from it, and acquire the SRPM via the entitled
-# CDN (brew fallback). Discovery is asserted against the machine_os_content_ref
-# pin; the shipped NVR against the pinned SRPM's stream prefix.
+# CDN. Discovery is asserted against the machine_os_content_ref pin; the
+# shipped NVR against the pinned SRPM's stream prefix.
 
 - name: Set the release payload reference from the installer
   ansible.builtin.set_fact:
@@ -207,11 +207,6 @@
       SRPM {{ kernel_srpm_nvr }} is a different stream — the release moved;
       re-pin versions.yml.
 
-- name: Set the SRPM sha pin fact
-  ansible.builtin.set_fact:
-    artifacts_srpm_sha_pin: >-
-      {{ kernel_srpm_sha256_cdn if kernel_srpm_source == 'cdn' else kernel_srpm_sha256_brew }}
-
 - name: Stat the kernel SRPM
   ansible.builtin.stat:
     path: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
@@ -222,12 +217,10 @@
   ansible.builtin.set_fact:
     artifacts_srpm_needed: >-
       {{ not artifacts_srpm_stat.stat.exists
-         or artifacts_srpm_stat.stat.checksum != artifacts_srpm_sha_pin }}
+         or artifacts_srpm_stat.stat.checksum != kernel_srpm_sha256 }}
 
 - name: Download the kernel SRPM from the entitled CDN
-  when:
-    - kernel_srpm_source == 'cdn'
-    - artifacts_srpm_needed | bool
+  when: artifacts_srpm_needed | bool
   block:
 
     - name: Discover the host RHSM entitlement key
@@ -331,27 +324,17 @@
         name: "{{ artifacts_cdn_container_name }}"
         state: absent
 
-- name: Download the kernel SRPM from brew (fallback)
-  ansible.builtin.get_url:
-    url: "{{ kernel_srpm_base_url }}/{{ kernel_srpm_nvr }}.src.rpm"
-    dest: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
-    mode: "0644"
-    checksum: "sha256:{{ kernel_srpm_sha256_brew }}"
-  when:
-    - kernel_srpm_source == 'brew'
-    - artifacts_srpm_needed | bool
-
 - name: Stat the kernel SRPM after acquisition
   ansible.builtin.stat:
     path: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
     checksum_algorithm: sha256
   register: artifacts_srpm_stat_final
 
-- name: Assert the kernel SRPM matches the source pin
+- name: Assert the kernel SRPM matches the pin
   ansible.builtin.assert:
     that:
       - artifacts_srpm_stat_final.stat.exists
-      - artifacts_srpm_stat_final.stat.checksum == artifacts_srpm_sha_pin
+      - artifacts_srpm_stat_final.stat.checksum == kernel_srpm_sha256
     fail_msg: >-
       Kernel SRPM {{ kernel_srpm_nvr }}.src.rpm missing or checksum mismatch —
       remove it and re-run, or fix the pin in versions.yml.
@@ -419,8 +402,8 @@
     msg: >-
       artifacts OK — machine OS ref {{ machine_os_content_ref.split('@')[0] }}@
       {{ machine_os_content_ref.split('@')[1][:19] }}… (osimage kernel
-      {{ artifacts_osimage_kernel_nvr }}), SRPM {{ kernel_srpm_nvr }} via
-      {{ kernel_srpm_source }} verified, client tools extracted to
+      {{ artifacts_osimage_kernel_nvr }}), SRPM {{ kernel_srpm_nvr }} verified
+      against the pin, client tools extracted to
       {{ install_bin_dir }}, RHCOS image
       {{ artifacts_rhcos_url | basename }} verified (stream
       {{ rhcos_stream_name }}). The cxltest kernel RPMs are built from the

@@ -6,7 +6,7 @@
 # Pinned downloads (empty sha256 entries are trust-on-first-use: the role
 # refuses to proceed and prints the computed checksum to pin in versions.yml).
 # The kernel SRPM is NOT here — it is acquired by the artifacts role
-# (entitled CDN download or brew fallback) after the osimage NVR is read.
+# (entitled CDN download) after the osimage NVR is read.
 artifacts_downloads:
   - name: openshift_install
     url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_install_tarball_name }}"

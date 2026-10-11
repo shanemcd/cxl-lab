@@ -50,11 +50,9 @@ vm_logs_dir: "{{ vm_assets_dir }}/logs"
 vm_scripts_dir: "{{ vm_assets_dir }}/scripts"
 vm_run_dir: "{{ vm_assets_dir }}/run"
 
-# Installer-fixed ignition output names (shared by install_config, vms, and
-# teardown). bootstrap.ign is still emitted by the installer but unused by
-# the bootstrap-in-place flow.
-ignition_bootstrap_name: "bootstrap.ign"
-ignition_master_name: "master.ign"
+# Installer-fixed ignition output name (shared by install_config, vms, and
+# teardown). The bootstrap-in-place flow boots the live ISO on
+# bootstrap-in-place-for-live-iso.ign directly; worker.ign is the MCS stub.
 ignition_worker_name: "worker.ign"
 
 # Stock upstream QEMU installed to a host prefix by the artifacts phase

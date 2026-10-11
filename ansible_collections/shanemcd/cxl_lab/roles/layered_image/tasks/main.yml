@@ -61,9 +61,7 @@
         that:
           - layered_image_srpm_stat.stat.exists
           - >-
-            layered_image_srpm_stat.stat.checksum
-            == (kernel_srpm_sha256_cdn if kernel_srpm_source == 'cdn'
-                else kernel_srpm_sha256_brew)
+            layered_image_srpm_stat.stat.checksum == kernel_srpm_sha256
         fail_msg: >-
           Kernel SRPM {{ kernel_srpm_nvr }}.src.rpm missing or checksum mismatch in
           {{ artifacts_srpm_dir }} — run the artifacts stage first, or fix the pin
