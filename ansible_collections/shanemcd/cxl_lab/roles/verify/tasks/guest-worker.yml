@@ -133,21 +133,44 @@
         -o ConnectTimeout=10 \
         core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }} 'sudo bash -s' <<'SCRIPT'
     set -eu
-    MNT="{{ verify_touch_mount }}"
     SZ={{ verify_touch_size_mib }}
     NODE={{ cxl_guest_numa_node }}
-    mkdir -p "${MNT}"
-    mount -t tmpfs -o size=${SZ}M,mpol=bind:${NODE} tmpfs "${MNT}"
-    before=$(awk '/MemUsed/ {print $4}' /sys/devices/system/node/node${NODE}/meminfo)
-    head -c ${SZ}M /dev/urandom > "${MNT}/blob"
-    a=$(md5sum "${MNT}/blob" | cut -d' ' -f1)
-    b=$(md5sum "${MNT}/blob" | cut -d' ' -f1)
-    after=$(awk '/MemUsed/ {print $4}' /sys/devices/system/node/node${NODE}/meminfo)
-    delta=$((after - before))
-    umount "${MNT}"
-    rmdir "${MNT}"
-    echo "TOUCH_DELTA_KIB=${delta}"
-    echo "TOUCH_MD5_OK=$([ "${a}" = "${b}" ] && echo yes || echo no)"
+    # Probe node placement directly from numa_maps: an anonymous mapping
+    # under membind reports its exact per-node residency. A node MemUsed
+    # delta is not a usable signal here — freed pages cycle through the
+    # per-cpu allocator caches without re-crossing the zone accounting,
+    # so back-to-back runs measure deltas of the full blob, zero, then
+    # noise (observed live on identical input). Read-back is checked
+    # twice against the written pattern for data integrity.
+    numactl --membind=${NODE} python3 - "${SZ}" "${NODE}" <<'PY'
+    import ctypes
+    import hashlib
+    import mmap
+    import re
+    import sys
+
+    size_mib, node = int(sys.argv[1]), sys.argv[2]
+    size = size_mib * 1024 * 1024
+    pattern = bytes(range(256)) * (size // 256)
+    expect = hashlib.md5(pattern).hexdigest()
+    buf = mmap.mmap(-1, size)
+    buf.write(pattern)
+    buf.seek(0)
+    first = hashlib.md5(buf.read(size)).hexdigest()
+    buf.seek(0)
+    second = hashlib.md5(buf.read(size)).hexdigest()
+    addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
+    # numa_maps lines start with the bare mapping address — no 0x prefix
+    pages = 0
+    for line in open("/proc/self/numa_maps"):
+        if line.startswith(format(addr, "x")):
+            m = re.search(r"(?:^|\s)N%s=(\d+)" % node, line)
+            pages = int(m.group(1)) if m else 0
+            break
+    print("TOUCH_NODE1_KIB=%d" % (pages * 4))
+    print("TOUCH_MD5_OK=%s"
+          % ("yes" if first == second == expect else "no"))
+    PY
     SCRIPT
   args:
     executable: /bin/bash
@@ -182,8 +205,8 @@
       - not (verify_bounded_touch | bool)
         or ('TOUCH_MD5_OK=yes' in verify_touch.stdout
             and (verify_touch.stdout_lines
-                 | select('match', '^TOUCH_DELTA_KIB=') | list | first
-                 | split('=') | last | int) >= verify_touch_min_delta_kib)
+                 | select('match', '^TOUCH_NODE1_KIB=') | list | first
+                 | split('=') | last | int) >= verify_touch_min_node1_kib)
     fail_msg: >-
       Guest checklist failed on {{ worker.name }} — commit
       '{{ verify_commit.stdout | default('') | trim }}', dax
@@ -192,16 +215,17 @@
       {{ verify_service.rc | default(-1) }}, signature count
       '{{ verify_signature.stdout | default('') | trim }}', touch
       '{{ verify_touch.stdout | default('skipped') | trim }}'.
-
 - name: Collect the guest evidence for {{ worker.name }}
   vars:
-    # Deterministic evidence only: MemUsed and the touch delta drift between
-    # runs (they would break re-run idempotency of the report).
+    # Deterministic evidence only: MemUsed drifts between runs (it would
+    # break re-run idempotency of the report); the touch probe reports a
+    # fixed-size mapping's placement, which is stable.
     verify_touch_summary: >-
       {{ 'skipped' if not (verify_bounded_touch | bool)
          else ('bounded ' ~ verify_touch_size_mib ~ ' MiB touch on node '
-               ~ cxl_guest_numa_node ~ ': md5 read-back consistent, MemUsed'
-               ~ ' delta >= ' ~ verify_touch_min_delta_kib ~ ' KiB') }}
+               ~ cxl_guest_numa_node ~ ': md5 read-back consistent, '
+               ~ 'numa_maps residency >= ' ~ verify_touch_min_node1_kib
+               ~ ' KiB') }}
   ansible.builtin.set_fact:
     verify_guest_report: "{{ verify_guest_report | default({})
                              | combine({worker.name: {
