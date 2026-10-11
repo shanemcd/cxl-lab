@@ -3,6 +3,10 @@
   hosts: all
   become: true
   gather_facts: false
+  # mco_cxl (osImageURL pivot) is MCO-path-only: pre-baked workers boot the
+  # cxltest kernel from first boot. region_commit runs in both modes — it
+  # branches internally (MachineConfig + recovery vs first-boot wait).
   roles:
     - role: shanemcd.cxl_lab.mco_cxl
+      when: not use_prebaked_node_images | bool
     - role: shanemcd.cxl_lab.region_commit

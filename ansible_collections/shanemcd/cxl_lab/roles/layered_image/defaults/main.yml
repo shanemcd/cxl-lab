@@ -26,3 +26,27 @@ layered_image_manifest_accept: >-
   application/vnd.docker.distribution.manifest.v2+json,
   application/vnd.docker.distribution.manifest.list.v2+json
 layered_image_manifest_url: "http://{{ registry_host }}/v2/{{ layered_image_name }}/manifests/{{ layered_image_tag }}"
+
+# --- Pre-baked node images (use_prebaked_node_images) --------------------
+# BIB turns the layered image into a bootable qcow2. The root filesystem
+# type must be passed explicitly: the machine-os-content bootc image does
+# not declare a default rootfs and this BIB generation refuses to guess.
+layered_image_bib_rootfs: "xfs"
+# First-boot arming + karg fixups applied to the BIB disk's BLS entries.
+# BIB writes root=UUID/boot=UUID into the boot entries; with root= on the
+# cmdline the generic root-mount path skips ostree-prepare-root, so /sysroot
+# stays the raw rootfs (no top-level /etc on ostree "aleph" disks) and
+# first-boot ignition dies creating users ("cannot lock /etc/group").
+# Stock RHCOS disks boot with no root= karg — the ostree dracut module mounts
+# root from ostree= and prepare-root publishes the deployment's /etc. The
+# patch strips the generic root kargs to match the stock shape and arms
+# first-boot ignition (marker + platform id, consumed per worker overlay).
+layered_image_bib_platform_karg: "ignition.platform.id=qemu"
+layered_image_bib_ignition_firstboot_marker: "ignition.firstboot"
+# Stamp written after the BIB disk is patched; the build is skipped only
+# when BOTH the disk and the stamp exist (an interrupted build re-patches).
+layered_image_bib_stamp_name: "patched.stamp"
+# nbd device for the in-place BLS patch (host kernel module nbd required).
+layered_image_bib_nbd_device: 3
+layered_image_bib_nbd_settle_retries: 10
+layered_image_bib_nbd_settle_delay: 3

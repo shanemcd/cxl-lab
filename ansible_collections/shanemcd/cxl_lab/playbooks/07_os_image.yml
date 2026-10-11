@@ -3,6 +3,12 @@
   hosts: all
   become: true
   gather_facts: false
+  # MCO path only: the registry serves the layered image to the cluster and
+  # the image is built here (after install, so the build-side base-pin
+  # cross-check can read the live cluster). The pre-baked path builds the
+  # image before the VMs boot (see 05_vms.yml) and needs no registry.
   roles:
     - role: shanemcd.cxl_lab.registry
+      when: not use_prebaked_node_images | bool
     - role: shanemcd.cxl_lab.layered_image
+      when: not use_prebaked_node_images | bool
