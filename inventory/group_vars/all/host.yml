@@ -17,6 +17,7 @@ rhsm_activationkey: ""
 
 # Host packages ensured by host_prep (var-driven).
 host_packages:
+  - tar
   - iptables
   - qemu-img
   - python3-pip
