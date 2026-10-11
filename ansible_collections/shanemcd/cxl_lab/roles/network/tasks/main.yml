@@ -134,6 +134,12 @@
     state: started
     enabled: true
 
+- name: Apply resolver config changes before verification
+  # The restart handler defers to end-of-play; a changed config must be live
+  # before the asserts below query the resolver (a re-run with config drift
+  # would otherwise verify the stale process and fail).
+  ansible.builtin.meta: flush_handlers
+
 # --- verification (post-apply asserts: bridge state, gateway address,
 # --- forwarding, masquerade rule, egress path via tap-emulating probe) ---
 
