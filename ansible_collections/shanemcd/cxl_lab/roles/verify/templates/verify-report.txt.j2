@@ -15,7 +15,7 @@ CXL node {{ cxl_guest_numa_node }} meminfo:
 {% for line in w.meminfo %}  {{ line }}
 {% endfor %}numactl -H:
 {% for line in w.numactl %}  {{ line }}
-{% endfor %}{{ w.touch }} ({{ verify_touch_size_mib }} MiB tmpfs mpol=bind:{{ cxl_guest_numa_node }})
+{% endfor %}{{ w.touch }} ({{ verify_touch_size_mib }} MiB membind anon mapping on node {{ cxl_guest_numa_node }})
 {% endfor %}
 
 HOST SAFETY GATES (host NUMA placement NOT gated - first-touch)

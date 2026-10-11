@@ -9,12 +9,15 @@ verify_evidence_report_name: "verify-report.txt"
 # (CONFIG_CXL_REGION_INVALIDATION_TEST=y bypass path).
 verify_dmesg_signature: "Bypassing cpu_cache_invalidate_memregion"
 
-# Bounded touch (TEST-ONLY): tmpfs bound to the guest CXL node,
-# node MemUsed delta check, md5 read-back, unmount.
+# Bounded touch (TEST-ONLY): anonymous mapping under membind to the
+# guest CXL node, exact per-node residency read from numa_maps,
+# md5 read-back against the written pattern.
 verify_bounded_touch: true
-verify_touch_mount: "/mnt/cxl-verify-touch"
 verify_touch_size_mib: 64
-verify_touch_min_delta_kib: 32768
+# The touch passes when at least this much of the mapping is resident
+# on the CXL node — half the mapping size, leaving room for a stray
+# page or two landing elsewhere.
+verify_touch_min_node1_kib: 32768
 
 # Built-in MachineConfigPools that must be Updated alongside the worker-cxl
 # pool (OpenShift-fixed pool names).
