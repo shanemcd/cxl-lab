@@ -248,19 +248,32 @@
     group: root
     mode: "0750"
 
+- name: Render the pre-baked region-commit ignition snippet
+  # Pre-baked mode: the CXL workers' region-commit service ships via their
+  # first-boot ignition instead of a MachineConfig. The snippet reuses the
+  # region_commit role's MachineConfig template (its spec.config IS an
+  # ignition config) so both paths serve byte-identical content — the MC
+  # template stays the single source of truth.
+  when: use_prebaked_node_images | bool
+  ansible.builtin.include_role:
+    name: shanemcd.cxl_lab.region_commit
+    tasks_from: render-snippet
+
 - name: Set the node list for per-node ignition assembly
   ansible.builtin.set_fact:
     install_config_nodes: >-
       {{ [{'name': masters[0].name, 'ip_suffix': masters[0].ip_suffix,
-           'mac_suffix': masters[0].mac_suffix,
+           'mac_suffix': masters[0].mac_suffix, 'kind': 'master',
            'base': install_config_bip_name}]
-         + (cxl_workers + dram_workers)
+         + (cxl_workers | map('combine', {'kind': 'worker-cxl'}) | list
+            + dram_workers | map('combine', {'kind': 'worker-dram'}) | list)
          | map('combine', {'base': install_config_worker_name}) | list }}
 
 - name: Assemble per-node ignition configs
   # Master: merged BiP ignition (live-env network + hostname). Workers:
   # merged MCS-stub ignition. Each carries the NM keyfile (static IP,
-  # MAC-bound, lab resolver), /etc/hosts and /etc/hostname for first boot.
+  # MAC-bound, lab resolver), /etc/hosts and /etc/hostname for first boot;
+  # pre-baked CXL workers additionally carry the region-commit snippet.
   # The merge is content-aware: the script only rewrites an output whose
   # content would change, so re-runs are idempotent and edits to the
   # inputs (resolver, keyfile, taxonomy) propagate automatically.
@@ -277,6 +290,9 @@
       - "{{ mac_base }}:{{ item.mac_suffix }}"
       - "{{ lab_gateway_ip }}"
       - "{{ install_config_hosts_snippet_path }}"
+      - "{{ region_commit_ignition_snippet_path
+           if (use_prebaked_node_images | bool and item.kind == 'worker-cxl')
+           else '-' }}"
   loop: "{{ install_config_nodes }}"
   loop_control:
     label: "{{ item.name }}"

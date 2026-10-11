@@ -2,18 +2,23 @@
 # Managed by shanemcd.cxl_lab.install_config — do not edit.
 # Assembles a per-node ignition config for fw_cfg delivery:
 # merges the node-specific static network + name resolution into a base
-# ignition (the BiP master ignition or the installer's worker.ign MCS stub).
-# The base config is preserved verbatim except for same-path file entries,
-# which are replaced (ignition merge semantics, deterministic).
+# ignition (the BiP master ignition or the installer's worker.ign MCS stub),
+# optionally followed by an extra snippet (ignition JSON fragment) that
+# carries mode-specific units/files (e.g. the pre-baked region-commit
+# service). The base config is preserved verbatim except for same-path
+# file entries, which are replaced (ignition merge semantics,
+# deterministic). Snippet units are upserted by name and snippet files by
+# path.
 import base64
 import json
 import os
 import sys
 
-if len(sys.argv) != 10:
+if len(sys.argv) != 11:
     sys.stderr.write(
         "usage: ignition-node-merge.py <base.ign> <out.ign> <node_name> "
-        "<node_ip> <prefix_len> <gateway> <node_mac> <dns_csv> <hosts_snippet>\n"
+        "<node_ip> <prefix_len> <gateway> <node_mac> <dns_csv> "
+        "<hosts_snippet> <extra_snippet>\n"
     )
     sys.exit(2)
 
@@ -27,6 +32,7 @@ if len(sys.argv) != 10:
     node_mac,
     dns_csv,
     hosts_snippet_path,
+    extra_snippet_path,
 ) = sys.argv[1:]
 
 with open(base_path) as f:
@@ -94,6 +100,28 @@ upsert_file(
     384,
     nm_keyfile,
 )
+
+# Extra snippet (optional): upsert its systemd units by name and its
+# storage files by path (the pre-baked region-commit service ships this
+# way — same content the MachineConfig path serves via spec.config).
+if extra_snippet_path != "-":
+    with open(extra_snippet_path) as f:
+        snippet = json.load(f)
+    units = config.setdefault("systemd", {}).setdefault("units", [])
+    for unit in snippet.get("systemd", {}).get("units", []):
+        for i, existing in enumerate(units):
+            if existing.get("name") == unit.get("name"):
+                units[i] = unit
+                break
+        else:
+            units.append(unit)
+    for entry in snippet.get("storage", {}).get("files", []):
+        for i, existing in enumerate(files):
+            if existing.get("path") == entry.get("path"):
+                files[i] = entry
+                break
+        else:
+            files.append(entry)
 
 # Content-aware write: only replace the output when its content would
 # change, so staged ignition stays byte-stable across re-runs (the caller

@@ -33,6 +33,11 @@ prebaked_node_image_path: "{{ node_image_build_dir }}/qcow2/disk.qcow2"
 # Ignition files staged here for fw_cfg delivery — the run scripts pass each
 # node's .ign directly via QEMU fw_cfg (no HTTP server involved).
 vm_ignition_dir: "{{ vm_assets_dir }}/ignition"
+# Region-commit ignition snippet (pre-baked mode): the region_commit role
+# renders it (from the same MachineConfig template the MCO path uses) and
+# the install_config merge folds it into each CXL worker's first-boot
+# ignition. Shared by both roles.
+region_commit_ignition_snippet_path: "{{ install_dir }}/region-commit-ignition-snippet.json"
 vm_logs_dir: "{{ vm_assets_dir }}/logs"
 vm_scripts_dir: "{{ vm_assets_dir }}/scripts"
 vm_run_dir: "{{ vm_assets_dir }}/run"
