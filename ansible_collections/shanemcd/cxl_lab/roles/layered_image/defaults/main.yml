@@ -39,8 +39,13 @@ layered_image_bib_rootfs: "xfs"
 # first-boot ignition dies creating users ("cannot lock /etc/group").
 # Stock RHCOS disks boot with no root= karg — the ostree dracut module mounts
 # root from ostree= and prepare-root publishes the deployment's /etc. The
-# patch strips the generic root kargs to match the stock shape and arms
-# first-boot ignition (marker + platform id, consumed per worker overlay).
+# stock BLS entries also reference the $ignition_firstboot VARIABLE, which
+# the grub 05_ignition.cfg snippet expands to the ignition.firstboot karg
+# when the /boot/ignition.firstboot marker exists (removed by ignition after
+# the first boot, per-overlay via qcow2 whiteout); BIB's entries lack the
+# reference, so the patch re-adds it. The patch strips the generic root
+# kargs, adds the platform id, and arms the marker — stock-identical
+# semantics per worker overlay.
 layered_image_bib_platform_karg: "ignition.platform.id=qemu"
 layered_image_bib_ignition_firstboot_marker: "ignition.firstboot"
 # Stamp written after the BIB disk is patched; the build is skipped only
