@@ -114,14 +114,14 @@ without installation. Always run from the repo root.
 
 | Playbook | Invocation | What it does |
 |---|---|---|
-| `site` | `shanemcd.cxl_lab.site` | Runs the stages in dependency order: 01→03, then the 07 image/registry stage, then 04→06, then 08, then verify (numeric prefixes are stable labels, not import order — see `site.yml`). |
+| `site` | `shanemcd.cxl_lab.site` | Runs the numbered stages in order, 01→08, then verify (see `site.yml`). |
 | `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity, free ports; RHSM check (RHEL-gated); ensures packages incl. dnsmasq. |
 | `02_artifacts` | `shanemcd.cxl_lab.02_artifacts` | Downloads + SHA-verifies installer/oc/RHCOS live ISO and the kernel SRPM (entitled CDN route); builds stock QEMU into `/opt/qemu-<version>` (exists-guard: never rebuilt, never torn down). |
 | `03_network` | `shanemcd.cxl_lab.03_network` | Persistent bridge + gateway address, `ip_forward` sysctl drop-in, host `/etc/hosts` block, one tagged MASQUERADE rule, host-native dnsmasq (DNS + DHCP reservations), egress probe (veth+netns → TCP to quay.io). |
-| `04_ignition` | `shanemcd.cxl_lab.04_ignition` | install-config (1 control plane / 0 compute, `bootstrapInPlace`) → manifests → custom node MCs → pre-baked install-time manifests (worker-cxl pool, layered osImageURL, registry trust) → `single-node-ignition-config`; per-node merge (NM keyfile, hosts, hostname, pre-baked MCS pool + region-commit snippet) → 0700/0600 staged ignition (12 h freshness window). |
-| `05_vms` | `shanemcd.cxl_lab.05_vms` | Per-node run scripts + qcow2 overlays; master = kargs-patched live-ISO copy + blank virtio target + fw_cfg merged ignition; workers = MCS stubs fetched over DHCP; one fleet-parallel start command; in-role assert of the CXL graph shape. |
-| `06_install` | `shanemcd.cxl_lab.06_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
-| `07_os_image` | `shanemcd.cxl_lab.07_os_image` | cxltest kernel RPMs (multi-stage Containerfile kernel-builder stage in the RHEL 10 GA image, from the SHA-verified SRPM; cached in the artifacts dir — built only when missing) + layered OS image (pinned machine-os-content base + SHA-verified cxltest RPMs), bootc lint, push to the lab registry (published on the bridge gateway), authoritative `Docker-Content-Digest` stamp (0600); in pre-baked mode also the BIB node disk. Runs between the network and install-config stages (see `site.yml`). |
+| `04_os_image` | `shanemcd.cxl_lab.04_os_image` | cxltest kernel RPMs (multi-stage Containerfile kernel-builder stage in the RHEL 10 GA image, from the SHA-verified SRPM; cached in the artifacts dir — built only when missing) + layered OS image (pinned machine-os-content base + SHA-verified cxltest RPMs), bootc lint, push to the lab registry (published on the bridge gateway), authoritative `Docker-Content-Digest` stamp (0600); in pre-baked mode also the BIB node disk. |
+| `05_ignition` | `shanemcd.cxl_lab.05_ignition` | install-config (1 control plane / 0 compute, `bootstrapInPlace`) → manifests → custom node MCs → pre-baked install-time manifests (worker-cxl pool, layered osImageURL, registry trust) → `single-node-ignition-config`; per-node merge (NM keyfile, hosts, hostname, pre-baked MCS pool + region-commit snippet) → 0700/0600 staged ignition (12 h freshness window). |
+| `06_vms` | `shanemcd.cxl_lab.06_vms` | Per-node run scripts + qcow2 overlays; master = kargs-patched live-ISO copy + blank virtio target + fw_cfg merged ignition; workers = MCS stubs fetched over DHCP; one fleet-parallel start command; in-role assert of the CXL graph shape. |
+| `07_install` | `shanemcd.cxl_lab.07_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
 | `08_mco` | `shanemcd.cxl_lab.08_mco` | MCO path: worker-cxl labels → MachineConfigPool → osImageURL + region-commit MachineConfigs → MCO rollout waits → region commit with guest self-recovery (stale `MEM_ENABLE`) and cold-restart fallback. Pre-baked path: worker-cxl labels + pivot/region-commit verification (the install-time manifests already did the heavy lifting). |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
@@ -240,7 +240,7 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
   `bip_installation_disk` plus the MCS port answering.
 - **machine-os-puller SA race** (OpenShift 4.22.16 BiP): the SA's stale
   `internal-registry-pull-secret-ref` annotation across the live→installed
-  transition degrades the MCO; `06_install` drops the annotation and the MCO
+  transition degrades the MCO; `07_install` drops the annotation and the MCO
   resync heals.
 - **oc column formats are unstable**: `oc get -o wide` renders RESTARTS as
   `2 (23m ago)` (two fields) once aged — positional awk indexes silently check

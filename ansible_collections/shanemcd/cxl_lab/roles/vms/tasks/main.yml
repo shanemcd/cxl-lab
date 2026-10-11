@@ -62,7 +62,7 @@
       - item.stat.exists
     fail_msg: >-
       Ignition {{ item.item.name }}.ign missing under {{ vm_ignition_dir }}
-      — run 04_ignition.yml first.
+      — run 05_ignition.yml first.
   loop: "{{ vms_ignition_stat.results }}"
   loop_control:
     label: "{{ item.item.name }}"
@@ -154,7 +154,7 @@
       - vms_prebaked_stat.stat.exists
     fail_msg: >-
       Pre-baked node image missing at {{ prebaked_node_image_path }} —
-      the layered_image role must run first (see 05_vms.yml).
+      the layered_image role must run first (see 06_vms.yml).
 
 - name: Set the worker overlay backing image
   # Stock path: the decompressed stream qcow2. Pre-baked path: the BIB disk

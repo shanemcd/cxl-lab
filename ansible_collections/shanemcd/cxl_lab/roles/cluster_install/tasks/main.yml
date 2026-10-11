@@ -21,7 +21,7 @@
     that:
       - cluster_install_kubeconfig_stat.stat.exists
     fail_msg: >-
-      {{ kubeconfig_path }} missing — run 04_ignition.yml (the installer
+      {{ kubeconfig_path }} missing — run 05_ignition.yml (the installer
       writes the auth artifacts with the BiP ignition).
 
 - name: Read node statuses
@@ -43,7 +43,7 @@
       - item.rc == 0
     fail_msg: >-
       {{ item.item.name }} is not running (rc={{ item.rc }}) — run
-      05_vms.yml first.
+      06_vms.yml first.
   loop: "{{ cluster_install_vm_status.results }}"
   loop_control:
     label: "{{ item.item.name }}"
