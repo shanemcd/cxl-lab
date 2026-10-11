@@ -9,7 +9,15 @@ artifacts_dir: "{{ vm_assets_dir }}/artifacts"
 artifacts_srpm_dir: "{{ artifacts_dir }}/srpm"
 artifacts_kernel_rpms_dir: "{{ artifacts_dir }}/kernel-rpms"
 artifacts_downloads_dir: "{{ artifacts_dir }}/downloads"
-artifacts_kernel_build_dir: "{{ artifacts_dir }}/kernel-build"
+# Host RHSM entitlement + CA locations, mounted read-only into the SRPM
+# downloader and the kernel-builder build for CDN access (shared by the
+# artifacts and layered_image roles).
+rhsm_entitlement_dir: /etc/pki/entitlement
+rhsm_ca_dir: /etc/rhsm/ca
+# Kernel-builder build context for the layered image Containerfile's
+# kernel stage (SRPM + CDN repo file; swept with the layered image build
+# dir — the built RPMs themselves land in the artifacts taxonomy).
+layered_image_kernel_ctx_dir: "{{ layered_image_build_dir }}/kernel-builder"
 # Stock upstream QEMU builder workspace: tarball staging, build script, and
 # the DESTDIR staging tree that is copied to qemu_install_prefix.
 qemu_build_dir: "{{ artifacts_dir }}/qemu-build"

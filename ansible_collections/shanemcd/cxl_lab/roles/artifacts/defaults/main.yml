@@ -26,23 +26,7 @@ artifacts_downloads:
     dest: "{{ artifacts_downloads_dir }}/{{ qemu_source_url | basename }}"
     sha256: "{{ qemu_source_sha256 }}"
 
-# The five boot-relevant RPMs produced by the cxltest build (experiment log
-# 2026-10-09); names derive from kernel_rpm_release in versions.yml. The
-# set mirrors exactly what stock RHCOS carries for its kernel — and what
-# the layered image bakes (layered_image_kernel_pkgs): kernel-devel is
-# headers-only (not needed at runtime), kernel-modules-extra IS baked and
-# must be present for the build to succeed.
-artifacts_kernel_rpm_packages:
-  - kernel
-  - kernel-core
-  - kernel-modules
-  - kernel-modules-core
-  - kernel-modules-extra
-
-# Kernel build container tuning.
-artifacts_kernel_builder_jobs: 48
-artifacts_kernel_build_wait_retries: 240
-artifacts_kernel_build_wait_delay: 30
+# Kernel SRPM sha pin selection happens in tasks (per kernel_srpm_source).
 
 # Entitled CDN SRPM download: repo file + script rendered into
 # artifacts_srpm_dir; the container mounts the host RHSM entitlement read-only
@@ -54,19 +38,6 @@ artifacts_cdn_container_name: "cxl-lab-srpm-downloader"
 artifacts_cdn_download_wait_retries: 40
 artifacts_cdn_download_wait_delay: 15
 
-# Host entitlement locations (directory contents discovered by the role).
-artifacts_entitlement_dir: /etc/pki/entitlement
-artifacts_rhsm_ca_dir: /etc/rhsm/ca
-
 # Version stamp guarding client-tool extraction (unarchive has no content
 # comparison; the stamp makes re-extraction happen only on version change).
 artifacts_client_stamp_name: ".ocp-version"
-
-# Required config lines verified inside the built kernel-core (experiment log
-# 2026-10-09: test-only flip + vendor config preserved — FORTIFY and BTF stay on).
-artifacts_required_kernel_config:
-  - CONFIG_CXL_REGION_INVALIDATION_TEST=y
-  - CONFIG_CXL_REGION=y
-  - CONFIG_FORTIFY_SOURCE=y
-  - CONFIG_DEBUG_INFO_BTF=y
-  - CONFIG_DEV_DAX_CXL=m

@@ -14,6 +14,33 @@ layered_image_kernel_pkgs:
   - kernel-modules-extra
 layered_image_sha256sums_name: "SHA256SUMS"
 
+# --- Kernel builder stage (rendered only when the RPM cache is missing) ---
+# Build concurrency inside the kernel-builder stage.
+layered_image_kernel_builder_jobs: 48
+# Entitled CDN binary repos rendered into the kernel-builder build context
+# (the org entitlement's content sets carry baseos + appstream; CRB is NOT
+# included — the Containerfile documents the one spec-level consequence,
+# the glibc-static BuildRequires drop).
+layered_image_builder_repos_name: "kernel-builder-repos.repo"
+layered_image_builder_repos:
+  - id: rhel-10-baseos-rpms
+    label: BaseOS
+    repo: baseos
+  - id: rhel-10-appstream-rpms
+    label: AppStream
+    repo: appstream
+# Required config lines verified inside the built kernel-core on every run
+# (experiment log 2026-10-09: test-only flip + vendor config preserved —
+# FORTIFY and BTF stay on).
+layered_image_required_kernel_config:
+  - CONFIG_CXL_REGION_INVALIDATION_TEST=y
+  - CONFIG_CXL_REGION=y
+  - CONFIG_FORTIFY_SOURCE=y
+  - CONFIG_DEBUG_INFO_BTF=y
+  - CONFIG_DEV_DAX_CXL=m
+# cfgcheck scratch: rpm2cpio extraction of kernel-core for the config assert.
+layered_image_cfgcheck_dir: "{{ layered_image_build_dir }}/cfgcheck"
+
 # Throwaway lint runner.
 layered_image_lint_container: "cxl-lab-bootc-lint"
 

@@ -1,8 +1,10 @@
 ---
 # artifacts: construct every external input — pinned downloads
-# (SRPM, installer, oc, qemu source, RHCOS image), cxltest kernel RPMs built
-# in a disposable CS10 container, SHA256SUMS. All checksums pinned in
-# versions.yml; trust-on-first-use artifacts refuse to proceed until pinned.
+# (SRPM, installer, oc, qemu source, RHCOS image), SHA-verified on the
+# entitled CDN route. All checksums pinned in versions.yml;
+# trust-on-first-use artifacts refuse to proceed until pinned. The cxltest
+# kernel RPMs are built from the SRPM by the layered_image role's
+# kernel-builder stage (see 07_os_image).
 
 - name: Ensure artifact directories
   ansible.builtin.file:
@@ -231,7 +233,7 @@
 
     - name: Discover the host RHSM entitlement key
       ansible.builtin.find:
-        paths: "{{ artifacts_entitlement_dir }}"
+        paths: "{{ rhsm_entitlement_dir }}"
         patterns: '*-key.pem'
       register: artifacts_entitlement_keys
 
@@ -240,7 +242,7 @@
         that:
           - artifacts_entitlement_keys.files | length == 1
         fail_msg: >-
-          Expected exactly one entitlement key in {{ artifacts_entitlement_dir }},
+          Expected exactly one entitlement key in {{ rhsm_entitlement_dir }},
           found {{ artifacts_entitlement_keys.files | length }}.
 
     - name: Set the entitlement certificate facts
@@ -251,7 +253,7 @@
 
     - name: Stat the RHSM CA file
       ansible.builtin.stat:
-        path: "{{ artifacts_rhsm_ca_dir }}/redhat-uep.pem"
+        path: "{{ rhsm_ca_dir }}/redhat-uep.pem"
       register: artifacts_rhsm_ca_stat
 
     - name: Assert the RHSM CA file exists
@@ -259,12 +261,12 @@
         that:
           - artifacts_rhsm_ca_stat.stat.exists
         fail_msg: >-
-          {{ artifacts_rhsm_ca_dir }}/redhat-uep.pem missing — the CDN route needs
+          {{ rhsm_ca_dir }}/redhat-uep.pem missing — the CDN route needs
           the host's RHSM CA (is the host registered?).
 
     - name: Set the RHSM CA fact
       ansible.builtin.set_fact:
-        artifacts_rhsm_ca_file: "{{ artifacts_rhsm_ca_dir }}/redhat-uep.pem"
+        artifacts_rhsm_ca_file: "{{ rhsm_ca_dir }}/redhat-uep.pem"
 
     - name: Set the CDN repo file path fact
       ansible.builtin.set_fact:
@@ -288,18 +290,22 @@
         state: absent
 
     - name: Run the SRPM downloader container
+      # Base = the RHEL 10 builder image (registry auth via the pull secret —
+      # registry.redhat.io requires login even for pulls; the logged-in
+      # root session is NOT relied upon).
       containers.podman.podman_container:
         name: "{{ artifacts_cdn_container_name }}"
         image: "{{ kernel_builder_image }}"
         state: started
         command: "bash /workspace/{{ artifacts_cdn_download_script_name }}"
+        authfile: "{{ pull_secret_path }}"
         security_opt:
           - label=disable
         volumes:
           - "{{ artifacts_srpm_dir }}:/workspace:Z"
           - "{{ artifacts_cdn_repo_file }}:/etc/yum.repos.d/{{ artifacts_cdn_repo_file_name }}:ro"
-          - "{{ artifacts_entitlement_dir }}:{{ artifacts_entitlement_dir }}:ro"
-          - "{{ artifacts_rhsm_ca_dir }}:{{ artifacts_rhsm_ca_dir }}:ro"
+          - "{{ rhsm_entitlement_dir }}:{{ rhsm_entitlement_dir }}:ro"
+          - "{{ rhsm_ca_dir }}:{{ rhsm_ca_dir }}:ro"
 
     - name: Wait for the SRPM download to finish
       containers.podman.podman_container_info:
@@ -409,132 +415,6 @@
     mode: "0644"
     checksum: "sha256:{{ artifacts_rhcos_iso_stream_sha256 }}"
 
-- name: Set expected kernel RPM file names
-  ansible.builtin.set_fact:
-    artifacts_expected_kernel_rpms: >-
-      {{ artifacts_kernel_rpm_packages
-         | map('regex_replace', '$', '-' ~ kernel_rpm_release ~ '.rpm') | list }}
-
-- name: Stat expected kernel RPMs
-  ansible.builtin.stat:
-    path: "{{ artifacts_kernel_rpms_dir }}/{{ item }}"
-  loop: "{{ artifacts_expected_kernel_rpms }}"
-  register: artifacts_kernel_rpms_stat
-
-- name: Set kernel RPMs presence fact
-  ansible.builtin.set_fact:
-    artifacts_kernel_rpms_present: >-
-      {{ artifacts_kernel_rpms_stat.results | selectattr('stat.exists') | list | length
-         == artifacts_expected_kernel_rpms | length }}
-
-- name: Build cxltest kernel RPMs
-  when: not artifacts_kernel_rpms_present
-  block:
-
-    - name: Render the kernel build script
-      ansible.builtin.template:
-        src: cxltest-kernel-build.sh.j2
-        dest: "{{ artifacts_kernel_build_dir }}/cxltest-kernel-build.sh"
-        mode: "0755"
-
-    - name: Remove stale kernel builder container
-      containers.podman.podman_container:
-        name: "{{ kernel_builder_container_name }}"
-        state: absent
-
-    - name: Run the kernel builder container
-      containers.podman.podman_container:
-        name: "{{ kernel_builder_container_name }}"
-        image: "{{ kernel_builder_image }}"
-        state: started
-        command: "bash {{ artifacts_kernel_build_dir }}/cxltest-kernel-build.sh"
-        volumes:
-          - "{{ artifacts_dir }}:{{ artifacts_dir }}:Z"
-
-    - name: Wait for the kernel build to finish
-      containers.podman.podman_container_info:
-        name: "{{ kernel_builder_container_name }}"
-      register: artifacts_builder_state
-      until: >-
-        artifacts_builder_state.containers | length == 0
-        or not artifacts_builder_state.containers[0].State.Running
-      retries: "{{ artifacts_kernel_build_wait_retries }}"
-      delay: "{{ artifacts_kernel_build_wait_delay }}"
-
-    - name: Assert the kernel build succeeded
-      ansible.builtin.assert:
-        that:
-          - artifacts_builder_state.containers | length == 1
-          - artifacts_builder_state.containers[0].State.ExitCode == 0
-        fail_msg: >-
-          Kernel build container exited with
-          {{ artifacts_builder_state.containers[0].State.ExitCode | default('no state') }} —
-          inspect `podman logs {{ kernel_builder_container_name }}`.
-
-    - name: Remove the kernel builder container
-      containers.podman.podman_container:
-        name: "{{ kernel_builder_container_name }}"
-        state: absent
-
-- name: Stat expected kernel RPMs after build
-  ansible.builtin.stat:
-    path: "{{ artifacts_kernel_rpms_dir }}/{{ item }}"
-    checksum_algorithm: sha256
-  loop: "{{ artifacts_expected_kernel_rpms }}"
-  register: artifacts_kernel_rpms_stat_final
-
-- name: Assert expected kernel RPMs exist
-  ansible.builtin.assert:
-    that:
-      - item.stat.exists
-    fail_msg: "Missing kernel RPM {{ item.item }} in {{ artifacts_kernel_rpms_dir }}."
-  loop: "{{ artifacts_kernel_rpms_stat_final.results }}"
-
-- name: Extract the kernel-core config for verification
-  ansible.builtin.shell: |
-    set -o pipefail
-    rm -rf "{{ artifacts_kernel_build_dir }}/cfgcheck"
-    mkdir -p "{{ artifacts_kernel_build_dir }}/cfgcheck"
-    cd "{{ artifacts_kernel_build_dir }}/cfgcheck"
-    rpm2cpio "{{ artifacts_kernel_rpms_dir }}/kernel-core-{{ kernel_rpm_release }}.rpm" | cpio -idm --quiet
-    find . -type f -name config -path '*modules*'
-  changed_when: false
-  register: artifacts_kernel_cfg_find
-
-- name: Set kernel-core config path fact
-  ansible.builtin.set_fact:
-    artifacts_kernel_cfg_path: >-
-      {{ artifacts_kernel_build_dir }}/cfgcheck/{{ artifacts_kernel_cfg_find.stdout_lines | first }}
-
-- name: Read the kernel-core config
-  ansible.builtin.slurp:
-    src: "{{ artifacts_kernel_cfg_path }}"
-  register: artifacts_kernel_cfg_raw
-
-- name: Set kernel-core config lines fact
-  ansible.builtin.set_fact:
-    artifacts_kernel_cfg_lines: "{{ artifacts_kernel_cfg_raw.content | b64decode | trim | split('\n') }}"
-
-- name: Assert the cxltest kernel config in kernel-core
-  ansible.builtin.assert:
-    that:
-      - item in artifacts_kernel_cfg_lines
-    fail_msg: "Required kernel config line {{ item }} missing from kernel-core."
-  loop: "{{ artifacts_required_kernel_config }}"
-
-- name: Compute SHA256SUMS for the kernel RPMs
-  ansible.builtin.command:
-    cmd: "sha256sum {{ artifacts_expected_kernel_rpms | join(' ') }}"
-    chdir: "{{ artifacts_kernel_rpms_dir }}"
-  register: artifacts_kernel_sums
-  changed_when: false
-
-- name: Write SHA256SUMS (idempotent)
-  ansible.builtin.copy:
-    content: "{{ artifacts_kernel_sums.stdout }}"
-    dest: "{{ artifacts_kernel_rpms_dir }}/SHA256SUMS"
-    mode: "0644"
-
 - name: Artifacts summary
   ansible.builtin.debug:
     msg: >-
@@ -544,5 +424,5 @@
       {{ kernel_srpm_source }} verified, client tools extracted to
       {{ install_bin_dir }}, RHCOS image
       {{ artifacts_rhcos_url | basename }} verified (stream
-      {{ rhcos_stream_name }}), kernel RPMs in {{ artifacts_kernel_rpms_dir }}
-      (built: {{ not artifacts_kernel_rpms_present }}).
+      {{ rhcos_stream_name }}). The cxltest kernel RPMs are built from the
+      SRPM by the layered image stage (see 07_os_image).

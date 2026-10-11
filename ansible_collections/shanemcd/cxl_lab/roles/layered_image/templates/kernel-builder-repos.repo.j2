@@ -1,0 +1,16 @@
+# Managed by shanemcd.cxl_lab.layered_image — do not edit.
+# Entitled CDN binary repos for the kernel-builder stage (dnf builddep);
+# the host RHSM entitlement is mounted read-only at the same paths, and the
+# CA authenticates cdn.redhat.com. RHEL minor is derived from the pinned
+# SRPM NVR so a release bump re-points all three repos.
+{% for repo in layered_image_builder_repos %}
+[{{ repo.id }}]
+name = RHEL {{ kernel_srpm_rhel_release }} {{ repo.label }} RPMs
+baseurl = {{ kernel_cdn_binary_repo_baseurl }}/{{ repo.repo }}/os
+enabled = 1
+gpgcheck = 0
+sslclientcert = {{ layered_image_entitlement_cert }}
+sslclientkey = {{ layered_image_entitlement_key }}
+sslcacert = {{ layered_image_rhsm_ca_file }}
+
+{% endfor %}
