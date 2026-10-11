@@ -74,6 +74,8 @@
   # live-env → installed transition); the machine-config operator then
   # fails every resync on the missing secret. Dropping the stale
   # annotation lets the resync complete — the annotation is optional.
+  # Retried: the single-node API can briefly time out under the join-phase
+  # load peak (workers pivoting + kubelets registering) — observed live.
   ansible.builtin.command:
     argv:
       - "{{ install_bin_dir }}/oc"
@@ -87,6 +89,9 @@
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   register: cluster_install_mos_puller_annotation
+  until: cluster_install_mos_puller_annotation.rc == 0
+  retries: "{{ cluster_install_api_ready_retries }}"
+  delay: "{{ cluster_install_api_ready_delay_seconds }}"
   changed_when: false
 
 - name: Drop the stale machine-os-puller registry-secret annotation
