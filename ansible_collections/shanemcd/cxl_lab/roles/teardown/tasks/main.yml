@@ -377,13 +377,26 @@
 
 # --- Layer: install-data (LAST — contains the kubeconfig and secrets) --------
 
+- name: Check whether the artifacts layer still holds content
+  # Safety gate: the assets sweep below would destroy the kernel RPMs +
+  # SRPM + downloads (~30 min of entitled-CDN build time) when install-data
+  # is requested without the artifacts layer (e.g. re-rendering ignition on
+  # a warm lab). Only sweep when the artifacts layer has already run.
+  ansible.builtin.stat:
+    path: "{{ artifacts_kernel_rpms_dir }}"
+  register: teardown_artifacts_stat
+  tags: install-data
+
 - name: Remove the VM assets tree
   # Contents were removed per layer above (overlays, scripts, logs, registry
   # data, artifacts, ignition); this clears the remainder — the RHCOS base
   # image, the master's boot ISO, install-phase scripts, and empty dirs.
+  # Skipped when artifacts still exist: partial teardowns must not destroy
+  # the expensive build outputs (the artifacts layer removes them itself).
   ansible.builtin.file:
     path: "{{ vm_assets_dir }}"
     state: absent
+  when: not teardown_artifacts_stat.stat.exists
   tags: install-data
 
 - name: Remove the install directory
