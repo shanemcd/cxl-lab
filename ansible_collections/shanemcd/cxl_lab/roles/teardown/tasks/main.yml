@@ -347,6 +347,14 @@
     state: absent
   tags: images
 
+- name: Remove the pre-baked node image build directory
+  # Pre-baked mode: the BIB disk + patch stamp (worker overlays die with
+  # the vms layer, which tears down first).
+  ansible.builtin.file:
+    path: "{{ node_image_build_dir }}"
+    state: absent
+  tags: images
+
 - name: Remove the QEMU build directory
   # The host PREFIX ({{ qemu_install_prefix }}) is NEVER removed.
   ansible.builtin.file:

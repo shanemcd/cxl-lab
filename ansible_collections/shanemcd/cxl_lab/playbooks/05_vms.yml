@@ -4,4 +4,11 @@
   become: true
   gather_facts: false
   roles:
+    # Pre-baked mode builds the layered image + BIB disk HERE (before the
+    # workers boot): the image must exist to overlay it. The cluster does
+    # not exist yet at this point — the layered_image role's build-side
+    # base-pin cross-check is MCO-path-only and the install role performs
+    # the same assert against the booted cluster.
+    - role: shanemcd.cxl_lab.layered_image
+      when: use_prebaked_node_images | bool
     - role: shanemcd.cxl_lab.vms

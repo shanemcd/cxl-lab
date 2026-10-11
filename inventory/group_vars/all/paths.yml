@@ -26,6 +26,10 @@ vms_master_iso_name: "{{ masters[0].name }}-install.iso"
 # Pre-baked node images (use_prebaked_node_images): bootc-image-builder
 # qcow2 output for the CXL workers.
 node_image_build_dir: "{{ vm_assets_dir }}/node-images"
+# The BIB-produced, ignition-armed qcow2 the workers boot overlays of
+# (pre-baked mode). Built by the layered_image role BEFORE the vms role
+# runs (see 05_vms.yml); the vms and layered_image roles share this path.
+prebaked_node_image_path: "{{ node_image_build_dir }}/qcow2/disk.qcow2"
 # Ignition files staged here for fw_cfg delivery — the run scripts pass each
 # node's .ign directly via QEMU fw_cfg (no HTTP server involved).
 vm_ignition_dir: "{{ vm_assets_dir }}/ignition"

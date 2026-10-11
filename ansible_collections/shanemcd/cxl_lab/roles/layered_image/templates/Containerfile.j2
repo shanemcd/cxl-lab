@@ -8,4 +8,19 @@ FROM {{ layered_image_base_ref }}
 COPY *.rpm /tmp/kernel-rpms/
 RUN rpm-ostree override replace /tmp/kernel-rpms/*.rpm \
     && rm -rf /tmp/kernel-rpms
-RUN rm -rf /var/cache/rpm-ostree /var/cache/ldconfig
+# Regenerate the initramfs AFTER the override. The kernel RPM scriptlet ran
+# dracut DURING the override transaction, while rpm-ostree's useradd/usermod
+# interceptor wrappers were installed at /usr/sbin — the ignition dracut
+# module copies `useradd` by name and captured the wrapper script without
+# its `useradd.rpmostreesave` companion, breaking first-boot ignition user
+# creation (useradd exits 127). Post-override the wrappers are gone and the
+# real ELF binaries are back, so a regeneration bakes a working initramfs.
+# --no-hostonly is required: hostonly mode inside the build container
+# produces an initramfs missing the ignition/ostree modules entirely.
+RUN set -euo pipefail \
+    && for moddir in /usr/lib/modules/*; do \
+           kver="$(basename "${moddir}")"; \
+           dracut -f --no-hostonly --kver "${kver}" "/boot/initramfs-${kver}.img"; \
+           mv "/boot/initramfs-${kver}.img" "${moddir}/initramfs.img"; \
+       done \
+    && rm -rf /var/cache/rpm-ostree /var/cache/ldconfig

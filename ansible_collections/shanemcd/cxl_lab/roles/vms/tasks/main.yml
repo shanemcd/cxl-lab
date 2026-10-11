@@ -2,9 +2,11 @@
 # vms: one host-QEMU run script per node — the stock
 # upstream QEMU from the builder prefix (never the appstream qemu-kvm,
 # which has no CXL backports). Master = BiP boot model (live ISO + blank
-# virtio install target + merged BiP ignition); workers = stream qcow2
-# overlays + per-node merged ignition (MCS stubs). CXL workers carry the
-# emulated Type-3 graph MINUS host-node binding (host NUMA placement is
+# virtio install target + merged BiP ignition); workers = per-node merged
+# ignition (MCS stubs) over overlays of EITHER the stock stream qcow2 OR
+# the pre-baked BIB disk (use_prebaked_node_images — workers then boot the
+# cxltest kernel from first boot). CXL workers carry
+# the emulated Type-3 graph MINUS host-node binding (host NUMA placement is
 # intentionally first-touch). Boot sequence: master first, then workers once the live-env
 # Machine Config Server answers (their first-boot ignition fetch targets
 # it). No per-VM containers, no QEMU patch image.
@@ -58,32 +60,38 @@
       RHCOS qemu image or live ISO missing under {{ artifacts_downloads_dir }}
       — run 02_artifacts.yml first.
 
-- name: Stat the decompressed RHCOS base image
-  ansible.builtin.stat:
-    path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
-  register: vms_base_stat
+- name: Decompress and verify the RHCOS base image
+  # Stock-image path only: pre-baked workers boot overlays of the BIB disk
+  # instead, so the stock qcow2 is never decompressed in that mode.
+  when: not use_prebaked_node_images | bool
+  block:
 
-- name: Decompress the RHCOS base image
-  ansible.builtin.shell: |
-    set -o pipefail
-    gzip -dc {{ artifacts_downloads_dir }}/{{ rhcos_qemu_image_name }} \
-      > {{ vm_images_dir }}/{{ vms_base_image_name }}
-  args:
-    creates: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+    - name: Stat the decompressed RHCOS base image
+      ansible.builtin.stat:
+        path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+      register: vms_base_stat
 
-- name: Stat the RHCOS base image checksum
-  ansible.builtin.stat:
-    path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
-    checksum_algorithm: sha256
-  register: vms_base_checksum
+    - name: Decompress the RHCOS base image
+      ansible.builtin.shell: |
+        set -o pipefail
+        gzip -dc {{ artifacts_downloads_dir }}/{{ rhcos_qemu_image_name }} \
+          > {{ vm_images_dir }}/{{ vms_base_image_name }}
+      args:
+        creates: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
 
-- name: Assert the RHCOS base image checksum
-  ansible.builtin.assert:
-    that:
-      - vms_base_checksum.stat.checksum == rhcos_image_uncompressed_sha256
-    fail_msg: >-
-      RHCOS base image under {{ vm_images_dir }} does not match the pinned
-      uncompressed sha256 — delete it and re-run.
+    - name: Stat the RHCOS base image checksum
+      ansible.builtin.stat:
+        path: "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+        checksum_algorithm: sha256
+      register: vms_base_checksum
+
+    - name: Assert the RHCOS base image checksum
+      ansible.builtin.assert:
+        that:
+          - vms_base_checksum.stat.checksum == rhcos_image_uncompressed_sha256
+        fail_msg: >-
+          RHCOS base image under {{ vm_images_dir }} does not match the pinned
+          uncompressed sha256 — delete it and re-run.
 
 - name: Ensure VM asset directories
   ansible.builtin.file:
@@ -107,8 +115,34 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Stat the pre-baked node image
+  # Pre-baked mode: workers boot overlays of the BIB disk; it must exist
+  # (the layered_image role builds it earlier in this play).
+  when: use_prebaked_node_images | bool
+  ansible.builtin.stat:
+    path: "{{ prebaked_node_image_path }}"
+  register: vms_prebaked_stat
+
+- name: Assert the pre-baked node image exists
+  when: use_prebaked_node_images | bool
+  ansible.builtin.assert:
+    that:
+      - vms_prebaked_stat.stat.exists
+    fail_msg: >-
+      Pre-baked node image missing at {{ prebaked_node_image_path }} —
+      the layered_image role must run first (see 05_vms.yml).
+
+- name: Set the worker overlay backing image
+  # Stock path: the decompressed stream qcow2. Pre-baked path: the BIB disk
+  # (already patched for first-boot ignition; each overlay consumes the
+  # firstboot marker independently via its own whiteout).
+  ansible.builtin.set_fact:
+    vms_worker_backing: >-
+      {{ prebaked_node_image_path if use_prebaked_node_images | bool
+         else vm_images_dir ~ '/' ~ vms_base_image_name }}
+
 - name: Create worker disk overlays
-  # Workers boot the stream qcow2 through a per-node overlay.
+  # Workers boot the backing image through a per-node overlay.
   ansible.builtin.command:
     argv:
       - qemu-img
@@ -118,7 +152,7 @@
       - "-F"
       - qcow2
       - "-b"
-      - "{{ vm_images_dir }}/{{ vms_base_image_name }}"
+      - "{{ vms_worker_backing }}"
       - "{{ vm_images_dir }}/{{ item.name }}.qcow2"
       - "{{ item.disk }}"
     creates: "{{ vm_images_dir }}/{{ item.name }}.qcow2"
@@ -418,7 +452,9 @@
     msg: >-
       VM fleet OK — {{ vms_nodes | length }} nodes running on host QEMU
       (master {{ masters[0].name }}: live ISO + blank install target,
-      BiP; {{ vms_worker_nodes | length }} workers on stream overlays);
+      BiP; {{ vms_worker_nodes | length }} workers on
+      {{ 'pre-baked BIB disk' if use_prebaked_node_images | bool else 'stock stream' }}
+      overlays);
       CXL Type-3 graph on {{ cxl_workers | length }} workers (no host-node
       binding); all serial logs show kernel boot;
       {{ vms_boot_evidence.stdout | trim }}.
