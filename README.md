@@ -4,7 +4,8 @@ Ansible automation for a **disposable OpenShift + QEMU-emulated CXL Type-3 lab**
 a single-node OpenShift (SNO) master plus a configurable fleet of CXL and DRAM
 workers (one of each by default) — with a committed 4 GiB emulated CXL region
 exposed as System RAM on a CPU-less guest NUMA node on every CXL worker. Built
-from a bare Red Hat family server with nothing but podman and SSH.
+from a bare Red Hat family server with nothing but SSH (podman and the
+rest of the host package set are ensured by the pipeline itself).
 
 All results are **test-only / cache-coherency-unverified**: the region commit
 relies on the guest kernel's `CONFIG_CXL_REGION_INVALIDATION_TEST=y` bypass of
@@ -77,7 +78,8 @@ After the pipeline runs you have, all idempotent and re-runnable:
     lab-tuned below them (sparse qcow2 overlays, disposable cluster; see
     topology.yml), and the pipeline asserts the exact guest RAM/vCPU/disk
     sums plus headroom against the host before touching anything,
-  - podman, python3, and SSH access,
+  - python3 and SSH access (podman is ensured by `01_host_prep` along with
+    the rest of the host packages),
   - internet egress (OpenShift payload pulls, artifact downloads),
   - an RHSM registration + entitlements (backs the CDN kernel-SRPM download).
     On Fedora: subscription-manager is not part of a default install and the
