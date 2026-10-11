@@ -387,6 +387,14 @@
   register: vms_master_start
   changed_when: "'started, pid' in vms_master_start.stdout"
 
+- name: Render the MCS trust probe
+  # Pre-baked race guard helper — see the MCS wait task below.
+  ansible.builtin.template:
+    src: mcs-trust-probe.py.j2
+    dest: "{{ vm_scripts_dir }}/{{ vms_mcs_trust_probe_name }}"
+    mode: "0755"
+  when: use_prebaked_node_images | bool
+
 - name: Wait for the installed master's Machine Config Server
   # Workers must fetch their ignition from the INSTALLED master: the
   # live-env MCS serves the same port but renders bootstrap-era
@@ -395,6 +403,13 @@
   # control plane and ended up anonymous). The installed master is
   # identified by its root living on the BiP installation disk (the
   # live env runs from the ISO's overlay); the MCS must also answer.
+  # Pre-baked race guard (observed live): the MCS answering is not enough —
+  # the CVO applies the install-time Image trust manifest a few minutes
+  # after the installed master boots and the MCO then re-renders the pool
+  # configs; a worker whose firstboot fetch lands in between pivots against
+  # the lab registry over untrusted HTTPS and retries the rebase forever
+  # without re-fetching. So before any worker starts, the served
+  # worker-cxl render must already carry the insecure-registry entry.
   ansible.builtin.shell: |
     set -o pipefail
     rootdev="$(ssh -o BatchMode=yes -o ConnectTimeout=10 \
@@ -409,6 +424,12 @@
         ;;
     esac
     exec 3<>/dev/tcp/{{ master_ip }}/{{ vms_mcs_port }}
+    {% if use_prebaked_node_images | bool %}
+    python3 {{ vm_scripts_dir }}/{{ vms_mcs_trust_probe_name }} || {
+      echo "MCS serves no insecure-registry trust for {{ mco_cxl_mcp_name }} yet" >&2
+      exit 1
+    }
+    {% endif %}
   register: vms_mcs_probe
   until: vms_mcs_probe.rc == 0
   retries: 120

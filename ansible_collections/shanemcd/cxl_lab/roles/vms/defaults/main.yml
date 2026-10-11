@@ -31,3 +31,14 @@ vms_boot_marker: "Linux version"
 # Machine Config Server port on the master — the live-env bootstrap gate
 # before workers are started (workers' first-boot ignition fetch hits it).
 vms_mcs_port: 22623
+
+# Pre-baked race guard: the MCS-served worker-cxl pool config probed
+# before any worker starts. The firstboot pivot must see the
+# insecure-registry trust (the CVO applies the install-time Image manifest
+# asynchronously after the installed master boots and the MCO re-renders
+# the pool configs a few minutes later); a worker fetching in between
+# retries its rebase against untrusted HTTPS forever without re-fetching.
+vms_mcs_pool_config_url: "https://{{ master_ip }}:{{ vms_mcs_port }}/config/{{ mco_cxl_mcp_name }}"
+
+# Rendered MCS trust probe script name (see mcs-trust-probe.py.j2).
+vms_mcs_trust_probe_name: "mcs-trust-probe.py"
