@@ -2,7 +2,8 @@
 # vms: one host-QEMU run script per node — a QEMU with CXL Type-3
 # emulation, resolved by the qemu_builder role (distribution binary when
 # it carries pxb-cxl — Fedora's qemu-system-x86-core; otherwise the
-# pinned CS10-built upstream prefix — RHEL's appstream qemu-kvm has no
+# pinned upstream build in the RHEL 10 builder — RHEL's appstream qemu-kvm
+# has no
 # CXL backports). Master = BiP boot model (live ISO + blank
 # virtio install target + merged BiP ignition); workers = per-node merged
 # ignition (MCS stubs) over overlays of the pre-baked BIB disk

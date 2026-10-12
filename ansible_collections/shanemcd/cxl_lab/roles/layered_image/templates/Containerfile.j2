@@ -17,7 +17,7 @@
 #   kernel RPMs layered via rpm-ostree override replace (initramfs
 #   regenerated automatically), plus the documented repo cache cleanup.
 {% if layered_image_render_kernel_stage | default(false) %}
-FROM {{ kernel_builder_image }} AS kernel-builder
+FROM {{ rhel10_builder_image }} AS kernel-builder
 COPY {{ kernel_srpm_nvr }}.src.rpm /tmp/kernel-srpm.rpm
 COPY {{ layered_image_builder_repos_name }} /etc/yum.repos.d/{{ layered_image_builder_repos_name }}
 # Build deps from the entitled CDN binary repos, resolved against the SAME

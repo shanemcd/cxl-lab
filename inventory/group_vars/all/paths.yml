@@ -55,7 +55,7 @@ vm_run_dir: "{{ vm_assets_dir }}/run"
 ignition_worker_name: "worker.ign"
 
 # Stock upstream QEMU installed to a host prefix by the artifacts phase
-# (built in a CentOS Stream 10 container so the produced binaries run
+# (built in the RHEL 10 builder container so the produced binaries run
 # against the host's glibc; no patch, no runtime image). The exists-guard
 # keys off the versioned prefix — teardown never removes it, so a
 # same-version rebuild skips the build entirely. With qemu_source: auto /

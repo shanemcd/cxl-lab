@@ -10,29 +10,32 @@ qemu_builder_script_path: "{{ qemu_build_dir }}/qemu-build.sh"
 qemu_builder_staging_dir: "{{ qemu_build_dir }}/staging"
 qemu_builder_workspace_mount: /workspace
 
-# Build dependencies installed inside the digest-pinned CS10 builder
-# (git/iproute/numactl deliberately excluded — no patch step, no
-# in-container networking).
+# Build dependencies installed inside the shared RHEL 10 builder from
+# the entitled CDN repos (baseos + appstream; CRB is not carried by the
+# lab's entitlement — meson and ninja come from pip inside the builder
+# instead, and libfdt is not needed: x86 targets do not use FDT and the
+# build passes -Dwrap_mode=nodownload, so meson disables it cleanly).
 qemu_builder_build_deps:
   - gcc
   - gcc-c++
   - make
-  - meson
-  - ninja-build
   - glib2-devel
   - pixman-devel
-  - libfdt-devel
   - bzip2
   - diffutils
   - xz
   - python3
+  - python3-pip
 
-# Host runtime libraries the CS10-built binary links against (libfdt.so.1
-# is the only CS10-only linkage — RHEL 10 AppStream carries the same
-# SONAME).
-qemu_builder_runtime_packages:
-  - libfdt
+# Entitled CDN repo file staged for the builder container (rendered from
+# qemu-builder-repos.repo.j2, mounted at /etc/yum.repos.d/).
+qemu_builder_repo_file_name: "qemu-builder-cdn.repo"
+qemu_builder_repo_file_path: "{{ qemu_build_dir }}/{{ qemu_builder_repo_file_name }}"
+qemu_builder_repo_ids:
+  - rhel-10-baseos
+  - rhel-10-appstream
 
-# Full-build container polling (configure + ninja on 48 cores takes ~10 min).
+# Full-build container polling (configure + ninja on 48 cores takes ~5 min
+# cold, ~10 min with the metadata + pip downloads).
 qemu_builder_wait_retries: 120
 qemu_builder_wait_delay: 15

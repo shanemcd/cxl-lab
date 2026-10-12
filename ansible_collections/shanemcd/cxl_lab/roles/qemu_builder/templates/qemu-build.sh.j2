@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
 # Managed by shanemcd.cxl_lab.qemu_builder — do not edit.
 # Builds stock upstream QEMU {{ qemu_version }} (no patch needed — upstream
-# carries full CXL Type-3 emulation) inside the CS10 builder container and
-# installs it to a
-# DESTDIR staging tree; the role copies the staged tree to the host prefix.
-# CS10's glibc matches the RHEL 10 host, so the binary runs on the host.
+# carries full CXL Type-3 emulation) inside the shared RHEL 10 builder
+# container (entitled CDN build deps; meson/ninja from pip — the lab's
+# entitlement does not carry CRB) and installs it to a DESTDIR staging tree;
+# the role copies the staged tree to the host prefix. The builder's RHEL 10
+# glibc is older than or equal to any RedHat-family host, so the binary runs
+# on the host. -Dwrap_mode=nodownload keeps the build hermetic (no subproject
+# downloads; fdt is cleanly disabled — x86 targets do not use it).
 set -euo pipefail
 
 cd {{ qemu_builder_workspace_mount }}
 
-echo "==> installing build dependencies (CS10 BaseOS/AppStream/CRB)"
-dnf -y --enablerepo crb install {{ qemu_builder_build_deps | join(' ') }}
+echo "==> installing build dependencies (entitled CDN baseos/appstream)"
+dnf -y --disablerepo='*' \
+     --enablerepo={{ qemu_builder_repo_ids | join(' --enablerepo=') }} \
+     install {{ qemu_builder_build_deps | join(' ') }}
 dnf clean all
+
+echo "==> installing meson and ninja from pip (CRB not entitled)"
+python3 -m venv /opt/buildenv
+/opt/buildenv/bin/pip --quiet install meson ninja
+export PATH=/opt/buildenv/bin:$PATH
 
 echo "==> extracting the QEMU source tarball"
 tar -xf "{{ qemu_source_url | basename }}"
 cd "qemu-{{ qemu_version }}"
 
 echo "==> configuring (x86_64-softmmu, prefix {{ qemu_install_prefix }})"
-./configure --target-list=x86_64-softmmu --prefix={{ qemu_install_prefix }}
+./configure --target-list=x86_64-softmmu --prefix={{ qemu_install_prefix }} \
+  -Dwrap_mode=nodownload
 
 echo "==> building"
 ninja -C build

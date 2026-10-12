@@ -51,26 +51,35 @@ kernel_rpm_buildid: "cxltest"
 kernel_rpm_release: >-
   {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
      | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
-# Kernel builder base: the RHEL 10.2 GA bootc image (digest-pinned) — the
-# exact GA userspace the kernel ships into. Two uses: the entitled-CDN
-# SRPM downloader container, and the kernel-builder stage of the layered
-# image Containerfile (dnf builddep + rpmbuild; subscription-manager runs
-# in container mode with the host RHSM entitlement mounted read-only).
-kernel_builder_image: >-
+# Shared RHEL 10 builder base: the GA bootc image (digest-pinned) — the
+# exact GA userspace the kernel ships into. Three uses, all with the host
+# RHSM entitlement mounted read-only (subscription-manager runs in
+# container mode): the entitled-CDN SRPM downloader container, the
+# kernel-builder stage of the layered image Containerfile (dnf builddep +
+# rpmbuild), and the stock QEMU builder container. Registry auth for the
+# pull comes from the OpenShift pull secret.
+rhel10_builder_image: >-
   registry.redhat.io/rhel10/rhel-bootc:10.2@sha256:88382da54341cb5e8e332fd3baf86a4c8b455aeb11cfe4eb1180891160b75020
+# RHEL minor of the builder image above — the entitled CDN binary repos
+# for the QEMU build track the builder's userspace (keep in step with the
+# image tag; deliberately NOT derived from the kernel SRPM's minor).
+rhel10_builder_release: "10.2"
 
-# Stock upstream QEMU: release tarball, SHA-pinned, NO patch. Built in a
-# CS10 builder container (glibc-matched to the RHEL 10 host so the binary
-# runs on the host) and installed to qemu_install_prefix. Upstream QEMU
-# carries full CXL Type-3 emulation — nothing needs patching.
+# Stock upstream QEMU: release tarball, SHA-pinned, NO patch. Built in
+# the shared RHEL 10 builder container (entitled CDN build deps; glibc
+# older than or equal to any RedHat-family host, so the binary runs on
+# the host) and installed to qemu_install_prefix. Upstream QEMU carries
+# full CXL Type-3 emulation — nothing needs patching.
 qemu_version: "11.1.2"
 qemu_source_url: "https://download.qemu.org/qemu-{{ qemu_version }}.tar.xz"
 # Pinned from download.qemu.org (no published checksum file; verified on
 # first download).
 qemu_source_sha256: "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
-# CS10 builder base (digest-pinned).
-qemu_builder_base_image: >-
-  quay.io/centos/centos:stream10@sha256:e664412637fcadb7d9eef7da6cc48c29cd69fb977d27c871ec3c54d95c91ace9
+# Entitled CDN binary repo prefix for the QEMU builder (baseos/appstream
+# appended per repo by the repo template). CRB is not carried by the
+# lab's entitlement — meson/ninja come from pip instead.
+qemu_builder_repo_baseurl: >-
+  https://cdn.redhat.com/content/dist/rhel10/{{ rhel10_builder_release }}/x86_64
 qemu_builder_container_name: "cxl-lab-qemu-builder"
 
 # RHCOS for the lab OS stream (osImageStream rhel-10; the installer default

@@ -4,10 +4,11 @@
 # Source resolution (qemu_source: auto | distro | pinned, topology.yml):
 #   - distro: the distribution's qemu-system-x86_64 (Fedora's
 #     qemu-system-x86-core carries upstream CXL — nothing is built);
-#   - pinned: stock upstream QEMU built in a digest-pinned CS10 builder
-#     container and installed to the host prefix — no patch, no podman
-#     commit, no runtime image (RHEL's appstream qemu-kvm lacks CXL, so
-#     this remains the RHEL path);
+#   - pinned: stock upstream QEMU built in the shared RHEL 10 builder
+#     container (entitled CDN build deps via the host RHSM entitlement)
+#     and installed to the host prefix — no patch, no podman commit, no
+#     runtime image (RHEL's appstream qemu-kvm lacks CXL, so this remains
+#     the RHEL path);
 #   - auto (default): distro binary when it exists and carries pxb-cxl /
 #     cxl-rp / cxl-type3, else the pinned build.
 # The exists-guard keys off the versioned prefix, so pinned re-runs skip
@@ -127,6 +128,46 @@
         remote_src: true
         mode: "0644"
 
+    - name: Discover the host RHSM entitlement key
+      ansible.builtin.find:
+        paths: "{{ rhsm_entitlement_dir }}"
+        patterns: '*-key.pem'
+      register: qemu_builder_entitlement_keys
+
+    - name: Assert exactly one entitlement key exists
+      ansible.builtin.assert:
+        that:
+          - qemu_builder_entitlement_keys.files | length == 1
+        fail_msg: >-
+          Expected exactly one entitlement key in {{ rhsm_entitlement_dir }},
+          found {{ qemu_builder_entitlement_keys.files | length }} — the
+          QEMU build needs the host RHSM entitlement for CDN access.
+
+    - name: Set the entitlement certificate facts
+      ansible.builtin.set_fact:
+        qemu_builder_entitlement_key: "{{ qemu_builder_entitlement_keys.files[0].path }}"
+        qemu_builder_entitlement_cert: >-
+          {{ qemu_builder_entitlement_keys.files[0].path | regex_replace('-key\.pem$', '.pem') }}
+
+    - name: Stat the RHSM CA file
+      ansible.builtin.stat:
+        path: "{{ rhsm_ca_dir }}/redhat-uep.pem"
+      register: qemu_builder_rhsm_ca_stat
+
+    - name: Assert the RHSM CA file exists
+      ansible.builtin.assert:
+        that:
+          - qemu_builder_rhsm_ca_stat.stat.exists
+        fail_msg: >-
+          {{ rhsm_ca_dir }}/redhat-uep.pem missing — the QEMU build needs
+          the host's RHSM CA (is the host registered?).
+
+    - name: Render the entitled CDN repo file for the builder
+      ansible.builtin.template:
+        src: qemu-builder-repos.repo.j2
+        dest: "{{ qemu_builder_repo_file_path }}"
+        mode: "0644"
+
     - name: Render the QEMU build script
       ansible.builtin.template:
         src: qemu-build.sh.j2
@@ -139,13 +180,22 @@
         state: absent
 
     - name: Run the QEMU builder container
+      # Base = the shared RHEL 10 builder image (registry auth via the pull
+      # secret — registry.redhat.io requires login even for pulls; the
+      # logged-in root session is NOT relied upon).
       containers.podman.podman_container:
         name: "{{ qemu_builder_container_name }}"
-        image: "{{ qemu_builder_base_image }}"
+        image: "{{ rhel10_builder_image }}"
         state: started
         command: "bash {{ qemu_builder_workspace_mount }}/{{ qemu_builder_script_path | basename }}"
+        authfile: "{{ pull_secret_path }}"
+        security_opt:
+          - label=disable
         volumes:
           - "{{ qemu_build_dir }}:{{ qemu_builder_workspace_mount }}:Z"
+          - "{{ qemu_builder_repo_file_path }}:/etc/yum.repos.d/{{ qemu_builder_repo_file_name }}:ro"
+          - "{{ rhsm_entitlement_dir }}:{{ rhsm_entitlement_dir }}:ro"
+          - "{{ rhsm_ca_dir }}:{{ rhsm_ca_dir }}:ro"
 
     - name: Wait for the QEMU build to finish
       containers.podman.podman_container_info:
@@ -204,14 +254,6 @@
       when: (ansible_facts.get('selinux') or {}).get('status') == 'enabled'
       changed_when: false
 
-- name: Ensure the host runtime libraries for the CS10-built binary
-  ansible.builtin.package:
-    name: "{{ qemu_builder_runtime_packages }}"
-    state: present
-  when:
-    - qemu_builder_source == 'pinned'
-    - qemu_builder_runtime_packages | length > 0
-
 - name: Assert the installed QEMU binary exists
   when: qemu_builder_source == 'pinned'
   ansible.builtin.stat:
@@ -269,8 +311,9 @@
   when: qemu_builder_source == 'pinned'
   ansible.builtin.debug:
     msg: >-
-      qemu builder OK — stock upstream {{ qemu_version }} built in the CS10
-      builder and installed to {{ qemu_install_prefix }} (built this run:
-      {{ not qemu_builder_binary_stat.stat.exists }}); CXL devices verified.
+      qemu builder OK — stock upstream {{ qemu_version }} built in the
+      RHEL 10 builder and installed to {{ qemu_install_prefix }} (built
+      this run: {{ not qemu_builder_binary_stat.stat.exists }}); CXL
+      devices verified.
       Set qemu_source: distro on hosts whose distribution QEMU carries CXL
       (Fedora: qemu-system-x86-core) to skip this build entirely.

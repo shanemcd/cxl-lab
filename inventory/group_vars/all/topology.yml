@@ -98,8 +98,8 @@ bip_installation_disk: "/dev/vda"
 # so the check matches, no pivot ever fires, and the workers fetch
 # /config/worker-cxl at first boot.
 
-# Host QEMU source: pinned (default) builds the stock upstream QEMU in the
-# CS10 builder container. auto / distro use the distribution's
+# Host QEMU source: pinned (default) builds the stock upstream QEMU in
+# the RHEL 10 builder container. auto / distro use the distribution's
 # qemu-system-x86_64 when it carries pxb-cxl / cxl-rp / cxl-type3
 # (Fedora's qemu-system-x86-core does) — EXPERIMENTAL: with this lab's
 # machine config (q35 + pxb-cxl graph + virtio NIC placement), Fedora 44's
