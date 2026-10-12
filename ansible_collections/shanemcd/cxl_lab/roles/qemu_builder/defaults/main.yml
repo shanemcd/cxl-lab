@@ -39,3 +39,8 @@ qemu_builder_repo_ids:
 # cold, ~10 min with the metadata + pip downloads).
 qemu_builder_wait_retries: 120
 qemu_builder_wait_delay: 15
+
+# Ninja parallelism inside the builder container — deliberately bounded:
+# the build overlaps the kernel RPM build (see the build script and the
+# launch/collect split in the role tasks).
+qemu_builder_ninja_jobs: 32

@@ -17,14 +17,21 @@
 # install-to-disk.service.
 {% else %}
 # Worker {{ node.name }} ({{ node.kind }}): stream qcow2 overlay + per-node
-# merged worker ignition (fw_cfg); joins via the MCS stub once the master's
-# Machine Config Server answers.
+# merged worker ignition (fw_cfg); retries the MCS stub fetch (ignition's
+# own retry loop) until the master's Machine Config Server answers, then
+# joins.
 {% endif %}
 # --validate replays the command line paused (-S) under timeout(1): exit
 # 124 = the command line parsed and the process stayed alive. --stop is the
 # force fallback for a wedged guest (SIGTERM then SIGKILL to the pidfile
 # pid — pidfiles, never pkill by pattern).
 set -euo pipefail
+
+# Networking: vhost=on moves the virtio-net datapath into the kernel
+# (vhost_net) instead of QEMU userspace — the install-time convergence pulls
+# gigabytes of release payload through this NIC, and userspace tap makes that
+# the pipeline's slowest phase. QEMU never enables vhost implicitly; the
+# netdev flag is what opts in (host_prep asserts the module is loaded).
 
 NODE="{{ node.name }}"
 # Linux ifnames cap at 15 chars (IFNAMSIZ); vm_tap_prefix keeps every
@@ -98,7 +105,7 @@ ARGS=(
 {% if node.kind == 'master' %}
   -drive file={{ vm_images_dir }}/{{ vms_master_iso_name }},media=cdrom,format=raw,readonly=on
 {% endif %}
-  -netdev tap,id=n0,ifname="${TAP}",script=no,downscript=no
+  -netdev tap,id=n0,ifname="${TAP}",script=no,downscript=no,vhost=on
   -device virtio-net-pci,netdev=n0,bus=pcie.0,mac={{ mac_base }}:{{ node.mac_suffix }}
   -fw_cfg name=opt/com.coreos/config,file={{ vm_ignition_dir }}/${NODE}.ign
   -display none
