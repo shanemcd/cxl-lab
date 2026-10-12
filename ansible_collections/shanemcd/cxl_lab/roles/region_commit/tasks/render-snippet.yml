@@ -1,10 +1,7 @@
 ---
-# render-snippet: render the region-commit ignition snippet for the
-# pre-baked path. Reuses the MachineConfig template verbatim (its
-# spec.config IS an ignition config), so the pre-baked first-boot units and
-# the MCO-shipped units are byte-identical — the MC template stays the
-# single source of truth. Included from the install_config role (04) so the
-# per-node merge can fold the snippet into each CXL worker's ignition.
+# render-snippet: render the region-commit ignition snippet for the CXL
+# workers' first-boot ignition. Included from the install_config role so
+# the per-node merge can fold the snippet into each CXL worker's ignition.
 
 - name: Assert every CXL worker carries the same vmem size
   ansible.builtin.assert:
@@ -18,17 +15,10 @@
   ansible.builtin.set_fact:
     region_commit_script_b64: "{{ lookup('template', 'cxl-region-commit.sh.j2') | b64encode }}"
 
-- name: Stage the region commit MachineConfig document
-  # Rendered to a variable only — nothing cluster-facing happens here (the
-  # cluster does not exist yet at 04).
-  ansible.builtin.set_fact:
-    region_commit_mc_staged: >-
-      {{ lookup('template', 'machineconfig-region-commit.yaml.j2') | from_yaml }}
-
 - name: Write the region commit ignition snippet
+  # Rendered to a file only — nothing cluster-facing happens here (the
+  # cluster does not exist yet at 05).
   ansible.builtin.copy:
-    content: "{{ region_commit_mc_staged.spec.config | to_json }}"
+    content: "{{ lookup('template', 'region-commit-ignition.yaml.j2') | from_yaml | to_json }}"
     dest: "{{ region_commit_ignition_snippet_path }}"
-    owner: root
-    group: root
     mode: "0600"

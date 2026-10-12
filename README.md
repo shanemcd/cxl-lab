@@ -52,20 +52,16 @@ After the pipeline runs you have, all idempotent and re-runnable:
 - **CXL kernel**: `cxltest` kernel RPMs are built from the RHEL SRPM (one
   config flip: `CONFIG_CXL_REGION_INVALIDATION_TEST=y`) inside the layered
   image build's kernel-builder stage (RHEL 10 GA builder image, entitled CDN
-  build deps), baked into the bootc layered OS image, and rolled out to the
-  CXL workers — pre-baked from first boot by default, or via the Machine
-  Config Operator.
-- **Worker OS mode** (`use_prebaked_node_images` in topology.yml, default
-  true on this branch): **pre-baked** — the layered image is turned into a
-  bootc-image-builder qcow2 (patched for first-boot ignition) and the CXL
-  workers boot it on the cxltest kernel from second zero; OpenShift's
-  firstboot pivot is aimed at the same layered image via install-time
-  MachineConfigs (worker-cxl pool + osImageURL + registry trust), so the
-  region commit lands at first boot and the MCO rollout, the second
-  per-worker reboot, and the cold-restart recovery machinery are all
-  eliminated. Set it to false for the classic flow: stock boot image +
-  post-install MCO pivot. Both flows share the registry, the layered image,
-  and the verification gates.
+  build deps), baked into the bootc layered OS image, and baked into the
+  bootc-image-builder qcow2 the CXL workers boot from first boot.
+- **Worker OS**: the layered image is turned into a bootc-image-builder
+  qcow2 (patched for first-boot ignition) and the CXL workers boot it on
+  the cxltest kernel from second zero. OpenShift's firstboot OS check
+  compares each node's booted image ref against its pool's osImageURL, so
+  the install-time worker-cxl MachineConfigs (pool + osImageURL) carry the
+  layered image's local ref — the exact string a BIB-booted worker reports
+  as booted — and the check matches: no pivot, no MCO rollout, no second
+  per-worker reboot. The region commit lands at first boot.
 - **Host NUMA**: intentionally not pinned — guest RAM is placed by the kernel's
   default first-touch policy.
 
@@ -119,17 +115,17 @@ without installation. Always run from the repo root.
 | Playbook | Invocation | What it does |
 |---|---|---|
 | `site` | `shanemcd.cxl_lab.site` | Runs the numbered stages in order, 01→08, then verify (see `site.yml`). |
-| `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity, free ports; RHSM check (RHEL-gated); ensures packages incl. dnsmasq. |
+| `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity; RHSM check (RHEL-gated); ensures packages incl. dnsmasq. |
 | `02_artifacts` | `shanemcd.cxl_lab.02_artifacts` | Downloads + SHA-verifies installer/oc/RHCOS live ISO and the kernel SRPM (entitled CDN route); builds stock QEMU into `/opt/qemu-<version>` (exists-guard: never rebuilt, never torn down). |
 | `03_network` | `shanemcd.cxl_lab.03_network` | Persistent bridge + gateway address, `ip_forward` sysctl drop-in, host `/etc/hosts` block, one tagged MASQUERADE rule, host-native dnsmasq (DNS + DHCP reservations), egress probe (veth+netns → TCP to quay.io). |
-| `04_os_image` | `shanemcd.cxl_lab.04_os_image` | cxltest kernel RPMs (multi-stage Containerfile kernel-builder stage in the RHEL 10 GA image, from the SHA-verified SRPM; cached in the artifacts dir — built only when missing) + layered OS image (pinned machine-os-content base + SHA-verified cxltest RPMs), bootc lint, push to the lab registry (published on the bridge gateway), authoritative `Docker-Content-Digest` stamp (0600); in pre-baked mode also the BIB node disk. |
-| `05_ignition` | `shanemcd.cxl_lab.05_ignition` | install-config (1 control plane / 0 compute, `bootstrapInPlace`) → manifests → custom node MCs → pre-baked install-time manifests (worker-cxl pool, layered osImageURL, registry trust) → `single-node-ignition-config`; per-node merge (NM keyfile, hosts, hostname, pre-baked MCS pool + region-commit snippet) → 0700/0600 staged ignition (12 h freshness window). |
+| `04_os_image` | `shanemcd.cxl_lab.04_os_image` | cxltest kernel RPMs (multi-stage Containerfile kernel-builder stage in the RHEL 10 GA image, from the SHA-verified SRPM; cached in the artifacts dir — built only when missing) + layered OS image (pinned machine-os-content base + SHA-verified cxltest RPMs), bootc lint, and the BIB node disk the workers boot. |
+| `05_ignition` | `shanemcd.cxl_lab.05_ignition` | install-config (1 control plane / 0 compute, `bootstrapInPlace`) → manifests → custom node MCs → install-time worker-cxl manifests (pool, layered osImageURL) → `single-node-ignition-config`; per-node merge (NM keyfile, hosts, hostname, MCS pool stub + region-commit snippet) → 0700/0600 staged ignition (12 h freshness window). |
 | `06_vms` | `shanemcd.cxl_lab.06_vms` | Per-node run scripts + qcow2 overlays; master = kargs-patched live-ISO copy + blank virtio target + fw_cfg merged ignition; workers = MCS stubs fetched over DHCP; one fleet-parallel start command; in-role assert of the CXL graph shape. |
 | `07_install` | `shanemcd.cxl_lab.07_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
-| `08_mco` | `shanemcd.cxl_lab.08_mco` | MCO path: worker-cxl labels → MachineConfigPool → osImageURL + region-commit MachineConfigs → MCO rollout waits → region commit with guest self-recovery (stale `MEM_ENABLE`) and cold-restart fallback. Pre-baked path: worker-cxl labels + pivot/region-commit verification (the install-time manifests already did the heavy lifting). |
+| `08_region_commit` | `shanemcd.cxl_lab.08_region_commit` | Labels the CXL workers into the install-time worker-cxl pool; verifies the outcome — layered image + cxltest kernel booted, region-commit service active, region committed (the service itself ships via the workers' first-boot ignition). |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
-| `ops.status` | `shanemcd.cxl_lab.ops.status` | Read-only summary: nodes, clusterversion, VM `--status`, network/resolver/registry, region commit, layered image. |
+| `ops.status` | `shanemcd.cxl_lab.ops.status` | Read-only summary: nodes, clusterversion, VM `--status`, network/resolver, region commit, layered image. |
 | `ops.restart_cxl_worker` | `shanemcd.cxl_lab.ops.restart_cxl_worker` | Cold-restart one CXL worker: drain → poweroff → relaunch → Ready → uncordon → region-commit assert. Run with `-e target_worker=worker-cxl-0`. |
 
 Every phase guards itself for idempotent re-runs; a clean re-run of `site`
@@ -137,7 +133,7 @@ reports `changed=0`. Mid-install re-runs resume cleanly.
 
 ## Teardown
 
-`teardown` removes layers in reverse build order — `mco` → `registry` → `vms` →
+`teardown` removes layers in reverse build order — `mco` → `vms` →
 `network` → `images` → `artifacts` → `install-data` (secrets last), tagged per
 layer:
 
@@ -172,7 +168,7 @@ self-chosen values):
 | File | Key contents |
 |---|---|
 | `inventory/group_vars/all/secrets.yml` | **Paths only** to the pull secret (0600) and the install SSH keypair; kubeconfig location. Tasks touching them are `no_log`. |
-| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the registry host + dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
+| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
 | `inventory/group_vars/all/topology.yml` | Worker counts (`cxl_worker_count`/`dram_worker_count`, one each by default) and the node specs they generate, `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
 
 ### Scaling the fleet
@@ -186,7 +182,7 @@ IP suffixes 20, 22, 24… with pxb-cxl buses 12, 13, 14…, DRAM workers at 21,
 fails fast if the grown fleet exceeds the host's free RAM/vCPU/disk or the
 address space reserved for DHCP.
 | `inventory/group_vars/all/versions.yml` | OpenShift version + feature set, installer/oc/RHCOS-ISO URLs **with pinned SHA-256s**, kernel NVR + per-source SHA pins, QEMU version/prefix + source SHA, `machine_os_content_ref`, layered image refs. |
-| `inventory/group_vars/all/paths.yml` | Install dir (secrets, stamps), VM assets dir and its subdirs (images/ignition/logs/scripts/run/registry), verification dir, per-master boot-ISO name. |
+| `inventory/group_vars/all/paths.yml` | Install dir (secrets, stamps), VM assets dir and its subdirs (images/ignition/logs/scripts/run), verification dir, per-master boot-ISO name. |
 | `inventory/group_vars/all/host.yml` | RHSM knobs + host package list. |
 | `inventory/hosts.yml` | Lab host connection (local by default). |
 
@@ -253,8 +249,6 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
 - **include_tasks children do not inherit the include task's tags** (and
   `apply` is gone in ansible-core 2.19) — the teardown per-VM file carries
   explicit layer tags.
-- The authoritative layered-image digest is the registry's
-  `Docker-Content-Digest` (podman `RepoDigest` differs by design).
 - `podman_container_exec` ignores check mode — every destructive exec task
   carries an explicit `not ansible_check_mode` guard (plain `command` tasks
   auto-skip in check mode).

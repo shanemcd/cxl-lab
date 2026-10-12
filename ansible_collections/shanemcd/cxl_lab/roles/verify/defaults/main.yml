@@ -30,7 +30,7 @@ verify_builtin_mcp_names:
 # install-time manifest (the workers fetch its config at first boot so the
 # pivot targets the layered image). Role-scoped (not task-scoped) because
 # both the read and the assert consume it.
-verify_mcp_expected_names: "{{ verify_builtin_mcp_names + [mco_cxl_mcp_name] }}"
+verify_mcp_expected_names: "{{ verify_builtin_mcp_names + [worker_cxl_mcp_name] }}"
 
 # Cluster settle gate: before asserting, verification waits up to this window
 # (retries x delay) for every operator and the clusterversion to read

@@ -8,12 +8,6 @@ host_prep_required_devices:
   - /dev/vhost-net
   - /dev/net/tun
 
-# Ports the lab services will bind (values from the network taxonomy). The
-# registry container is the only host-side service — the API and ingress
-# live on the master guest, not on the host.
-host_prep_required_ports:
-  - "{{ registry_port }}"
-
 # Headroom margins for the capacity asserts. Disk headroom bounds the
 # nominal overlay sum (guest disks are sparse qcow2 — actual host usage
 # grows only as guests write), so it needs to cover pivot/container writes
@@ -21,10 +15,6 @@ host_prep_required_ports:
 host_prep_mem_headroom_gib: 16
 host_prep_cpu_headroom: 8
 host_prep_disk_headroom_gib: 30
-
-# podman cgroup path marker — processes inside lab containers live under
-# libpod-* cgroups (used to tell lab-owned listeners from foreign ones).
-host_prep_container_cgroup_marker: "libpod"
 
 # Workspace directories ensured by this role (secrets dirs 0700).
 host_prep_workspace_dirs:

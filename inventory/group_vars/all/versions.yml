@@ -77,32 +77,25 @@ qemu_builder_container_name: "cxl-lab-qemu-builder"
 # stream is rhel-9 and NOT what this lab boots). The artifacts role reads the
 # installer-declared stream metadata via `coreos print-stream-json --stream`.
 rhcos_stream_name: "rhel-10"
-rhcos_qemu_format_key: "qcow2.gz"
 # Stream-json format key for the metal live ISO (the master's boot media).
 rhcos_iso_format_key: "iso"
-# Compressed artifact sha256 (stream-declared + pinned).
-rhcos_image_sha256: "9a5c8fe0894db56165a335ef1423bd2b2fde8e6f122c5e2339c6c86b98df6ebd"
-# Uncompressed qcow2 sha256 (verified after gunzip in the vms phase).
-rhcos_image_uncompressed_sha256: "97dacea542ccc1ff5c0f3503fc98c6dd784a37f71e6bd769cbfb419c97ffb4f6"
-# Pinned artifact filename (stream-declared; the SHAs above bind the content).
-rhcos_qemu_image_name: "rhcos-10.2.20260715-0-qemu.x86_64.qcow2.gz"
 
 # Live ISO (the master's boot media — bootstrap-in-place boot model):
-# stream-declared sha256 + pinned filename, same pinning pattern as the
-# qemu image. The master boots it read-only with a blank virtio install
-# target.
+# stream-declared sha256 + pinned filename. The master boots it read-only
+# with a blank virtio install target.
 rhcos_iso_image_name: "rhcos-10.2.20260715-0-live-iso.x86_64.iso"
 rhcos_iso_sha256: "7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462"
 
 # Layered bootc OS image: built FROM the pinned machine-os-content ref with
-# the cxltest kernel RPMs; pushed to the lab registry, referenced by the
-# osImageURL MachineConfig, and (pre-baked mode) rendered to bootable qcow2s
-# by bootc-image-builder for the CXL workers.
+# the cxltest kernel RPMs, rendered to bootable qcow2s by bootc-image-builder
+# for the workers. The local ref is the image's containers-storage identity —
+# it is what a BIB-booted worker reports as its booted osImageURL, and the
+# worker-cxl pool's osImageURL MachineConfig carries the same string so the
+# MCD's firstboot OS check matches and no pivot ever fires.
 layered_image_name: "ocp-cxl-worker-os"
 # Derives from the SRPM NVR point (211.64.1) — no separate pin to drift.
 layered_image_tag: "cxltest-{{ kernel_srpm_nvr | regex_replace('^kernel-[0-9.]+-(.*)\\.el.*$', '\\1') }}"
 layered_image_local_ref: "localhost/{{ layered_image_name }}:{{ layered_image_tag }}"
-layered_image_registry_ref: "{{ registry_host }}/{{ layered_image_name }}:{{ layered_image_tag }}"
 
 # bootc-image-builder (pre-baked node images; digest-pinned).
 bootc_image_builder_image: >-

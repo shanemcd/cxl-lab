@@ -1,15 +1,13 @@
 # Managed by shanemcd.cxl_lab.install_config — do not edit.
-# Pre-baked path: the worker-cxl MachineConfigPool, created at install time
-# so its rendered config (which the pre-baked CXL workers fetch at
+# Install-time worker-cxl MachineConfigPool. Created before bootstrap so
+# its rendered config (which the pre-baked CXL workers fetch at
 # /config/worker-cxl on their FIRST boot) already carries the layered
-# osImageURL — the firstboot pivot then lands on the cxltest kernel instead
-# of the stock payload. Mirrors the mco_cxl role's post-install pool
-# exactly (selector In [worker, worker-cxl] so the pool inherits every
-# worker MachineConfig and its config is complete).
+# osImageURL. Selector In [worker, worker-cxl] so the pool inherits every
+# worker MachineConfig and its config is complete.
 apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfigPool
 metadata:
-  name: {{ mco_cxl_mcp_name }}
+  name: {{ worker_cxl_mcp_name }}
 spec:
   machineConfigSelector:
     matchExpressions:
@@ -17,7 +15,7 @@ spec:
         operator: In
         values:
           - worker
-          - {{ mco_cxl_role_label }}
+          - {{ worker_cxl_role_label }}
   nodeSelector:
     matchLabels:
-      node-role.kubernetes.io/{{ mco_cxl_role_label }}: ""
+      node-role.kubernetes.io/{{ worker_cxl_role_label }}: ""

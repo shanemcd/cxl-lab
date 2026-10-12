@@ -1,0 +1,11 @@
+---
+- name: CXL region commit and kernel verification
+  hosts: all
+  become: true
+  gather_facts: false
+  # The region-commit service ships via the workers' first-boot ignition
+  # (05_install_config renders the snippet); this stage labels the workers
+  # into the install-time worker-cxl pool and verifies the outcome —
+  # layered image + cxltest kernel booted, service active, region committed.
+  roles:
+    - role: shanemcd.cxl_lab.region_commit

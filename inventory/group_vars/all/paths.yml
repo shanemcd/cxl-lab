@@ -22,7 +22,6 @@ layered_image_kernel_ctx_dir: "{{ layered_image_build_dir }}/kernel-builder"
 # the DESTDIR staging tree that is copied to qemu_install_prefix.
 qemu_build_dir: "{{ artifacts_dir }}/qemu-build"
 layered_image_build_dir: "{{ install_dir }}/layered-image"
-vm_registry_data_dir: "{{ vm_assets_dir }}/registry/data"
 vm_images_dir: "{{ vm_assets_dir }}/images"
 # The master's boot media (bootstrap-in-place live-ISO boot model) — kept
 # in the artifacts downloads dir, referenced read-only by the master's run
@@ -31,11 +30,11 @@ rhcos_live_iso_path: "{{ artifacts_downloads_dir }}/{{ rhcos_iso_image_name }}"
 # Per-master prepared boot-medium copy (kargs-patched live ISO; the vms and
 # teardown roles share the name).
 vms_master_iso_name: "{{ masters[0].name }}-install.iso"
-# Pre-baked node images (use_prebaked_node_images): bootc-image-builder
+# Node images: bootc-image-builder
 # qcow2 output for the CXL workers.
 node_image_build_dir: "{{ vm_assets_dir }}/node-images"
-# The BIB-produced, ignition-armed qcow2 the workers boot overlays of
-# (pre-baked mode). Built by the layered_image role BEFORE the vms role
+# The BIB-produced, ignition-armed qcow2 the workers boot overlays of.
+# Built by the layered_image role BEFORE the vms role
 # runs (see 06_vms.yml); the vms and layered_image roles share this path.
 prebaked_node_image_path: "{{ node_image_build_dir }}/qcow2/disk.qcow2"
 # Ignition files staged here for fw_cfg delivery — the run scripts pass each
@@ -73,10 +72,6 @@ qemu_distro_binary_path: "/usr/bin/qemu-system-x86_64"
 qemu_source_stamp_name: "qemu-binary-path"
 
 # Install-flow state stamps (idempotency guards that must survive re-runs).
-# Authoritative registry digest of the layered OS image (layered_image
-# writes it from the registry's Docker-Content-Digest; the osImageURL
-# MachineConfig build reads it).
-layered_image_digest_stamp_path: "{{ install_dir }}/layered-image-digest"
 
 # Verification evidence: 0700 dir, 0600 report — the verify role writes the
 # full checklist output here (host_prep ensures the dir).

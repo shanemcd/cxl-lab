@@ -1,0 +1,33 @@
+# Managed by shanemcd.cxl_lab.region_commit — do not edit.
+# The CXL workers' first-boot region-commit ignition snippet: the proven
+# sysfs region-commit script plus a oneshot service. The script
+# self-recovers from the stale DVSEC MEM_ENABLE state left by the kernel
+# across QEMU-preserved warm reboots (clear bit 2 via setpci + rebind
+# cxl_pci), so the service succeeds directly on every boot.
+ignition:
+  version: {{ region_commit_ignition_version }}
+storage:
+  files:
+    - path: {{ region_commit_script_guest_path }}
+      mode: 493
+      user:
+        name: root
+      group:
+        name: root
+      contents:
+        source: "data:text/plain;base64,{{ region_commit_script_b64 }}"
+systemd:
+  units:
+    - name: {{ region_commit_service_name }}
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Commit the QEMU-emulated CXL region (test-only lab)
+        After=multi-user.target
+        [Service]
+        Type=oneshot
+        ExecStart={{ region_commit_script_guest_path }}
+        TimeoutStartSec={{ region_commit_service_timeout_seconds }}
+        RemainAfterExit=yes
+        [Install]
+        WantedBy=multi-user.target

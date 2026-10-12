@@ -169,46 +169,6 @@
       Required character devices missing: compare {{ host_prep_required_devices }}
       against stat results.
 
-- name: Collect listening TCP ports
-  community.general.listen_ports_facts:
-
-- name: Set listening process ids
-  ansible.builtin.set_fact:
-    host_prep_listener_pids: >-
-      {{ ansible_facts.tcp_listen | selectattr('pid', 'defined')
-         | rejectattr('pid', 'in', [0]) | map(attribute='pid') | unique | list }}
-
-- name: Read listener process cgroups
-  ansible.builtin.command:
-    cmd: "ps -o pid=,cgroup= -p {{ host_prep_listener_pids | join(',') }}"
-  register: host_prep_listener_cgroups_raw
-  changed_when: false
-  failed_when: false
-  when: host_prep_listener_pids | length > 0
-
-- name: Set pids inside lab containers (any process in a podman cgroup)
-  ansible.builtin.set_fact:
-    host_prep_lab_pids: >-
-      {{ host_prep_listener_cgroups_raw.stdout_lines | default([])
-         | map('regex_findall', '^\s*(\d+)\s+.*' ~ host_prep_container_cgroup_marker)
-         | flatten | map('int') | list }}
-
-- name: Set foreign listening ports (not inside any lab container)
-  ansible.builtin.set_fact:
-    host_prep_foreign_tcp_ports: >-
-      {{ ansible_facts.tcp_listen | selectattr('pid', 'defined')
-         | rejectattr('pid', 'in', host_prep_lab_pids + [0])
-         | map(attribute='port') | list | unique }}
-
-- name: Assert required ports are free or held by lab containers
-  ansible.builtin.assert:
-    that:
-      - host_prep_required_ports | intersect(host_prep_foreign_tcp_ports) | length == 0
-    fail_msg: >-
-      Required lab ports {{ host_prep_required_ports }} must be free or held by lab
-      containers; foreign holders: {{ host_prep_required_ports
-      | intersect(host_prep_foreign_tcp_ports) }}.
-
 - name: Stat lab bridge link
   ansible.builtin.stat:
     path: "{{ host_prep_sysfs_net_path }}/{{ lab_bridge_name }}"
