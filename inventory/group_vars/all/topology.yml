@@ -166,10 +166,19 @@ vm_node_ready_timeout_minutes: 15
 vm_service_wait_retries: 20
 vm_service_wait_delay: 15
 
+# The master's install-to-disk reboot (live env -> installed system, ~8 min
+# observed): once sysroot lands on the BiP installation disk the workers may
+# start — they ride ignition's own retry loop against the master's MCS while
+# it converges (see the vms role). Budgets the sysroot poll.
+vm_install_wait_retries: 40
+vm_install_wait_delay: 15
+
 # The master's installed first boot must fully converge the bootstrap-in-place
-# control plane before its Machine Config Server answers (the workers fetch
-# ignition from it). Observed convergence: ~25 minutes of operator rollout
-# after the install-to-disk reboot — this budget keeps a healthy margin over
-# that while bounding a genuinely stuck bootstrap.
+# control plane before its Machine Config Server answers; the pipeline holds
+# here until it does (the already-started workers are retrying the same port
+# on ignition's own loop and join as soon as it opens). Observed convergence:
+# ~25 minutes of operator rollout after the install-to-disk reboot — this
+# budget keeps a healthy margin over that while bounding a genuinely stuck
+# bootstrap.
 vm_mcs_wait_retries: 240
 vm_mcs_wait_delay: 15

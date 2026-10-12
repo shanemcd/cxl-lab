@@ -1,23 +1,30 @@
 ---
-# Full pipeline: host prep → artifacts (SRPM + QEMU) → network → OS image
-# (kernel build + layered image + registry) → ignition → VMs → install → MCO.
-# The numeric prefixes ARE the import order. Stages can be run individually
-# via the numbered playbooks. Verification, teardown, and ops run explicitly.
+# Full pipeline, overlapped by design. The numeric prefixes ARE the import
+# order; stages can be run individually via the numbered playbooks.
+# Verification, teardown, and ops run explicitly.
+#
+# Critical-path layout: the master needs only ignition + network, so its
+# install-to-disk reboot and BiP convergence run WHILE the layered_image
+# stage builds the kernel RPMs and the pre-baked worker disk; the workers
+# then start against the already-converged master (their ignition fetch
+# hits an answering MCS immediately). The kernel build is the long pole.
 - name: Host preparation stage
   import_playbook: 01_host_prep.yml
-- name: Artifact construction stage (SRPM, host QEMU)
+- name: Artifact construction stage (SRPM, host QEMU launch)
   import_playbook: 02_artifacts.yml
 - name: Lab network stage
   import_playbook: 03_network.yml
-- name: Layered OS image and registry stage
-  import_playbook: 04_os_image.yml
 - name: Install config and ignition stage
-  import_playbook: 05_ignition.yml
-- name: Virtual machines stage
-  import_playbook: 06_vms.yml
+  import_playbook: 04_ignition.yml
+- name: Master VM stage (start master, drive install-to-disk)
+  import_playbook: 05_master.yml
+- name: Layered OS image stage (kernel RPMs, bootc image, BIB disk)
+  import_playbook: 06_os_image.yml
+- name: Worker VM stage (start fleet, gate on the master's MCS)
+  import_playbook: 07_workers.yml
 - name: Cluster install stage
-  import_playbook: 07_install.yml
+  import_playbook: 08_install.yml
 - name: MCO and region commit stage
-  import_playbook: 08_region_commit.yml
+  import_playbook: 09_region_commit.yml
 - name: Verification stage
   import_playbook: verify.yml

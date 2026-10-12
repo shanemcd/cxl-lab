@@ -16,7 +16,7 @@
     that:
       - verify_kubeconfig_stat.stat.exists
     fail_msg: >-
-      No kubeconfig at {{ kubeconfig_path }} — run 07_install.yml before
+      No kubeconfig at {{ kubeconfig_path }} — run 08_install.yml before
       verification.
 
 - name: Verify each CXL worker guest

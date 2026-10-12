@@ -32,9 +32,15 @@ echo "==> configuring (x86_64-softmmu, prefix {{ qemu_install_prefix }})"
   -Dwrap_mode=nodownload
 
 echo "==> building"
-ninja -C build
+# Cap ninja parallelism: the QEMU build overlaps the kernel RPM build
+# (fire-and-forget launch, collected by the vms play), so their combined
+# compile memory has to fit the host alongside everything else — 32 jobs
+# (~0.3 GiB each at QEMU's compile-unit sizes) is a fraction of the build
+# time but a bounded share of RAM, and it still finishes deep inside the
+# kernel build's shadow.
+ninja -C build -j {{ qemu_builder_ninja_jobs }}
 
 echo "==> installing to the staging tree"
-DESTDIR={{ qemu_builder_workspace_mount }}/{{ qemu_builder_staging_dir | basename }} ninja -C build install
+DESTDIR={{ qemu_builder_workspace_mount }}/{{ qemu_builder_staging_dir | basename }} ninja -C build -j {{ qemu_builder_ninja_jobs }} install
 
 echo "==> qemu build OK"

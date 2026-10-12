@@ -1,0 +1,10 @@
+---
+- name: Worker VM phase — start the fleet against the converged master
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run the vms workers phase
+      ansible.builtin.include_role:
+        name: shanemcd.cxl_lab.vms
+        tasks_from: workers

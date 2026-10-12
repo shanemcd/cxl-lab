@@ -1,0 +1,209 @@
+---
+# vms workers phase: needs the pre-baked BIB disk (the layered_image
+# stage builds it while the master installs and converges — the two
+# overlap by design). Creates the worker overlays, validates the worker
+# command lines against them, gates on the master's install-to-disk
+# reboot (usually long past by the time the images finish), starts the
+# fleet, waits for kernel boot evidence, and holds until the installed
+# master's Machine Config Server answers (the pipeline gate; the workers
+# themselves ride ignition's retry loop against that port).
+
+- name: Build the node list
+  # Standalone runs of the workers phase derive the lists themselves; on
+  # a full site run the master phase already set them (skip = no change).
+  when: vms_nodes is not defined
+  ansible.builtin.set_fact:
+    vms_nodes: >-
+      {{ masters | map('combine', {'kind': 'master'}) | list
+         + dram_workers | map('combine', {'kind': 'worker-dram'}) | list
+         + cxl_workers | map('combine', {'kind': 'worker-cxl'}) | list }}
+
+- name: Set the worker node list fact
+  when: vms_nodes is not defined or vms_worker_nodes is not defined
+  ansible.builtin.set_fact:
+    vms_worker_nodes: "{{ vms_nodes | rejectattr('kind', 'equalto', 'master') | list }}"
+
+- name: Stat the pre-baked node image
+  # Workers boot overlays of the BIB disk; it must exist (the layered_image
+  # stage builds it while the master installs).
+  ansible.builtin.stat:
+    path: "{{ prebaked_node_image_path }}"
+  register: vms_prebaked_stat
+
+- name: Assert the pre-baked node image exists
+  ansible.builtin.assert:
+    that:
+      - vms_prebaked_stat.stat.exists
+    fail_msg: >-
+      Pre-baked node image missing at {{ prebaked_node_image_path }} —
+      the layered_image stage (06_os_image.yml) must run first.
+
+- name: Set the worker overlay backing image
+  # The BIB disk is already patched for first-boot ignition; each overlay
+  # consumes the firstboot marker independently via its own whiteout.
+  ansible.builtin.set_fact:
+    vms_worker_backing: "{{ prebaked_node_image_path }}"
+
+- name: Create worker disk overlays
+  # Workers boot the backing image through a per-node overlay.
+  ansible.builtin.command:
+    argv:
+      - qemu-img
+      - create
+      - "-f"
+      - qcow2
+      - "-F"
+      - qcow2
+      - "-b"
+      - "{{ vms_worker_backing }}"
+      - "{{ vm_images_dir }}/{{ item.name }}.qcow2"
+      - "{{ item.disk }}"
+    creates: "{{ vm_images_dir }}/{{ item.name }}.qcow2"
+  loop: "{{ vms_worker_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Parse-validate worker command lines
+  # --validate replays the command line paused (-S) under timeout(1) —
+  # rc 124 means the graph parsed and the process stayed alive. The
+  # overlays exist by now (created above), so the validation opens real
+  # files — the master phase validated only the master's own command line
+  # before starting it, since the worker backing disk did not exist yet.
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+      - --validate
+  loop: "{{ vms_worker_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_worker_validate
+  changed_when: false
+  failed_when: false
+
+- name: Assert worker command lines parse
+  ansible.builtin.assert:
+    that:
+      - item.rc == 124
+    fail_msg: >-
+      {{ item.item.name }} command line failed validation (rc={{ item.rc }}):
+      {{ item.stderr | default('') | trim }}
+  loop: "{{ vms_worker_validate.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Wait for the master's install-to-disk reboot
+  # Gate for starting the workers: their first-boot ignition merges from the
+  # master's Machine Config Server, and it must be the INSTALLED master's —
+  # the live-env MCS serves the same port but renders bootstrap-era
+  # credentials that die with the live environment (observed live: workers
+  # that joined against the ephemeral bootstrap control plane ended up
+  # anonymous). The installed master is identified by its root living on
+  # the BiP installation disk (the live env runs from the ISO's overlay),
+  # so sysroot-on-disk proves the live env and its MCS are gone. This gate
+  # orders the two parallel branches of the pipeline: the layered_image
+  # build usually outlasts the master's install (the gate passes
+  # instantly), but on a warm image cache the images finish first and the
+  # fleet waits here instead. Workers then ride out any remaining
+  # convergence on ignition's own config-fetch retry loop (infinite,
+  # backoff capped at 5s — the rendered worker configs set no fetch
+  # timeout) and join the moment the installed MCS answers.
+  ansible.builtin.shell: |
+    set -o pipefail
+    rootdev="$(ssh -o BatchMode=yes -o ConnectTimeout=10 \
+      -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      -i {{ install_ssh_key_path }} core@{{ master_ip }} \
+      'findmnt -n -o SOURCE /sysroot 2>/dev/null' 2>/dev/null || true)"
+    case "${rootdev}" in
+      {{ bip_installation_disk }}*) ;;
+      *)
+        echo "master not installed yet (sysroot: ${rootdev:-unreachable})" >&2
+        exit 1
+        ;;
+    esac
+  register: vms_master_installed
+  until: vms_master_installed.rc == 0
+  retries: "{{ vm_install_wait_retries }}"
+  delay: "{{ vm_install_wait_delay }}"
+  changed_when: false
+
+- name: Start the workers (fleet-parallel)
+  # One command for the whole worker fleet — poweroffs/starts fire for all
+  # nodes first (never serial per-VM waits); each script reports started vs
+  # already-running, and the combined stdout drives changed.
+  ansible.builtin.shell: |
+    set -eo pipefail
+    for node in {{ vms_worker_nodes | map(attribute='name') | map('quote') | join(' ') }}; do
+      bash "{{ vm_scripts_dir }}/run-${node}.sh"
+    done
+  register: vms_worker_start
+  changed_when: "'started, pid' in vms_worker_start.stdout"
+
+- name: Read node statuses
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
+      - --status
+  loop: "{{ vms_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vms_status
+  changed_when: false
+  failed_when: false
+
+- name: Assert all nodes run
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      {{ item.item.name }} is not running (rc={{ item.rc }}):
+      {{ item.stdout | default('') | trim }}
+  loop: "{{ vms_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Wait for guest kernel boot evidence in serial logs
+  # ONE poller over the whole fleet (never serial per-VM waits): the
+  # kernel banner in each node's serial log proves all four guests booted.
+  ansible.builtin.shell: |
+    set -o pipefail
+    marked=0
+    for node in {{ vms_nodes | map(attribute='name') | map('quote') | join(' ') }}; do
+      if [ -f "{{ vm_logs_dir }}/${node}.serial.log" ] \
+         && grep -q "{{ vms_boot_marker }}" "{{ vm_logs_dir }}/${node}.serial.log"; then
+        marked=$((marked + 1))
+      fi
+    done
+    echo "booted=${marked}/{{ vms_nodes | length }}"
+    [ "${marked}" -eq {{ vms_nodes | length }} ]
+  register: vms_boot_evidence
+  until: vms_boot_evidence.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+
+- name: Wait for the installed master's Machine Config Server
+  # Pipeline gate: the workers (started above, at the install-to-disk
+  # reboot) are riding ignition's retry loop against this same port, but
+  # cluster_install's API and CSR budgets are sized for a converged master
+  # — hold here until the installed MCS actually answers so the rest of
+  # the pipeline runs against a settled control plane.
+  ansible.builtin.shell: |
+    exec 3<>/dev/tcp/{{ master_ip }}/{{ vms_mcs_port }}
+  register: vms_mcs_probe
+  until: vms_mcs_probe.rc == 0
+  retries: "{{ vm_mcs_wait_retries }}"
+  delay: "{{ vm_mcs_wait_delay }}"
+  changed_when: false
+
+- name: VM fleet summary
+  ansible.builtin.debug:
+    msg: >-
+      VM fleet OK — {{ vms_nodes | length }} nodes running on host QEMU
+      (master {{ masters[0].name }}: live ISO + blank install target,
+      BiP; {{ vms_worker_nodes | length }} workers on pre-baked BIB disk
+      overlays);
+      CXL Type-3 graph on {{ cxl_workers | length }} workers (no host-node
+      binding); all serial logs show kernel boot;
+      {{ vms_boot_evidence.stdout | trim }}.

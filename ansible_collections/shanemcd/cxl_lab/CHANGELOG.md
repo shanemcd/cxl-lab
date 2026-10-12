@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.4.0
+
+The deploy pipeline's heavy blocks now overlap; a full run costs ~56
+minutes on the reference host (was ~1h23 warm / ~1h33 fresh).
+
+- VM networking uses vhost (`vhost=on` on the tap netdevs): vhost_net
+  was always loaded but never opted into, so every guest packet —
+  including the release-payload pulls that dominate BiP convergence —
+  went through QEMU userspace. Measured: convergence 28 → 22 minutes.
+- The master VM phase runs before the layered-image stage: the master
+  needs only ignition + network (it boots the live ISO against a blank
+  install target), so its install-to-disk reboot and BiP convergence
+  proceed while the kernel RPMs and the pre-baked worker disk build.
+  The vms role is split into master/workers task phases and the plays
+  are renumbered to the new order (04_ignition, 05_master, 06_os_image,
+  07_workers, 08_install, 09_region_commit).
+- Workers start against the already-converged master: their first-boot
+  ignition merge rides ignition's own fetch retry loop (infinite,
+  backoff capped at 5s — the rendered worker configs set no timeout),
+  gated on the master's install-to-disk reboot so the live env's
+  bootstrap-era MCS can never serve them.
+- The QEMU build launches fire-and-forget in the artifacts play and is
+  collected by the master VM play, overlapping the kernel build. The
+  MCS wait gate is configurable (`vm_mcs_wait_retries`, 240 × 15 s) and
+  the router-rollout wait runs directly before the router-placement
+  read it guards (the ingress operator can start a second roll moments
+  after the pin settles).
+
 ## 1.3.0
 
 All in-container builds now run in the shared RHEL 10 builder.

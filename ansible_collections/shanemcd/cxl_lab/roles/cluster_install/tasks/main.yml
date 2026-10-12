@@ -21,7 +21,7 @@
     that:
       - cluster_install_kubeconfig_stat.stat.exists
     fail_msg: >-
-      {{ kubeconfig_path }} missing — run 05_ignition.yml (the installer
+      {{ kubeconfig_path }} missing — run 04_ignition.yml (the installer
       writes the auth artifacts with the BiP ignition).
 
 - name: Read node statuses
@@ -43,7 +43,7 @@
       - item.rc == 0
     fail_msg: >-
       {{ item.item.name }} is not running (rc={{ item.rc }}) — run
-      06_vms.yml first.
+      07_workers.yml first.
   loop: "{{ cluster_install_vm_status.results }}"
   loop_control:
     label: "{{ item.item.name }}"
@@ -194,9 +194,31 @@
   delay: "{{ cluster_install_operator_delay_seconds }}"
   changed_when: false
 
+- name: Read cluster node states
+  # Retried: a freshly-installed SNO API server can briefly time out on
+  # list requests while post-install rollouts (MCO, router) still churn.
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - get
+      - nodes
+      - "--no-headers"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: cluster_install_nodes
+  until: cluster_install_nodes.rc == 0
+  retries: 8
+  delay: 15
+  changed_when: false
+
 - name: Wait for the pinned ingress router rollout
   # The nodePlacement patch redeploys the router; wait for every replica
   # to run on the master before asserting (fleet discipline: one poller).
+  # Runs directly before the router-placement read that feeds the final
+  # assert: the ingress operator can start a second roll moments after
+  # the pin settles (observed live), and any gap between this wait and
+  # the read is a window for a mid-roll assert failure — this ordering
+  # closes it.
   # jsonpath, NOT `get -o wide` columns: oc 4.22 renders the RESTARTS
   # column as "2 (23m ago)" (two fields) once a restart ages, which shifts
   # every subsequent column — a fixed $N index silently checks the wrong
@@ -218,23 +240,6 @@
   # post-install rolls (old pod Terminating + new pod Pending both count as
   # not-yet-settled); the SNO master churns for a while after first boot.
   retries: 40
-  delay: 15
-  changed_when: false
-
-- name: Read cluster node states
-  # Retried: a freshly-installed SNO API server can briefly time out on
-  # list requests while post-install rollouts (MCO, router) still churn.
-  ansible.builtin.command:
-    argv:
-      - "{{ install_bin_dir }}/oc"
-      - get
-      - nodes
-      - "--no-headers"
-  environment:
-    KUBECONFIG: "{{ kubeconfig_path }}"
-  register: cluster_install_nodes
-  until: cluster_install_nodes.rc == 0
-  retries: 8
   delay: 15
   changed_when: false
 

@@ -15,7 +15,12 @@ layered_image_kernel_pkgs:
 layered_image_sha256sums_name: "SHA256SUMS"
 
 # --- Kernel builder stage (rendered only when the RPM cache is missing) ---
-# Build concurrency inside the kernel-builder stage.
+# Build concurrency inside the kernel-builder stage. Deliberately half
+# the host cores: the build overlaps the master's BiP convergence (the
+# master phase starts first by design), and the compile jobs compete
+# with the master's vCPUs — saturating every core measurably stretches
+# convergence far more than it shortens the compile. The kernel build
+# still hides under the image builds that gate worker start either way.
 layered_image_kernel_builder_jobs: 48
 # Entitled CDN binary repos rendered into the kernel-builder build context
 # (the org entitlement's content sets carry baseos + appstream; CRB is NOT

@@ -1,0 +1,131 @@
+---
+# qemu_builder collect: the shared tail for the pinned-QEMU build. Two
+# entry points:
+#   - main.yml includes it on the warm path (prefix installed, nothing in
+#     flight) — pure in-place validation of the binary.
+#   - the vms play includes it (tasks_from: collect) when a build is in
+#     flight from the artifacts play — wait for the builder container,
+#     install the staged tree, then run the same validation. This is what
+#     overlaps the ~10-minute QEMU build with the kernel/image builds.
+
+- name: Wait for the QEMU build to finish
+  when: qemu_builder_build_in_flight | default(false)
+  containers.podman.podman_container_info:
+    name: "{{ qemu_builder_container_name }}"
+  register: qemu_builder_state
+  until: >-
+    qemu_builder_state.containers | length == 0
+    or not qemu_builder_state.containers[0].State.Running
+  retries: "{{ qemu_builder_wait_retries }}"
+  delay: "{{ qemu_builder_wait_delay }}"
+
+- name: Assert the QEMU build succeeded
+  when: qemu_builder_build_in_flight | default(false)
+  ansible.builtin.assert:
+    that:
+      - qemu_builder_state.containers | length == 1
+      - qemu_builder_state.containers[0].State.ExitCode == 0
+    fail_msg: >-
+      QEMU builder exited with
+      {{ qemu_builder_state.containers[0].State.ExitCode | default('no state') }} —
+      inspect `podman logs {{ qemu_builder_container_name }}`.
+
+- name: Remove the QEMU builder container
+  when: qemu_builder_build_in_flight | default(false)
+  containers.podman.podman_container:
+    name: "{{ qemu_builder_container_name }}"
+    state: absent
+
+- name: Assert the staged install tree exists
+  when: qemu_builder_build_in_flight | default(false)
+  ansible.builtin.stat:
+    path: "{{ qemu_builder_staging_dir }}{{ qemu_binary_path }}"
+  register: qemu_builder_staged_binary_stat
+
+- name: Assert the staged QEMU binary exists
+  when: qemu_builder_build_in_flight | default(false)
+  ansible.builtin.assert:
+    that:
+      - qemu_builder_staged_binary_stat.stat.exists
+      - qemu_builder_staged_binary_stat.stat.executable | default(false)
+    fail_msg: >-
+      Staged binary {{ qemu_builder_staging_dir }}{{ qemu_binary_path }} missing
+      or not executable — the builder install step failed.
+
+- name: Copy the staged tree to the host prefix
+  when: qemu_builder_build_in_flight | default(false)
+  ansible.builtin.command:
+    argv:
+      - cp
+      - -a
+      - "{{ qemu_builder_staging_dir }}{{ qemu_install_prefix }}"
+      - "{{ qemu_install_prefix | dirname }}"
+  changed_when: true
+
+- name: Restore SELinux contexts on the host prefix
+  when:
+    - qemu_builder_build_in_flight | default(false)
+    - (ansible_facts.get('selinux') or {}).get('status') == 'enabled'
+  ansible.builtin.command:
+    argv:
+      - restorecon
+      - "-R"
+      - "{{ qemu_install_prefix }}"
+  changed_when: false
+
+- name: Assert the installed QEMU binary exists
+  ansible.builtin.stat:
+    path: "{{ qemu_binary_path }}"
+  register: qemu_builder_binary_final_stat
+
+- name: Assert QEMU binary presence
+  ansible.builtin.assert:
+    that:
+      - qemu_builder_binary_final_stat.stat.exists
+      - qemu_builder_binary_final_stat.stat.executable | default(false)
+    fail_msg: "Host QEMU binary {{ qemu_binary_path }} missing or not executable."
+
+- name: Read the installed QEMU version
+  ansible.builtin.command:
+    argv:
+      - "{{ qemu_binary_path }}"
+      - "--version"
+  register: qemu_builder_version_raw
+  changed_when: false
+
+- name: Assert the installed QEMU version
+  ansible.builtin.assert:
+    that:
+      - qemu_version in qemu_builder_version_raw.stdout
+    fail_msg: >-
+      {{ qemu_binary_path }} does not report version {{ qemu_version }} —
+      remove the prefix and re-run.
+
+- name: Read the installed QEMU device list
+  ansible.builtin.command:
+    argv:
+      - "{{ qemu_binary_path }}"
+      - "-device"
+      - help
+  register: qemu_builder_device_help
+  changed_when: false
+
+- name: Assert CXL device support in the host QEMU
+  ansible.builtin.assert:
+    that:
+      - qemu_builder_device_help.stdout is search('name "pxb-cxl"')
+      - qemu_builder_device_help.stdout is search('name "cxl-rp"')
+      - qemu_builder_device_help.stdout is search('name "cxl-type3"')
+    success_msg: >-
+      Host QEMU {{ qemu_version }} at {{ qemu_binary_path }} with pxb-cxl /
+      cxl-rp / cxl-type3 device support.
+
+- name: QEMU builder summary
+  ansible.builtin.debug:
+    msg: >-
+      qemu builder OK — stock upstream {{ qemu_version }} built in the
+      RHEL 10 builder and installed to {{ qemu_install_prefix }} (built
+      this run: {{ qemu_builder_build_in_flight | default(false) }}); CXL
+      devices verified.
+      Set qemu_source: distro on hosts whose distribution QEMU carries CXL
+      (Fedora: qemu-system-x86-core) to skip this build entirely.
