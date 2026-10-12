@@ -371,8 +371,8 @@
     exec 3<>/dev/tcp/{{ master_ip }}/{{ vms_mcs_port }}
   register: vms_mcs_probe
   until: vms_mcs_probe.rc == 0
-  retries: 120
-  delay: 15
+  retries: "{{ vm_mcs_wait_retries }}"
+  delay: "{{ vm_mcs_wait_delay }}"
   changed_when: false
 
 - name: Start the workers (fleet-parallel)
