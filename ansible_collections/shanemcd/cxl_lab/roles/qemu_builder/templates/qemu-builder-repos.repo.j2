@@ -1,0 +1,16 @@
+# Managed by shanemcd.cxl_lab.qemu_builder — do not edit.
+# Entitled CDN binary repos for the QEMU builder (build deps); the host
+# RHSM entitlement is mounted read-only at the same paths, and the CA
+# authenticates cdn.redhat.com. RHEL minor tracks the builder image
+# (rhel10_builder_release in the versions taxonomy).
+{% for repo in qemu_builder_repo_ids %}
+[{{ repo }}]
+name = RHEL {{ rhel10_builder_release }} {{ repo | regex_replace('^rhel-10-', '') | capitalize }} RPMs
+baseurl = {{ qemu_builder_repo_baseurl }}/{{ repo | regex_replace('^rhel-10-', '') }}/os
+enabled = 1
+gpgcheck = 0
+sslclientcert = {{ qemu_builder_entitlement_cert }}
+sslclientkey = {{ qemu_builder_entitlement_key }}
+sslcacert = {{ rhsm_ca_dir }}/redhat-uep.pem
+
+{% endfor %}

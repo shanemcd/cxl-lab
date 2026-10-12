@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0
+
+All in-container builds now run in the shared RHEL 10 builder.
+
+- Stock upstream QEMU is built in the `rhel-bootc` RHEL 10 builder
+  container (entitled CDN build deps via the host RHSM entitlement) —
+  one fewer third-party image, and the builder's RHEL glibc is older than
+  or equal to any RedHat-family host.
+- The build is hermetic: meson and ninja come from pip inside the builder
+  (the lab's entitlement carries no CRB), and `-Dwrap_mode=nodownload`
+  disables FDT cleanly (x86 targets do not use it) — so the produced
+  binary has no libfdt linkage and the host needs no extra runtime
+  packages.
+- The builder image is a single shared pin (`rhel10_builder_image`) used
+  by the kernel-SRPM download, the kernel-builder stage, and the QEMU
+  build.
+
 ## 1.2.0
 
 The layered OS image never leaves the host.

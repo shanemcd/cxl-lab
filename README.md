@@ -34,8 +34,10 @@ After the pipeline runs you have, all idempotent and re-runnable:
 - **Install path**: bootstrap-in-place (BiP) — the master installs OpenShift
   onto its own disk from a live ISO; workers join via ignition fetched from the
   master's machine config server.
-- **QEMU**: stock upstream QEMU (11.1.x) built once in a pinned CentOS
-  Stream 10 builder container and installed to `/opt/qemu-<version>` on
+- **QEMU**: stock upstream QEMU (11.1.x) built once in the shared RHEL 10
+  builder container (entitled CDN build deps via the host RHSM
+  entitlement, meson/ninja from pip — the entitlement carries no CRB) and
+  installed to `/opt/qemu-<version>` on
   the host (RHEL's path — its appstream `qemu-kvm` deliberately lacks the
   CXL backports; nothing is patched). `qemu_source: auto | distro`
   (topology.yml, experimental) switches the lab to the distribution's
