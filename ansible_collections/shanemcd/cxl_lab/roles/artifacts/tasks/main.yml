@@ -345,14 +345,8 @@
   register: artifacts_rhcos_stream
   changed_when: false
 
-- name: Set RHCOS qemu artifact facts from stream metadata
+- name: Set RHCOS live ISO artifact facts from stream metadata
   ansible.builtin.set_fact:
-    artifacts_rhcos_url: >-
-      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.qemu
-         .formats[rhcos_qemu_format_key].disk.location }}
-    artifacts_rhcos_stream_sha256: >-
-      {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.qemu
-         .formats[rhcos_qemu_format_key].disk.sha256 }}
     artifacts_rhcos_iso_url: >-
       {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
          .formats[rhcos_iso_format_key].disk.location }}
@@ -360,25 +354,9 @@
       {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
          .formats[rhcos_iso_format_key].disk.sha256 }}
 
-- name: Assert stream-declared RHCOS checksum matches the pin
-  ansible.builtin.assert:
-    that:
-      - artifacts_rhcos_stream_sha256 == rhcos_image_sha256
-    fail_msg: >-
-      The {{ rhcos_stream_name }} stream declares sha256
-      {{ artifacts_rhcos_stream_sha256 }} but versions.yml pins
-      {{ rhcos_image_sha256 }} — the stream moved; re-pin deliberately.
-
-- name: Download RHCOS qemu image (stream-declared checksum)
-  ansible.builtin.get_url:
-    url: "{{ artifacts_rhcos_url }}"
-    dest: "{{ artifacts_downloads_dir }}/{{ artifacts_rhcos_url | basename }}"
-    mode: "0644"
-    checksum: "sha256:{{ artifacts_rhcos_stream_sha256 }}"
-
 - name: Assert stream-declared RHCOS live ISO matches the pin
-  # The ISO is the master's boot media (BiP); same TOFU pinning as the qemu
-  # image — the name binds the build, the sha binds the content.
+  # The ISO is the master's boot media (BiP) — the name binds the build,
+  # the sha binds the content.
   ansible.builtin.assert:
     that:
       - artifacts_rhcos_iso_stream_sha256 == rhcos_iso_sha256
@@ -404,7 +382,7 @@
       {{ machine_os_content_ref.split('@')[1][:19] }}… (osimage kernel
       {{ artifacts_osimage_kernel_nvr }}), SRPM {{ kernel_srpm_nvr }} verified
       against the pin, client tools extracted to
-      {{ install_bin_dir }}, RHCOS image
-      {{ artifacts_rhcos_url | basename }} verified (stream
+      {{ install_bin_dir }}, RHCOS live ISO
+      {{ artifacts_rhcos_iso_url | basename }} verified (stream
       {{ rhcos_stream_name }}). The cxltest kernel RPMs are built from the
       SRPM by the layered image stage (see 04_os_image).

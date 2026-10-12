@@ -1,7 +1,6 @@
 ---
-# region_commit role-scoped knobs; node data comes from the topology taxonomy
-# and the role label + pool name from the topology taxonomy (mco_cxl shares
-# them).
+# region_commit role-scoped knobs; node data and the unit/region names come
+# from the topology taxonomy (shared with verify).
 region_commit_script_guest_path: "/usr/local/sbin/cxl-region-commit.sh"
 region_commit_ignition_version: "3.2.0"
 
@@ -29,11 +28,7 @@ region_commit_endpoint_recover_wait_seconds: 60
 region_commit_driver_rebind_delay: 2
 region_commit_service_timeout_seconds: 300
 
-# Rollout + recovery timings — values come from the fleet-wide VM lifecycle
+# Service probe timings — values come from the fleet-wide VM lifecycle
 # knobs in the topology taxonomy (shared with teardown and the ops roles).
 region_commit_service_wait_retries: "{{ vm_service_wait_retries }}"
 region_commit_service_wait_delay: "{{ vm_service_wait_delay }}"
-region_commit_rollout_timeout_minutes: 40
-region_commit_node_ready_timeout_minutes: "{{ vm_node_ready_timeout_minutes }}"
-region_commit_stop_wait_retries: "{{ vm_stop_wait_retries }}"
-region_commit_stop_wait_delay: "{{ vm_stop_wait_delay }}"

@@ -3,9 +3,6 @@
 # stop wait, CXL window granularity, node shapes/MACs) live in the topology
 # taxonomy since install_config and the ops roles share them.
 
-# Decompressed stream qcow2 (workers' backing image).
-vms_base_image_name: "{{ rhcos_qemu_image_name | regex_replace('\\.gz$', '') }}"
-
 # CXL graph ids: the pxb-cxl bus the fixed memory window
 # targets, and the root port below it.
 vms_cxl_pxb_id: "pxb0"
@@ -28,17 +25,6 @@ vms_master_iso_kargs:
 # Serial-log boot marker polled for boot evidence (kernel banner).
 vms_boot_marker: "Linux version"
 
-# Machine Config Server port on the master — the live-env bootstrap gate
+# Machine Config Server port on the master — the installed-master gate
 # before workers are started (workers' first-boot ignition fetch hits it).
 vms_mcs_port: 22623
-
-# Pre-baked race guard: the MCS-served worker-cxl pool config probed
-# before any worker starts. The firstboot pivot must see the
-# insecure-registry trust (the CVO applies the install-time Image manifest
-# asynchronously after the installed master boots and the MCO re-renders
-# the pool configs a few minutes later); a worker fetching in between
-# retries its rebase against untrusted HTTPS forever without re-fetching.
-vms_mcs_pool_config_url: "https://{{ master_ip }}:{{ vms_mcs_port }}/config/{{ mco_cxl_mcp_name }}"
-
-# Rendered MCS trust probe script name (see mcs-trust-probe.py.j2).
-vms_mcs_trust_probe_name: "mcs-trust-probe.py"

@@ -47,12 +47,6 @@ cluster_network_cidr: "10.128.0.0/14"
 cluster_network_host_prefix: 23
 service_network_cidr: "172.30.0.0/16"
 
-# Lab registry (the one service container).
-registry_port: 5000
-# Node-facing registry host (published on the gateway).
-registry_host: "{{ lab_gateway_ip }}:{{ registry_port }}"
-registry_container_name: "ocp-cxl-registry"
-
 # Reversible host-network changes (shared by network + teardown — role
 # defaults never cross roles). Teardown reverses exactly these. The bridge
 # carries only the gateway address (no DNS or VIP addresses).

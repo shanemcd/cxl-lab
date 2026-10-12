@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0
+
+The layered OS image never leaves the host.
+
+- The bootc-image-builder node disk is built from the layered image in the
+  host's container storage, and the install-time osImageURL MachineConfig for
+  the worker-cxl pool carries the layered image's local ref — the exact ref a
+  BIB-booted worker reports as booted — so OpenShift's firstboot OS check
+  matches and no pivot, pull, or second reboot ever fires.
+- The region-commit service ships via the CXL workers' first-boot ignition
+  (rendered from the `region_commit` role's ignition template);
+  `08_region_commit` labels the workers into the install-time worker-cxl pool
+  and verifies the booted image, kernel, service, and committed region.
+- The artifacts stage downloads only the RHCOS live ISO (the master's boot
+  media) — the workers boot the BIB node disk.
+
 ## 1.1.0
 
 Slimmer defaults and a configurable fleet.

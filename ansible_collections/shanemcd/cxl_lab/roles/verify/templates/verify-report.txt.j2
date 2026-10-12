@@ -1,7 +1,7 @@
 CXL LAB VERIFICATION REPORT
 STAMP: test-only lab; CXL is QEMU-EMULATED; cache coherency NOT verified.
 Kernel: {{ kernel_rpm_release }} (CONFIG_CXL_REGION_INVALIDATION_TEST=y)
-Layered OS image: {{ registry_host }}/{{ layered_image_name }}:{{ layered_image_tag }} (digest pinned at {{ layered_image_digest_stamp_path }})
+Layered OS image: {{ layered_image_local_ref }} (worker-cxl pool osImageURL matches the booted ref)
 
 GUEST CHECKS (per CXL worker)
 {% for name, w in verify_guest_report.items() %}

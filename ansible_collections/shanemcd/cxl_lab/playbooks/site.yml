@@ -18,6 +18,6 @@
 - name: Cluster install stage
   import_playbook: 07_install.yml
 - name: MCO and region commit stage
-  import_playbook: 08_mco.yml
+  import_playbook: 08_region_commit.yml
 - name: Verification stage
   import_playbook: verify.yml

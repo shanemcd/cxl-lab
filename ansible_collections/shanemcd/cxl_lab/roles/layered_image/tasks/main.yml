@@ -3,13 +3,9 @@
 # SRPM, when the RPM cache is missing) + the bootc layered OS image —
 # base = the taxonomy-pinned payload machine-os-content ref
 # (cross-validated against the master's booted osImageURL by the install
-# role; on the MCO path also asserted build-side here), verify + bake the
-# five cxltest kernel RPMs, regenerate the initramfs post-override, bootc
-# lint, then EITHER push to
-# the lab registry + fetch the AUTHORITATIVE Docker-Content-Digest with
-# full OCI Accept headers + teach the cluster to trust the registry (MCO
-# path) OR bake a bootable qcow2 via bootc-image-builder patched for
-# first-boot ignition (pre-baked path).
+# role), verify + bake the five cxltest kernel RPMs, regenerate the
+# initramfs post-override, bootc lint, then bake a bootable qcow2 via
+# bootc-image-builder patched for first-boot ignition.
 
 # Build-side base-pin cross-check: REMOVED. The image stage now runs
 # before the cluster exists, so there is nothing live to compare against;
@@ -327,150 +323,17 @@
       - layered_image_local_info_final.images | length == 1
     fail_msg: "Layered image {{ layered_image_local_ref }} not found."
 
-# --- Registry path (MCO rollout flow) --------------------------------------
-# Only needed when the cluster pulls the layered image via the MCO. The
-# pre-baked path consumes the image locally through BIB instead.
-
-- name: Handle the lab registry flow
-  # Both flows push the layered image to the lab registry and stamp the
-  # authoritative Docker-Content-Digest: the MCO path pivots workers onto
-  # the registry reference at 08, and the pre-baked path points the
-  # install-time osImageURL MachineConfig at it (OpenShift's firstboot
-  # pivot must land somewhere — make it land on the layered image).
-  block:
-
-    - name: Check the authoritative digest stamp
-      ansible.builtin.stat:
-        path: "{{ layered_image_digest_stamp_path }}"
-      register: layered_image_stamp_stat
-
-    - name: Read the authoritative digest stamp
-      ansible.builtin.slurp:
-        src: "{{ layered_image_digest_stamp_path }}"
-      register: layered_image_stamp_raw
-      when: layered_image_stamp_stat.stat.exists
-
-    - name: Check whether the registry already holds this image
-      ansible.builtin.uri:
-        url: "{{ layered_image_manifest_url }}"
-        method: HEAD
-        headers:
-          Accept: "{{ layered_image_manifest_accept | trim }}"
-        status_code:
-          - 200
-          - 404
-      register: layered_image_registry_manifest
-      changed_when: false
-
-    - name: Set the registry digest fact from the manifest probe
-      ansible.builtin.set_fact:
-        layered_image_registry_digest_present: >-
-          {{ layered_image_registry_manifest.docker_content_digest | default('') | trim }}
-
-    - name: Set the push need fact
-      ansible.builtin.set_fact:
-        layered_image_push_needed: >-
-          {{ layered_image_registry_manifest.status == 404
-             or not layered_image_stamp_stat.stat.exists
-             or layered_image_registry_digest_present
-            != (layered_image_stamp_raw.content | default('') | b64decode | trim) }}
-
-    - name: Push the layered image to the lab registry
-      when: layered_image_push_needed | bool
-      containers.podman.podman_image:
-        name: "{{ layered_image_local_ref }}"
-        state: present
-        push: true
-        tls_verify: false
-        push_args:
-          dest: "{{ layered_image_registry_ref }}"
-
-    - name: Fetch the authoritative Docker-Content-Digest
-      ansible.builtin.uri:
-        url: "{{ layered_image_manifest_url }}"
-        method: HEAD
-        headers:
-          Accept: "{{ layered_image_manifest_accept | trim }}"
-        status_code: 200
-      register: layered_image_digest_fetch
-      changed_when: false
-
-    - name: Set the authoritative digest fact
-      ansible.builtin.set_fact:
-        layered_image_registry_digest: >-
-          {{ layered_image_digest_fetch.docker_content_digest | default('') | trim }}
-
-    - name: Assert the authoritative digest format
-      ansible.builtin.assert:
-        that:
-          - layered_image_registry_digest is match('^sha256:[0-9a-f]{64}$')
-        fail_msg: >-
-          Registry did not return a Docker-Content-Digest for
-          {{ layered_image_registry_ref }} (got
-          '{{ layered_image_registry_digest }}').
-
-    - name: Write the authoritative digest stamp
-      ansible.builtin.copy:
-        content: "{{ layered_image_registry_digest }}\n"
-        dest: "{{ layered_image_digest_stamp_path }}"
-        mode: "0600"
-      when: layered_image_push_needed | bool
-
-    - name: Verify pull-by-digest resolves to the built image
-      when: layered_image_push_needed | bool
-      containers.podman.podman_image:
-        name: "{{ registry_host }}/{{ layered_image_name }}@{{ layered_image_registry_digest }}"
-        state: present
-        tls_verify: false
-
-    - name: Read the pulled digest image
-      when: layered_image_push_needed | bool
-      containers.podman.podman_image_info:
-        name: "{{ registry_host }}/{{ layered_image_name }}@{{ layered_image_registry_digest }}"
-      register: layered_image_pulled_info
-
-    - name: Assert pull-by-digest matches the built image
-      when: layered_image_push_needed | bool
-      ansible.builtin.assert:
-        that:
-          - layered_image_pulled_info.images | length == 1
-          - >-
-            layered_image_pulled_info.images[0].Id
-            == layered_image_local_info_final.images[0].Id
-        fail_msg: >-
-          Pull-by-digest {{ layered_image_registry_digest }} did not resolve to the
-          built image ({{ layered_image_local_info_final.images[0].Id }}) — the
-          authoritative-digest handling regressed.
-
-    - name: Untag the pulled digest reference
-      when: layered_image_push_needed | bool
-      containers.podman.podman_image:
-        name: "{{ registry_host }}/{{ layered_image_name }}@{{ layered_image_registry_digest }}"
-        state: absent
-
-    - name: Layered image summary
-      ansible.builtin.debug:
-        msg: >-
-          layered image OK — {{ layered_image_local_ref }} built from
-          {{ layered_image_base_ref.split('@')[0] }}@{{ layered_image_base_ref.split('@')[1][:19] }}…,
-          lint passed, pushed to {{ layered_image_registry_ref }}, authoritative
-          digest {{ layered_image_registry_digest }} (podman RepoDigest
-          {{ layered_image_local_info_final.images[0].RepoDigests | default([])
-             | map('regex_replace', '^.*@', '') | join(',') }}
-          differs by design).
-
-# --- Pre-baked node image path ---------------------------------------------
+# --- Node image path --------------------------------------------------------
 # BIB turns the layered image into a bootable qcow2; the disk is patched for
 # first-boot ignition (marker + platform karg + stripped generic root kargs)
-# and the workers boot overlays of it (see the vms role). The registry still
-# hosts the image: OpenShift's firstboot pivot rebases every node onto the
-# cluster's osImageURL, so the pre-baked path aims that pivot at the layered
-# image via an install-time MachineConfig (see the install_config role) —
-# the pivot becomes a same-content rebase that keeps the cxltest kernel.
-# No MCO rollout, no post-install MachineConfig churn.
+# and the workers boot overlays of it (see the vms role). OpenShift's
+# firstboot OS check compares each node's booted image ref against its
+# pool's osImageURL — the worker-cxl pool's osImageURL MachineConfig
+# (install-time, see the install_config role) carries this image's local
+# ref, so the check matches and no pivot ever fires. No MCO rollout, no
+# post-install MachineConfig churn.
 
 - name: Build the pre-baked node image
-  when: use_prebaked_node_images | bool
   block:
 
     - name: Stat the BIB disk and the patch stamp
@@ -491,7 +354,7 @@
     - name: Run bootc-image-builder
       # Digest-pinned BIB from the versions taxonomy; the host container
       # storage is mounted so the freshly built layered image resolves
-      # locally (no registry round-trip).
+      # locally.
       when: not layered_image_bib_stat.results[0].stat.exists
       ansible.builtin.command:
         argv:

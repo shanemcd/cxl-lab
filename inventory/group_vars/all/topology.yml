@@ -79,8 +79,8 @@ masters_schedulable: true
 # signal (the installed master's /sysroot lives on this device).
 bip_installation_disk: "/dev/vda"
 
-# Pre-baked node images: when true, CXL workers boot bootc-image-builder
-# qcow2s on the cxltest kernel from first boot. The three blockers that made
+# Pre-baked node images: workers boot bootc-image-builder qcow2s on the
+# cxltest kernel from first boot. The three blockers that made
 # this path unsupported are fixed: (1) the layered image regenerates its
 # initramfs AFTER the rpm-ostree override (the scriptlet-time dracut captured
 # rpm-ostree's useradd interceptor wrapper without its .rpmostreesave
@@ -91,15 +91,12 @@ bip_installation_disk: "/dev/vda"
 # cannot create users); (3) the patch re-adds the $ignition_firstboot BLS
 # variable reference that BIB drops — the grub 05_ignition.cfg snippet
 # expands it from the ignition.firstboot marker (armed per fresh overlay,
-# removed by ignition after the first boot); (4) OpenShift's firstboot
-# pivot rebases every node onto the cluster's osImageURL — the pre-baked
-# path ships that pool's MachineConfigs (worker-cxl pool + layered
-# osImageURL + lab-registry trust) as install-time manifests, so the
-# pivot lands on the layered image (same kernel) instead of the stock
-# payload and the workers fetch /config/worker-cxl at first boot.
-# false keeps the MCO flow: stock boot image + registry + post-install
-# osImageURL pivot via MachineConfig rollout.
-use_prebaked_node_images: true
+# removed by ignition after the first boot); (4) OpenShift's firstboot OS
+# check compares each node's booted image ref against its pool's osImageURL —
+# the worker-cxl pool's osImageURL MachineConfig ships as an install-time
+# manifest carrying the BIB disk's own booted ref (layered_image_local_ref),
+# so the check matches, no pivot ever fires, and the workers fetch
+# /config/worker-cxl at first boot.
 
 # Host QEMU source: pinned (default) builds the stock upstream QEMU in the
 # CS10 builder container. auto / distro use the distribution's
@@ -138,18 +135,19 @@ vm_tap_prefix: "t-"
 # pidfile-targeted, never pkill).
 vm_stop_wait_seconds: 30
 
-# MCO layer for the CXL workers (node label + MachineConfigPool + the
-# MachineConfig role selector; shared by mco_cxl and region_commit).
-mco_cxl_role_label: "worker-cxl"
-mco_cxl_mcp_name: "worker-cxl"
+# The CXL worker pool: node label + MachineConfigPool name + the
+# MachineConfig role selector (shared by install_config, vms, region_commit,
+# verify, and teardown — role defaults never cross roles).
+worker_cxl_role_label: "worker-cxl"
+worker_cxl_mcp_name: "worker-cxl"
 
 # Region-commit unit + sysfs region name (shared by region_commit and verify
 # — role defaults never cross roles).
 region_commit_service_name: "cxl-region-commit.service"
 region_commit_region_name: "region0"
-# MachineConfig object names (shared by mco_cxl, region_commit, and teardown).
-mco_cxl_osimage_mc_name: "50-cxltest-os-image"
-region_commit_mc_name: "60-cxl-region-commit"
+# Install-time MachineConfig object name for the layered osImageURL
+# (shared by install_config, verify, and teardown).
+worker_cxl_osimage_mc_name: "50-cxltest-os-image"
 
 # Guest CXL NUMA node (SRAT shape): the QEMU graphs give every CXL worker a
 # CPU-less guest node that carries the CXL kmem (pxb-cxl numa_node + the

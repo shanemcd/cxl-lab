@@ -44,17 +44,7 @@ layered_image_cfgcheck_dir: "{{ layered_image_build_dir }}/cfgcheck"
 # Throwaway lint runner.
 layered_image_lint_container: "cxl-lab-bootc-lint"
 
-# Full OCI Accept set for the manifest query (the authoritative
-# digest is the registry's Docker-Content-Digest — podman's RepoDigest is a
-# local serialization digest and pulling by it fails MANIFEST_UNKNOWN).
-layered_image_manifest_accept: >-
-  application/vnd.oci.image.manifest.v1+json,
-  application/vnd.oci.image.index.v1+json,
-  application/vnd.docker.distribution.manifest.v2+json,
-  application/vnd.docker.distribution.manifest.list.v2+json
-layered_image_manifest_url: "http://{{ registry_host }}/v2/{{ layered_image_name }}/manifests/{{ layered_image_tag }}"
-
-# --- Pre-baked node images (use_prebaked_node_images) --------------------
+# --- Pre-baked node images ------------------------------------------------
 # BIB turns the layered image into a bootable qcow2. The root filesystem
 # type must be passed explicitly: the machine-os-content bootc image does
 # not declare a default rootfs and this BIB generation refuses to guess.

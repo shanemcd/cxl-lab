@@ -1,4 +1,0 @@
----
-# registry role-scoped knobs; the host/port and container name come from the
-# network taxonomy (group_vars/all/network.yml).
-registry_v2_probe_url: "http://{{ registry_host }}/v2/"

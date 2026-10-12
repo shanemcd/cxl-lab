@@ -1,6 +1,6 @@
 ---
 # ops_status: read-only summary of the whole lab — cluster state, host
-# QEMU status per node, lab network (bridge, resolver, registry), CXL region
+# QEMU status per node, lab network (bridge, resolver), CXL region
 # state per worker, and the layered image. Everything reports changed=0.
 
 - name: Stat the kubeconfig
@@ -61,11 +61,8 @@
     set -o pipefail
     bridge=$(ip -br link show "{{ lab_bridge_name }}" 2>/dev/null | awk '{print $1, $2, $3}' || true)
     resolver=$(systemctl is-active "{{ network_dnsmasq_service }}" 2>/dev/null || true)
-    registry=$(podman ps --format '{{ '{{' }}.Names{{ '}}' }}' 2>/dev/null \
-      | grep -x "{{ registry_container_name }}" || true)
     echo "bridge=[${bridge:-absent}]"
     echo "resolver=[${resolver:-unknown}]"
-    echo "registry=[${registry:-absent}]"
   args:
     executable: /bin/bash
   register: ops_status_network

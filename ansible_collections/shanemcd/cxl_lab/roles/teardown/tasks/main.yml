@@ -1,7 +1,7 @@
 ---
 # teardown: reverse-layer rollback. Layers are TAGGED; a bare run
-# executes every layer in file order (reverse build order): mco → registry
-# → vms → network → images → artifacts → install-data. Use --tags <layer>
+# executes every layer in file order (reverse build order): mco →
+# vms → network → images → artifacts → install-data. Use --tags <layer>
 # for a single layer. Every task is idempotent — a second teardown run is
 # a no-op. Destructive command tasks are check-guarded, so --check
 # dry-runs the whole playbook. The QEMU host PREFIX is never removed
@@ -46,18 +46,10 @@
   tags: always
 
 # --- Layer: mco --------------------------------------------------------------
-# Removing the MachineConfigs lets the MCO roll the CXL workers back to the
-# release base image; unlabeling returns the nodes to the plain worker
-# pool. This layer does NOT wait for the rollback reboots.
-
-- name: Remove the region commit MachineConfig
-  when: teardown_cluster_available | bool
-  kubernetes.core.k8s:
-    state: absent
-    kubeconfig: "{{ kubeconfig_path }}"
-    kind: MachineConfig
-    name: "{{ region_commit_mc_name }}"
-  tags: mco
+# Removing the install-time worker-cxl MachineConfigs lets the MCO roll the
+# CXL workers back to the release base image; unlabeling returns the nodes
+# to the plain worker pool. This layer does NOT wait for the rollback
+# reboots.
 
 - name: Remove the osImageURL MachineConfig
   when: teardown_cluster_available | bool
@@ -65,7 +57,7 @@
     state: absent
     kubeconfig: "{{ kubeconfig_path }}"
     kind: MachineConfig
-    name: "{{ mco_cxl_osimage_mc_name }}"
+    name: "{{ worker_cxl_osimage_mc_name }}"
   tags: mco
 
 - name: Remove the worker-cxl MachineConfigPool
@@ -74,7 +66,7 @@
     state: absent
     kubeconfig: "{{ kubeconfig_path }}"
     kind: MachineConfigPool
-    name: "{{ mco_cxl_mcp_name }}"
+    name: "{{ worker_cxl_mcp_name }}"
   tags: mco
 
 - name: Remove the worker-cxl label from the CXL nodes
@@ -87,41 +79,11 @@
     definition:
       metadata:
         # null value removes the label key (strategic merge).
-        labels: "{{ {'node-role.kubernetes.io/' ~ mco_cxl_role_label: None} }}"
+        labels: "{{ {'node-role.kubernetes.io/' ~ worker_cxl_role_label: None} }}"
   loop: "{{ cxl_workers }}"
   loop_control:
     label: "{{ item.name }}"
   tags: mco
-
-# --- Layer: registry ---------------------------------------------------------
-
-- name: Remove the lab registry from the cluster image config
-  when: teardown_cluster_available | bool
-  kubernetes.core.k8s:
-    state: patched
-    kubeconfig: "{{ kubeconfig_path }}"
-    api_version: config.openshift.io/v1
-    kind: Image
-    name: cluster
-    definition:
-      spec:
-        registrySources:
-          # Empty array drops our registry host (this collection is the only
-          # writer of this key — the patch replaced the list wholesale).
-          insecureRegistries: []
-  tags: registry
-
-- name: Remove the registry container
-  containers.podman.podman_container:
-    name: "{{ registry_container_name }}"
-    state: absent
-  tags: registry
-
-- name: Remove the registry data directory
-  ansible.builtin.file:
-    path: "{{ vm_registry_data_dir }}"
-    state: absent
-  tags: registry
 
 # --- Layer: vms --------------------------------------------------------------
 # Fleet-parallel shutdown: all guest poweroffs fire first (one command),
@@ -347,8 +309,8 @@
     state: absent
   tags: images
 
-- name: Remove the pre-baked node image build directory
-  # Pre-baked mode: the BIB disk + patch stamp (worker overlays die with
+- name: Remove the node image build directory
+  # The BIB disk + patch stamp (worker overlays die with
   # the vms layer, which tears down first).
   ansible.builtin.file:
     path: "{{ node_image_build_dir }}"
@@ -387,9 +349,9 @@
   tags: install-data
 
 - name: Remove the VM assets tree
-  # Contents were removed per layer above (overlays, scripts, logs, registry
-  # data, artifacts, ignition); this clears the remainder — the RHCOS base
-  # image, the master's boot ISO, install-phase scripts, and empty dirs.
+  # Contents were removed per layer above (overlays, scripts, logs,
+  # artifacts, ignition); this clears the remainder — the master's boot
+  # ISO, install-phase scripts, and empty dirs.
   # Skipped when artifacts still exist: partial teardowns must not destroy
   # the expensive build outputs (the artifacts layer removes them itself).
   ansible.builtin.file:
@@ -407,7 +369,7 @@
 - name: Teardown summary
   ansible.builtin.debug:
     msg: >-
-      teardown complete for the requested tags — layers: mco, registry,
+      teardown complete for the requested tags — layers: mco,
       vms, network, images, artifacts, install-data. The QEMU host prefix
       ({{ qemu_install_prefix }}) and the pulled third-party base images
       in the podman store remain (content-addressed caches, re-used on
