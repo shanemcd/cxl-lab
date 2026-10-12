@@ -165,3 +165,11 @@ vm_stop_wait_delay: 5
 vm_node_ready_timeout_minutes: 15
 vm_service_wait_retries: 20
 vm_service_wait_delay: 15
+
+# The master's installed first boot must fully converge the bootstrap-in-place
+# control plane before its Machine Config Server answers (the workers fetch
+# ignition from it). Observed convergence: ~25 minutes of operator rollout
+# after the install-to-disk reboot — this budget keeps a healthy margin over
+# that while bounding a genuinely stuck bootstrap.
+vm_mcs_wait_retries: 240
+vm_mcs_wait_delay: 15
