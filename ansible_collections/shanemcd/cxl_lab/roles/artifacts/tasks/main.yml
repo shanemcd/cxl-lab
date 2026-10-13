@@ -450,22 +450,35 @@
   changed_when: false
   when: ocp_artifact_profile == 'nightly'
 
+- name: Set the nightly machine OS facts
+  # set_fact evaluates the regexes (block-scalar templating processes the
+  # escapes correctly here); the assert below then compares plain facts —
+  # regexes inside assert messages hit ansible-core 2.19's per-context
+  # escape handling, so they are kept out of it. Single backslashes: the
+  # block-scalar convention this codebase uses (no escape processing in
+  # 2.19 block-scalar templates).
+  ansible.builtin.set_fact:
+    artifacts_payload_machine_os: >-
+      {{ (artifacts_release_info.stdout
+          | regex_findall('(?m)^\s*machine-os\s+(\S+)') + ['']) | first }}
+    artifacts_iso_build: >-
+      {{ rhcos_iso_image_name | regex_replace('^rhcos-(\S+)-live-iso.*$', '\1') }}
+  when: ocp_artifact_profile == 'nightly'
+
 - name: Assert the nightly live ISO build matches the payload machine OS
   # The ISO name encodes the RHCOS build (rhcos-<build>-live-iso…); it must
   # equal the payload's machine-os version so the master boots the same OS
   # the release ships.
   ansible.builtin.assert:
     that:
-      - (artifacts_release_info.stdout | regex_findall('(?m)^\\s*machine-os\\s+(\\S+)') | first)
-        == (rhcos_iso_image_name | regex_replace('^rhcos-(\\S+)-live-iso\\.x86_64\\.iso$', '\\1'))
+      - artifacts_payload_machine_os == artifacts_iso_build
+      - artifacts_payload_machine_os | length > 0
     success_msg: >-
-      Live ISO build matches the payload machine-os
-      ({{ rhcos_iso_image_name | regex_replace('^rhcos-(\\S+)-live-iso.*$', '\\1') }}).
+      Live ISO build {{ artifacts_iso_build }} matches the payload machine-os.
     fail_msg: >-
-      The payload's machine-os is
-      {{ artifacts_release_info.stdout | regex_findall('(?m)^\\s*machine-os\\s+(\\S+)') | first }}
-      but the pinned ISO is {{ rhcos_iso_image_name }} — re-pin the ISO build
-      (and its meta.json sha256) to match the payload.
+      The payload's machine-os is '{{ artifacts_payload_machine_os }}' but the
+      pinned ISO is {{ rhcos_iso_image_name }} (build '{{ artifacts_iso_build }}')
+      — re-pin the ISO build (and its meta.json sha256) to match the payload.
   when: ocp_artifact_profile == 'nightly'
 
 - name: Download RHCOS live ISO (declared checksum)
