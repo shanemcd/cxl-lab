@@ -3,42 +3,119 @@
 # literals. Empty SHA/ref fields are pinned by the roles after the first
 # verified query/download; roles must refuse to proceed on empty required
 # pins.
-ocp_version: "4.22.16"
-# TechPreviewNoUpgrade is REQUIRED for osImageStream (rhel-10) — the
-# installer gates it behind a non-default feature set.
-install_feature_set: "TechPreviewNoUpgrade"
-openshift_client_base_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp"
+#
+# One switch selects the entire install: `ocp_profile` names a dict below
+# that carries every version-coupled pin (client-tool checksums, machine-os
+# content ref, kernel SRPM, live ISO). Roles keep reading the flat names;
+# they are derived from the active profile. Reverting to GA is a one-key
+# change back to the ga-4.22.16 profile.
+ocp_profile: "nightly-5.0.0-0.nightly-2026-10-13-072659"
+
+ocp_profiles:
+  ga-4.22.16:
+    ocp_version: "4.22.16"
+    # Pinned from the mirror's sha256sum.txt (cross-checked by the
+    # artifacts role, GA profile only — the mirror publishes the sums).
+    openshift_install_sha256: "6f26860ba4ebaaf346ce7711be166105205e9edfff9993d9f15834c54a2e0fe5"
+    oc_sha256: "fcbf48c72307f761021d0507dd9a0a120b8fd46895b2cd254d7cb8f8a28115b2"
+    # Release payload machine-os-content: the parent ref the layered image
+    # builds FROM. Discovered pre-cluster: `openshift-install version` →
+    # release payload ref → `oc adm release info <release> --pullspecs` →
+    # the rhel-coreos-10 component pull spec (NOT print-stream-json — its
+    # container refs are kubevirt disk wrappers, not bootc-layerable). The
+    # artifacts role asserts discovery == this pin.
+    machine_os_content_ref: >-
+      quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cafe8edfbbe864e17e730515a93dc805759e22b884361904f5ac81df3a7f16fc
+    # Kernel SRPM source: entitled CDN download inside the RHEL 10 builder
+    # image (requires the host's subscription entitlements). NOTE: the exact
+    # osimage NVR (211.57.1.el10_2, read from rhel-coreos-10) is NOT carried
+    # by the CDN source repo (RHCOS-only build; the repo carries
+    # 211.7.1-211.64.1), so the pinned point below is the CDN-carried
+    # 211.64.1, and the artifacts role asserts the osimage NVR shares this
+    # stream prefix (kernel-6.12.0-211.*) to catch release drift.
+    kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
+    kernel_srpm_sha256: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
+    # Live ISO (the master's boot media — bootstrap-in-place boot model):
+    # GA pins the rhel-10 stream-declared latest (the artifacts role
+    # cross-checks the pin against the stream metadata).
+    rhcos_iso_image_name: "rhcos-10.2.20260715-0-live-iso.x86_64.iso"
+    rhcos_iso_sha256: "7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462"
+    # GA installs pull the payload from quay.io with the base pull secret.
+    nightly_release_image: ""
+    nightly_iso_build_dir: ""
+
+  nightly-5.0.0-0.nightly-2026-10-13-072659:
+    # Nightly installs fetch client tools from the CI artifacts service
+    # (no sha256sum.txt there — tarball checksums are trust-on-first-use
+    # pins, verified in-role), pull the payload from
+    # registry.ci.openshift.org via the merged CI pull secret (see
+    # secrets.yml), and pin the live ISO to the build matching the
+    # payload's machine-os (nightly stream metadata LAGS the payload —
+    # never trust stream-latest for nightlies; the artifacts role asserts
+    # ISO build == payload machine-os version).
+    ocp_version: "5.0.0-0.nightly-2026-10-13-072659"
+    openshift_install_sha256: "825486b731f2384da9e209380d41d30fad8048cfc69c4cacffb23adcf1de1447"
+    oc_sha256: "c22036912b5875f0c377cd6a443c086c0685c995afc581061037db27b93491eb"
+    machine_os_content_ref: >-
+      quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:b9fd80a1e04c8e68480e4d080462ed578e8093523b24e3e2c93c42bca6be68ad
+    # The 5.0 nightly's RHCOS (10.2.20261012-0) ships the same kernel
+    # point as 4.22.16's — verified by reading the osimage NVR from the
+    # payload's rhel-coreos-10 image; the SRPM pin carries over unchanged.
+    kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
+    kernel_srpm_sha256: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
+    # Live ISO pinned to the payload's machine-os build (10.2.20261012-0),
+    # sha256 from the build's meta.json (the stream json does not list it).
+    rhcos_iso_image_name: "rhcos-10.2.20261012-0-live-iso.x86_64.iso"
+    rhcos_iso_sha256: "3fb8dd1b4132ecfe43c30d478aba35e1561ff55f2022106e43698ea5cd2b5eb5"
+    # Nightly payload reference: digest-pinned release image; the installer
+    # reports the same ref back and the artifacts role asserts the match.
+    nightly_release_image: >-
+      registry.ci.openshift.org/ocp/release-5@sha256:7951cb5d37e95b4597338b00818293d2824acdb9900f474df7963178d9df297d
+    # Per-build storage path (build/arch) under the rhel-10.2 builds tree
+    # where the pinned ISO lives.
+    nightly_iso_build_dir: "10.2.20261012-0/x86_64"
+
+# Flat names the roles read — derived from the active profile.
+ocp_version: "{{ ocp_profiles[ocp_profile].ocp_version }}"
+openshift_install_sha256: "{{ ocp_profiles[ocp_profile].openshift_install_sha256 }}"
+oc_sha256: "{{ ocp_profiles[ocp_profile].oc_sha256 }}"
+machine_os_content_ref: "{{ ocp_profiles[ocp_profile].machine_os_content_ref }}"
+kernel_srpm_nvr: "{{ ocp_profiles[ocp_profile].kernel_srpm_nvr }}"
+kernel_srpm_sha256: "{{ ocp_profiles[ocp_profile].kernel_srpm_sha256 }}"
+rhcos_iso_image_name: "{{ ocp_profiles[ocp_profile].rhcos_iso_image_name }}"
+rhcos_iso_sha256: "{{ ocp_profiles[ocp_profile].rhcos_iso_sha256 }}"
+nightly_release_image: "{{ ocp_profiles[ocp_profile].nightly_release_image }}"
+nightly_iso_build_dir: "{{ ocp_profiles[ocp_profile].nightly_iso_build_dir }}"
+
+# Artifact-sourcing profile, derived from the version string: "nightly"
+# names (…-0.nightly-… / …-0.ci-…) come from the CI artifacts service and
+# registry.ci.openshift.org; everything else is a GA mirror install.
+ocp_artifact_profile: "{{ 'nightly' if ocp_version is match('.*-0\\.(nightly|ci)-.*') else 'ga' }}"
+
+# Client-tool sources per profile: the GA mirror publishes per-version
+# tarballs plus sha256sum.txt (cross-checked in-role); the CI artifacts
+# service publishes the same tarball names per nightly (checksums pinned
+# above — trust-on-first-use).
+ocp_ga_client_base_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp"
+ocp_nightly_client_base_url: "https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com"
+openshift_client_base_url: >-
+  {{ (ocp_artifact_profile == 'nightly') | ternary(ocp_nightly_client_base_url, ocp_ga_client_base_url) }}
 openshift_install_tarball_name: "openshift-install-linux-{{ ocp_version }}.tar.gz"
 openshift_client_tarball_name: "openshift-client-linux-{{ ocp_version }}.tar.gz"
 openshift_mirror_sha256sum_name: "sha256sum.txt"
-# Pinned from the mirror's sha256sum.txt (cross-checked by the artifacts role).
-openshift_install_sha256: "6f26860ba4ebaaf346ce7711be166105205e9edfff9993d9f15834c54a2e0fe5"
-oc_sha256: "fcbf48c72307f761021d0507dd9a0a120b8fd46895b2cd254d7cb8f8a28115b2"
 
-# Release payload machine-os-content: the parent ref the layered image
-# builds FROM. Discovered pre-cluster: `openshift-install version` →
-# release payload ref → `oc adm release info <release> --pullspecs` → the
-# rhel-coreos-10 component pull spec (NOT print-stream-json — its container
-# refs are kubevirt disk wrappers, not bootc-layerable). The artifacts role
-# asserts discovery == this pin.
-machine_os_content_ref: >-
-  quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cafe8edfbbe864e17e730515a93dc805759e22b884361904f5ac81df3a7f16fc
+# TechPreviewNoUpgrade is REQUIRED for osImageStream (rhel-10) — the
+# installer gates it behind a non-default feature set. It also keeps DRA
+# alpha feature gates visible on the cluster (relevant for the memory
+# tiering work that consumes this lab).
+install_feature_set: "TechPreviewNoUpgrade"
+
 # Payload component carrying the rhel-10 RHCOS bootc base (from
 # github.com/openshift/os; rhel-coreos is the rhel-9 sibling).
 machine_os_kernel_component: "rhel-coreos-10"
 
 # Kernel SRPM source: entitled CDN download inside the RHEL 10 builder
-# image (requires the host's subscription entitlements). NOTE: the exact
-# osimage NVR (211.57.1.el10_2, read from rhel-coreos-10) is NOT carried by
-# the CDN source repo (RHCOS-only build; the repo carries 211.7.1-211.64.1),
-# so the pinned point below is the CDN-carried 211.64.1, and the artifacts
-# role asserts the osimage NVR shares this stream prefix (kernel-6.12.0-211.*)
-# to catch release drift.
-kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
-# CDN artifact sha256.
-kernel_srpm_sha256: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
-# Entitled CDN source repo (repo id for the rendered repo file; RHEL minor is
-# derived from the NVR's el10_2 suffix so a release bump re-points it).
+# image (requires the host's subscription entitlements).
 kernel_srpm_cdn_repo_id: "rhel-10-baseos-source"
 kernel_srpm_rhel_release: "{{ kernel_srpm_nvr | regex_replace('^.*\\.el(\\d+)_(\\d+)$', '\\1.\\2') }}"
 kernel_srpm_cdn_repo_baseurl: >-
@@ -50,7 +127,7 @@ kernel_cdn_binary_repo_baseurl: >-
 kernel_rpm_buildid: "cxltest"
 kernel_rpm_release: >-
   {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
-     | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
+     | regex_replace('\\.el\\d+_\\d+$', '.cxltest.el10') }}.x86_64
 # Shared RHEL 10 builder base: the GA bootc image (digest-pinned) — the
 # exact GA userspace the kernel ships into. Three uses, all with the host
 # RHSM entitlement mounted read-only (subscription-manager runs in
@@ -83,17 +160,17 @@ qemu_builder_repo_baseurl: >-
 qemu_builder_container_name: "cxl-lab-qemu-builder"
 
 # RHCOS for the lab OS stream (osImageStream rhel-10; the installer default
-# stream is rhel-9 and NOT what this lab boots). The artifacts role reads the
-# installer-declared stream metadata via `coreos print-stream-json --stream`.
+# stream is rhel-9 and NOT what this lab boots). The GA artifacts flow
+# reads the installer-declared stream metadata via
+# `coreos print-stream-json --stream`; the nightly flow pins the per-build
+# ISO instead (nightly stream metadata lags the payload's machine-os).
 rhcos_stream_name: "rhel-10"
 # Stream-json format key for the metal live ISO (the master's boot media).
 rhcos_iso_format_key: "iso"
-
-# Live ISO (the master's boot media — bootstrap-in-place boot model):
-# stream-declared sha256 + pinned filename. The master boots it read-only
-# with a blank virtio install target.
-rhcos_iso_image_name: "rhcos-10.2.20260715-0-live-iso.x86_64.iso"
-rhcos_iso_sha256: "7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462"
+# Per-build storage tree where nightly ISOs live (build dirs + meta.json
+# with per-artifact sha256s); GA flow ignores this.
+rhcos_nightly_builds_base_url: >-
+  https://rhcos.mirror.openshift.com/art/storage/prod/streams/rhel-10.2/builds
 
 # Layered bootc OS image: built FROM the pinned machine-os-content ref with
 # the cxltest kernel RPMs, rendered to bootable qcow2s by bootc-image-builder

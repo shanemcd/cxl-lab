@@ -49,6 +49,14 @@ vm_logs_dir: "{{ vm_assets_dir }}/logs"
 vm_scripts_dir: "{{ vm_assets_dir }}/scripts"
 vm_run_dir: "{{ vm_assets_dir }}/run"
 
+# Local artifact cache: seed location for the pinned downloads (client
+# tarballs, kernel SRPM, live ISO) — the artifacts role copies anything
+# present here into the artifact dirs BEFORE any network fetch, and the
+# normal checksum verification then applies. Lives outside vm_assets_dir
+# so teardown does not remove it; nightly sources (CI artifacts service)
+# are flakier than the GA mirrors, so seeding de-risks rebuilds.
+artifacts_local_cache_dir: "/root/ocp-artifacts-cache"
+
 # Installer-fixed ignition output name (shared by install_config, vms, and
 # teardown). The bootstrap-in-place flow boots the live ISO on
 # bootstrap-in-place-for-live-iso.ign directly; worker.ign is the MCS stub.

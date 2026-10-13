@@ -17,6 +17,30 @@
     - "{{ artifacts_downloads_dir }}"
     - "{{ install_bin_dir }}"
 
+# --- local cache seeding --------------------------------------------------
+# Nightly sources (CI artifacts service) are flakier than the GA mirrors;
+# anything already present in artifacts_local_cache_dir is seeded into the
+# artifact dirs before any network fetch. Seeding skips checksum
+# verification by design — every seeded file flows through the normal
+# pinned-checksum verification below, so a bad seed cannot pass.
+
+- name: Stat local artifact cache seeds
+  ansible.builtin.stat:
+    path: "{{ artifacts_local_cache_dir }}/{{ item.name }}"
+  loop: "{{ artifacts_cache_seeds }}"
+  register: artifacts_cache_seed_stat
+
+- name: Seed pinned artifacts from the local cache
+  ansible.builtin.copy:
+    src: "{{ artifacts_local_cache_dir }}/{{ item.item.name }}"
+    dest: "{{ item.item.dest }}"
+    mode: "0644"
+    remote_src: true
+  loop: "{{ artifacts_cache_seed_stat.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.stat.exists
+
 - name: Download pinned artifacts
   ansible.builtin.get_url:
     url: "{{ item.url }}"
@@ -56,10 +80,24 @@
   loop: "{{ artifacts_stat.results }}"
   when: item.item.sha256 | length == 0 and item.item.pin_required | default(true)
 
+# --- mirror checksum cross-check (GA profile only) ------------------------
+# The GA mirror publishes a sha256sum.txt the pinned client checksums are
+# cross-checked against. The CI artifacts service publishes no such
+# manifest; nightly tarball checksums are trust-on-first-use pins in
+# versions.yml, verified by the generic download assertions above.
+
+- name: Download the mirror checksum manifest (GA profile)
+  ansible.builtin.get_url:
+    url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_mirror_sha256sum_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_mirror_sha256sum_name }}"
+    mode: "0644"
+  when: ocp_artifact_profile == 'ga'
+
 - name: Read mirror-declared client tool checksums
   ansible.builtin.slurp:
     src: "{{ artifacts_downloads_dir }}/{{ openshift_mirror_sha256sum_name }}"
   register: artifacts_mirror_sums_raw
+  when: ocp_artifact_profile == 'ga'
 
 - name: Set mirror-declared checksums fact
   ansible.builtin.set_fact:
@@ -67,6 +105,7 @@
       {{ dict((artifacts_mirror_sums_raw.content | b64decode | trim)
          | regex_findall('(?m)^([0-9a-f]{64})\s+(\S+)$')
          | map('reverse') | map('list')) }}
+  when: ocp_artifact_profile == 'ga'
 
 - name: Cross-check pinned client checksums against mirror declarations
   ansible.builtin.assert:
@@ -78,6 +117,7 @@
       ({{ artifacts_mirror_sums | dict2items | selectattr('key', 'in',
       [openshift_install_tarball_name, openshift_client_tarball_name]) | list }}) —
       re-pin versions.yml for the new release.
+  when: ocp_artifact_profile == 'ga'
 
 - name: Stat client tools stamp
   ansible.builtin.stat:
@@ -139,6 +179,19 @@
     artifacts_release_payload_ref: >-
       {{ artifacts_install_version.stdout | regex_findall('release image (\S+)') | first }}
 
+- name: Assert the nightly release payload matches the pin
+  # Nightly installs pull the payload from registry.ci.openshift.org with
+  # the merged CI pull secret; the installer reports the payload it was
+  # built from — it must equal the digest pin.
+  ansible.builtin.assert:
+    that:
+      - artifacts_release_payload_ref == nightly_release_image
+    fail_msg: >-
+      The installer reports release image {{ artifacts_release_payload_ref }}
+      but versions.yml pins {{ nightly_release_image }} — the nightly moved;
+      re-pin deliberately (and re-cache its artifacts).
+  when: ocp_artifact_profile == 'nightly'
+
 - name: Read the release payload pullspecs
   ansible.builtin.command:
     argv:
@@ -149,7 +202,7 @@
       - "{{ artifacts_release_payload_ref }}"
       - "--pullspecs"
   environment:
-    REGISTRY_AUTH_FILE: "{{ pull_secret_path }}"
+    REGISTRY_AUTH_FILE: "{{ install_pull_secret_path }}"
   register: artifacts_release_pullspecs
   changed_when: false
 
@@ -176,7 +229,7 @@
       - run
       - --rm
       - --authfile
-      - "{{ pull_secret_path }}"
+      - "{{ install_pull_secret_path }}"
       - --entrypoint
       - /usr/bin/rpm
       - "{{ machine_os_content_ref }}"
@@ -290,7 +343,7 @@
         image: "{{ rhel10_builder_image }}"
         state: started
         command: "bash /workspace/{{ artifacts_cdn_download_script_name }}"
-        authfile: "{{ pull_secret_path }}"
+        authfile: "{{ install_pull_secret_path }}"
         security_opt:
           - label=disable
         volumes:
@@ -339,50 +392,100 @@
       Kernel SRPM {{ kernel_srpm_nvr }}.src.rpm missing or checksum mismatch —
       remove it and re-run, or fix the pin in versions.yml.
 
-- name: Read RHCOS stream metadata for the lab OS stream
+# --- RHCOS live ISO (the master's boot media) ------------------------------
+# GA profile: the rhel-10 stream metadata declares the ISO (name binds the
+# build, sha binds the content) and the pin is cross-checked against it.
+# Nightly profile: stream metadata LAGS the payload — the ISO is pinned to
+# the build matching the payload's machine-os version (asserted below) and
+# fetched from the per-build storage tree with the versions.yml sha.
+
+- name: Read RHCOS stream metadata for the lab OS stream (GA profile)
   ansible.builtin.command:
     cmd: "{{ install_bin_dir }}/openshift-install coreos print-stream-json --stream {{ rhcos_stream_name }}"
   register: artifacts_rhcos_stream
   changed_when: false
+  when: ocp_artifact_profile == 'ga'
 
-- name: Set RHCOS live ISO artifact facts from stream metadata
+- name: Set RHCOS live ISO facts from stream metadata (GA profile)
   ansible.builtin.set_fact:
     artifacts_rhcos_iso_url: >-
       {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
          .formats[rhcos_iso_format_key].disk.location }}
-    artifacts_rhcos_iso_stream_sha256: >-
+    artifacts_rhcos_iso_sha: >-
       {{ (artifacts_rhcos_stream.stdout | from_json).architectures.x86_64.artifacts.metal
          .formats[rhcos_iso_format_key].disk.sha256 }}
+  when: ocp_artifact_profile == 'ga'
 
-- name: Assert stream-declared RHCOS live ISO matches the pin
-  # The ISO is the master's boot media (BiP) — the name binds the build,
-  # the sha binds the content.
+- name: Assert stream-declared RHCOS live ISO matches the pin (GA profile)
   ansible.builtin.assert:
     that:
-      - artifacts_rhcos_iso_stream_sha256 == rhcos_iso_sha256
+      - artifacts_rhcos_iso_sha == rhcos_iso_sha256
       - artifacts_rhcos_iso_url | basename == rhcos_iso_image_name
     fail_msg: >-
       The {{ rhcos_stream_name }} stream declares ISO
       {{ artifacts_rhcos_iso_url | basename }} sha256
-      {{ artifacts_rhcos_iso_stream_sha256 }} but versions.yml pins
+      {{ artifacts_rhcos_iso_sha }} but versions.yml pins
       {{ rhcos_iso_image_name }} / {{ rhcos_iso_sha256 }} — the stream
       moved; re-pin deliberately.
+  when: ocp_artifact_profile == 'ga'
 
-- name: Download RHCOS live ISO (stream-declared checksum)
+- name: Set RHCOS live ISO facts from the nightly build pin
+  ansible.builtin.set_fact:
+    artifacts_rhcos_iso_url: >-
+      {{ rhcos_nightly_builds_base_url }}/{{ nightly_iso_build_dir }}/{{ rhcos_iso_image_name }}
+    artifacts_rhcos_iso_sha: "{{ rhcos_iso_sha256 }}"
+  when: ocp_artifact_profile == 'nightly'
+
+- name: Read the release payload metadata (nightly profile)
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - adm
+      - release
+      - info
+      - "{{ artifacts_release_payload_ref }}"
+  environment:
+    REGISTRY_AUTH_FILE: "{{ install_pull_secret_path }}"
+  register: artifacts_release_info
+  changed_when: false
+  when: ocp_artifact_profile == 'nightly'
+
+- name: Assert the nightly live ISO build matches the payload machine OS
+  # The ISO name encodes the RHCOS build (rhcos-<build>-live-iso…); it must
+  # equal the payload's machine-os version so the master boots the same OS
+  # the release ships.
+  ansible.builtin.assert:
+    that:
+      - (artifacts_release_info.stdout | regex_findall('(?m)^\\s*machine-os\\s+(\\S+)') | first)
+        == (rhcos_iso_image_name | regex_replace('^rhcos-(\\S+)-live-iso\\.x86_64\\.iso$', '\\1'))
+    success_msg: >-
+      Live ISO build matches the payload machine-os
+      ({{ rhcos_iso_image_name | regex_replace('^rhcos-(\\S+)-live-iso.*$', '\\1') }}).
+    fail_msg: >-
+      The payload's machine-os is
+      {{ artifacts_release_info.stdout | regex_findall('(?m)^\\s*machine-os\\s+(\\S+)') | first }}
+      but the pinned ISO is {{ rhcos_iso_image_name }} — re-pin the ISO build
+      (and its meta.json sha256) to match the payload.
+  when: ocp_artifact_profile == 'nightly'
+
+- name: Download RHCOS live ISO (declared checksum)
   ansible.builtin.get_url:
     url: "{{ artifacts_rhcos_iso_url }}"
     dest: "{{ rhcos_live_iso_path }}"
     mode: "0644"
-    checksum: "sha256:{{ artifacts_rhcos_iso_stream_sha256 }}"
+    checksum: "sha256:{{ artifacts_rhcos_iso_sha }}"
 
 - name: Artifacts summary
   ansible.builtin.debug:
     msg: >-
-      artifacts OK — machine OS ref {{ machine_os_content_ref.split('@')[0] }}@
+      artifacts OK (profile {{ ocp_artifact_profile }}, {{ ocp_version }}) —
+      machine OS ref {{ machine_os_content_ref.split('@')[0] }}@
       {{ machine_os_content_ref.split('@')[1][:19] }}… (osimage kernel
       {{ artifacts_osimage_kernel_nvr }}), SRPM {{ kernel_srpm_nvr }} verified
       against the pin, client tools extracted to
       {{ install_bin_dir }}, RHCOS live ISO
-      {{ artifacts_rhcos_iso_url | basename }} verified (stream
-      {{ rhcos_stream_name }}). The cxltest kernel RPMs are built from the
-      SRPM by the layered image stage (see 04_os_image).
+      {{ artifacts_rhcos_iso_url | basename }} verified
+      {%- if ocp_artifact_profile == 'ga' %} (stream {{ rhcos_stream_name }})
+      {%- else %} (payload machine-os match){%- endif %}. The cxltest kernel
+      RPMs are built from the SRPM by the layered image stage
+      (see 06_os_image).

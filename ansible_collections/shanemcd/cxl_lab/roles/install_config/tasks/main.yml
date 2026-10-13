@@ -11,20 +11,21 @@
 # per fresh window: complete + fresh => reuse; stale or partial => fail
 # with teardown guidance.
 
-- name: Stat the pull secret
+- name: Stat the install pull secret
   ansible.builtin.stat:
-    path: "{{ pull_secret_path }}"
+    path: "{{ install_pull_secret_path }}"
   register: install_config_pull_secret_stat
 
-- name: Assert the pull secret exists
+- name: Assert the install pull secret exists
   ansible.builtin.assert:
     that:
       - install_config_pull_secret_stat.stat.exists
     fail_msg: >-
-      Pull secret missing at {{ pull_secret_path }} — provide a valid OpenShift
-      pull secret file (mode 0600) and re-run.
+      Install pull secret missing at {{ install_pull_secret_path }} — provide a
+      valid OpenShift pull secret file (mode 0600) and re-run (for nightly
+      profiles host_prep renders the merged secret there).
 
-- name: Validate pull secret JSON without exposing contents
+- name: Validate install pull secret JSON without exposing contents
   ansible.builtin.command:
     argv:
       - python3
@@ -33,19 +34,19 @@
         import json, sys;
         json.load(open(sys.argv[1]));
         print('pull secret JSON: valid')
-      - "{{ pull_secret_path }}"
+      - "{{ install_pull_secret_path }}"
   register: install_config_pull_secret_json
   changed_when: false
   failed_when: false
   no_log: true
 
-- name: Assert the pull secret is valid JSON
+- name: Assert the install pull secret is valid JSON
   ansible.builtin.assert:
     that:
       - install_config_pull_secret_json.rc == 0
     fail_msg: >-
-      Pull secret at {{ pull_secret_path }} is not valid JSON — replace it with a
-      valid OpenShift pull secret and re-run.
+      Install pull secret at {{ install_pull_secret_path }} is not valid JSON —
+      replace it with a valid OpenShift pull secret and re-run.
 
 - name: Ensure the install directory
   ansible.builtin.file:

@@ -16,15 +16,26 @@ artifacts_downloads:
     url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_client_tarball_name }}"
     dest: "{{ artifacts_downloads_dir }}/{{ openshift_client_tarball_name }}"
     sha256: "{{ oc_sha256 }}"
-  - name: mirror_sha256sum
-    url: "{{ openshift_client_base_url }}/{{ ocp_version }}/{{ openshift_mirror_sha256sum_name }}"
-    dest: "{{ artifacts_downloads_dir }}/{{ openshift_mirror_sha256sum_name }}"
-    sha256: ""
-    pin_required: false
   - name: qemu_source
     url: "{{ qemu_source_url }}"
     dest: "{{ artifacts_downloads_dir }}/{{ qemu_source_url | basename }}"
     sha256: "{{ qemu_source_sha256 }}"
+
+# Local-cache seeds: copied into the artifact dirs before any network
+# fetch; every seeded file then flows through the normal checksum
+# verification, so a bad seed cannot pass. The mirror sha256sum manifest
+# is NOT here — it is GA-profile-only (the CI artifacts service publishes
+# no checksum manifest; nightly tarball checksums are pinned in
+# versions.yml instead).
+artifacts_cache_seeds:
+  - name: "{{ openshift_install_tarball_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_install_tarball_name }}"
+  - name: "{{ openshift_client_tarball_name }}"
+    dest: "{{ artifacts_downloads_dir }}/{{ openshift_client_tarball_name }}"
+  - name: "{{ kernel_srpm_nvr }}.src.rpm"
+    dest: "{{ artifacts_srpm_dir }}/{{ kernel_srpm_nvr }}.src.rpm"
+  - name: "{{ rhcos_iso_image_name }}"
+    dest: "{{ rhcos_live_iso_path }}"
 
 # Kernel SRPM sha pin selection happens in tasks (per kernel_srpm_source).
 

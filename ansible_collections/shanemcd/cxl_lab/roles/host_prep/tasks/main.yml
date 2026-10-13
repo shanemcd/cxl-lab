@@ -120,6 +120,70 @@
     mode: "{{ item.mode }}"
   loop: "{{ host_prep_workspace_dirs }}"
 
+# --- merged install pull secret (nightly payload access) --------------------
+# Nightly installs pull the release payload from registry.ci.openshift.org,
+# which needs CI credentials the base pull secret lacks. When
+# ci_pull_secret_path is configured, render the merged secret (base + CI —
+# auth for quay.io/registry.redhat.io AND registry.ci) to
+# install_pull_secret_path; install-config and the artifacts role consume
+# it. GA installs (no CI secret) use the base secret unchanged.
+
+- name: Stat the base pull secret
+  ansible.builtin.stat:
+    path: "{{ pull_secret_path }}"
+  register: host_prep_pull_secret_stat
+
+- name: Assert the base pull secret exists
+  ansible.builtin.assert:
+    that:
+      - host_prep_pull_secret_stat.stat.exists
+      - host_prep_pull_secret_stat.stat.mode == '0600'
+    fail_msg: >-
+      Base pull secret missing or not 0600 at {{ pull_secret_path }} —
+      provide a valid OpenShift pull secret (0600).
+
+- name: Stat the CI pull secret
+  ansible.builtin.stat:
+    path: "{{ ci_pull_secret_path }}"
+  register: host_prep_ci_secret_stat
+  when: ci_pull_secret_path | default('') | length > 0
+
+- name: Assert the CI pull secret exists
+  ansible.builtin.assert:
+    that:
+      - host_prep_ci_secret_stat.stat.exists
+      - host_prep_ci_secret_stat.stat.mode == '0600'
+    fail_msg: >-
+      ci_pull_secret_path is set to {{ ci_pull_secret_path }} but the file is
+      missing or not 0600 — nightly installs need a registry.ci.openshift.org
+      pull secret (or set ci_pull_secret_path: "" for a GA-only install).
+  when: ci_pull_secret_path | default('') | length > 0
+
+- name: Render the merged install pull secret
+  # Merge = shallow union of the auths maps (CI secret carries only
+  # registry.ci.openshift.org). Renders 0600 under install_dir; contents
+  # never logged. Runs exactly when the effective install secret is the
+  # merged one (nightly profile with a CI secret configured).
+  ansible.builtin.copy:
+    content: >-
+      {{ dict(auths=(lookup('ansible.builtin.file', pull_secret_path) | from_json).auths
+         | combine((lookup('ansible.builtin.file', ci_pull_secret_path) | from_json).auths,
+                   recursive=True)) | to_nice_json }}
+    dest: "{{ install_pull_secret_path }}"
+    mode: "0600"
+  when: install_pull_secret_path != pull_secret_path
+  no_log: true
+
+- name: Assert nightly profiles have a CI secret configured
+  ansible.builtin.assert:
+    that:
+      - ci_pull_secret_path | default('') | length > 0
+    fail_msg: >-
+      ocp_profile {{ ocp_profile }} installs from registry.ci.openshift.org —
+      set ci_pull_secret_path in secrets.yml to a registry CI pull secret
+      (or switch ocp_profile to a GA profile).
+  when: ocp_artifact_profile == 'nightly'
+
 - name: Read free space at vm_assets_dir
   ansible.builtin.command:
     cmd: "df -B1G --output=avail {{ vm_assets_dir }}"
