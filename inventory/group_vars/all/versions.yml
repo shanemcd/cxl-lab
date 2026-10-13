@@ -127,7 +127,7 @@ kernel_cdn_binary_repo_baseurl: >-
 kernel_rpm_buildid: "cxltest"
 kernel_rpm_release: >-
   {{ (kernel_srpm_nvr | regex_replace('^kernel-', ''))
-     | regex_replace('\\.el\\d+_\\d+$', '.cxltest.el10') }}.x86_64
+     | regex_replace('\.el\d+_\d+$', '.cxltest.el10') }}.x86_64
 # Shared RHEL 10 builder base: the GA bootc image (digest-pinned) — the
 # exact GA userspace the kernel ships into. Three uses, all with the host
 # RHSM entitlement mounted read-only (subscription-manager runs in
