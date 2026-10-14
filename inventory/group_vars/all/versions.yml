@@ -9,9 +9,36 @@
 # content ref, kernel SRPM, live ISO). Roles keep reading the flat names;
 # they are derived from the active profile. Reverting to GA is a one-key
 # change back to the ga-4.22.16 profile.
-ocp_profile: "nightly-5.0.0-0.nightly-2026-10-13-072659"
+ocp_profile: "rc-5.0.0-rc.6"
 
 ocp_profiles:
+  rc-5.0.0-rc.6:
+    # Release candidate: GA-mirror client flow (sha256sum.txt
+    # cross-check), PUBLIC payload on quay (ocp-release — base pull secret
+    # only, no CI credentials), the installer-declared stream ISO
+    # (rhel-10 / 10.2.20260922-0), k8s 1.36.5. Chosen after the nightly
+    # BiP crio skew (see the task file Notes): RCs are the
+    # release-validated install path. The RC's osimage kernel is
+    # 211.63.1 — same 6.12.0-211.* stream as the CDN-carried 211.64.1
+    # SRPM point below (the proven content≠SRPM-point pattern; the
+    # artifacts role asserts the stream prefix).
+    ocp_version: "5.0.0-rc.6"
+    openshift_install_sha256: "6143181f03f8c53d6f2aafdc669afd7fff4ec19ccfe7b5a8672b1397be35132c"
+    oc_sha256: "ab0ad3b99ba07b6ebd10a2a6279f6303ae440114b5ad6cc111b48763f129c8b0"
+    machine_os_content_ref: >-
+      quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:454b44f7316a6b914f2136555e2ba14dced5a6ab3a7addae73b4b0631db07890
+    kernel_srpm_nvr: "kernel-6.12.0-211.64.1.el10_2"
+    kernel_srpm_sha256: "a508d81b4f99440bd8f3d739c81c5a08a167e7a25cc56d85f26a675d97eaf644"
+    # Stream-declared by the rc.6 installer (print-stream-json --stream
+    # rhel-10 → 10.2.20260922-0): the GA ISO flow + cross-check apply
+    # unchanged. FALLBACK if BiP sticks (crio-less ISO): the 20260715-0
+    # build (sha 7d27ddd567d158b648ffa627089b299289f3a88cd42b736c33df1143fd24b462,
+    # proven BiP-capable by the 4.22 lab) — cached.
+    rhcos_iso_image_name: "rhcos-10.2.20260922-0-live-iso.x86_64.iso"
+    rhcos_iso_sha256: "d5d4751becde5f1379e11fb673a43032bffa29ca91da8b7661ee63484ba802f3"
+    nightly_release_image: ""
+    nightly_iso_build_dir: ""
+
   ga-4.22.16:
     ocp_version: "4.22.16"
     # Pinned from the mirror's sha256sum.txt (cross-checked by the
