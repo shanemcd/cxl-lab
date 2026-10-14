@@ -78,11 +78,15 @@ ocp_profiles:
     # (lazy on-demand extraction — first hit 404s, tarballs appear a
     # few minutes later; trust-on-first-use checksum pins),
     # registry.ci payload via the merged CI secret, ISO pinned to the
-    # payload's machine-os build. NOTE: old CI builds get GC'd — if
-    # this build disappears from the artifacts service, re-pin to a
-    # newer Accepted nightly.
+    # payload's machine-os build. GOTCHA (learned the hard way): a
+    # download issued while the lazy extraction is still writing
+    # serves a TRUNCATED tarball that curl reports complete — poll the
+    # index until the size stops changing, then download, then verify
+    # gzip -t before pinning. NOTE: old CI builds get GC'd — if this
+    # build disappears from the artifacts service, re-pin to a newer
+    # Accepted nightly.
     ocp_version: "5.1.0-0.nightly-2026-10-06-091356"
-    openshift_install_sha256: "d88e95f942cff5f7e46b88e71b22875eeaecf7561731c83c82e7313e5f78b2c7"
+    openshift_install_sha256: "91b57f7f0b3afd89c410e45d4bac0f3ea4511938baafd8a3c408160c76582aa4"
     oc_sha256: "924762c0f3d8d5339f17e3a13855005b59eb039f3997d0fba54a85e2b303f16c"
     # 5.1 payload still publishes under ocp-v5.0-art-dev. osimage
     # kernel 211.62.1 — same kernel-6.12.0-211.* stream as the
