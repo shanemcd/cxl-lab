@@ -117,6 +117,35 @@
     case "${rootdev}" in
       {{ bip_installation_disk }}*) ;;
       *)
+        # Reboot-hang watchdog: the master's install-to-disk reboot can
+        # hang under QEMU (observed with kernel 6.12.0-211.62.1 on the
+        # pinned QEMU 11.1.2 build: the guest's reset request does not
+        # propagate to a platform reset — CPU halts in kernel space, the
+        # serial log freezes on "reboot: Restarting system"). Detect
+        # exactly that frozen state (log quiet >2 min, reboot message
+        # last) and issue an HMP system_reset through the monitor
+        # socket; the VM then boots the installed disk system and this
+        # gate's SSH probe succeeds on the next retry.
+        serial='{{ vm_logs_dir }}/{{ masters[0].name }}.serial.log'
+        monsock='{{ vm_run_dir }}/{{ masters[0].name }}.monitor.sock'
+        if [ -f "$serial" ] && [ -S "$monsock" ] \
+           && [ "$(find "$serial" -mmin +2 | wc -l)" -eq 1 ] \
+           && tail -n 1 "$serial" | grep -q 'reboot: Restarting system'; then
+          python3 - "$monsock" <<'PYEOF' >&2 || true
+import socket, sys, time
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(sys.argv[1])
+s.settimeout(3)
+s.recv(4096)  # HMP greeting
+s.sendall(b"system_reset\n")
+time.sleep(1)
+try:
+    s.recv(65536)
+except socket.timeout:
+    pass
+print("watchdog: issued system_reset (frozen install-to-disk reboot)")
+PYEOF
+        fi
         echo "master not installed yet (sysroot: ${rootdev:-unreachable})" >&2
         exit 1
         ;;

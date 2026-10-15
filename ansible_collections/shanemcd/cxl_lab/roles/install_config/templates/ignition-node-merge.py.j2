@@ -121,6 +121,35 @@ upsert_file(
     nm_keyfile,
 )
 
+{% if ocp_artifact_profile == 'nightly' %}
+# Nightly payloads publish UNSIGNED machine-os-content images, but RHCOS's
+# stock container policy requires sigstore signatures for
+# quay.io/openshift-release-dev/*. Without this override, the
+# machine-config-daemon-pull firstboot service loops forever on "A
+# signature was required, but no signature exists": no pivot to the
+# payload's machine OS (which carries cri-o; the live ISO's ostree is
+# podman-only in the bootc era), kubelet stays blocked (Requires=crio),
+# and bootkube hangs at "Waiting for api". GA/RC images are signed, so
+# this only affects nightly profiles. Firstboot-scoped by design: once
+# the pull succeeds and the pivot applies, the MCD re-asserts the
+# config-sanctioned (strict) policy — observed self-healing, no lasting
+# divergence, no MachineConfig drift.
+upsert_file(
+    "/etc/containers/policy.json",
+    420,
+    json.dumps(
+        {
+            "default": [{"type": "insecureAcceptAnything"}],
+            "transports": {
+                "docker-daemon": {"": [{"type": "insecureAcceptAnything"}]}
+            },
+        },
+        indent=1,
+    )
+    + "\n",
+)
+{% endif %}
+
 # Extra snippet (optional): upsert its systemd units by name and its
 # storage files by path (the pre-baked region-commit service ships this
 # way — same content the MachineConfig path serves via spec.config).
