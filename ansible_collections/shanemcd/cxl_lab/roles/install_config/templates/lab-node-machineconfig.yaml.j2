@@ -1,3 +1,19 @@
+{#
+  Lab node MachineConfig: persists the SNO master's hostname onto the
+  installed master (coreos-installer -n copies only NM connections, so
+  ignition-time files do not survive install-to-disk).
+
+  /etc/hosts is deliberately NOT managed here. openshift-dns's
+  node-resolver daemonset appends entries to /etc/hosts on every node
+  (e.g. the image-registry service line), continuously, forever. Any
+  MachineConfig that manages /etc/hosts puts the MCD's config-drift
+  detection in permanent conflict with it: the resolver's append is
+  indistinguishable from drift, the pool degrades, and no render can
+  ever converge. Stock OpenShift never manages /etc/hosts via the MCO
+  for exactly this reason. Nodes get their lab hosts block from
+  first-boot ignition (ignition-node-merge writes it once, unmanaged
+  afterwards) and name resolution from the NM keyfile DNS once up.
+#}
 apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
@@ -9,16 +25,13 @@ spec:
     ignition:
       version: {{ install_config_mc_ignition_version }}
     storage:
-      files:
-      - path: /etc/hosts
-        mode: 420
-        overwrite: true
-        contents:
-          source: "data:text/plain;base64,{{ mc_hosts_b64 }}"
 {% if mc_hostname_b64 is defined %}
+      files:
       - path: /etc/hostname
         mode: 420
         overwrite: true
         contents:
           source: "data:text/plain;base64,{{ mc_hostname_b64 }}"
+{% else %}
+      files: []
 {% endif %}
