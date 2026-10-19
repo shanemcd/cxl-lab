@@ -1,0 +1,152 @@
+---
+# Storage + observability checks (10_storage / 11_observability outputs):
+# the lab StorageClass and its provisioner, the Perses PVC binding, and
+# the COO/Perses/content CR states. Read-only.
+
+- name: Read the lab StorageClass
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: "{{ storage_class_name }}"
+  register: verify_storage_class
+  changed_when: false
+
+- name: Read the storage provisioner deployment
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ storage_namespace }}"
+    name: "{{ storage_provisioner_k8s_name }}"
+  register: verify_storage_deployment
+  changed_when: false
+
+- name: Read the Perses PVC
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: "{{ observability_operator_namespace }}"
+    name: "storage-{{ observability_perses_name }}-0"
+  register: verify_perses_pvc
+  changed_when: false
+
+- name: Read the COO CSV phase
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ observability_operator_namespace }}"
+    label_selectors:
+      - "operators.coreos.com/{{ observability_subscription_name }}.{{ observability_operator_namespace }}="
+  register: verify_coo_csv
+  changed_when: false
+
+- name: Read the UIPlugin state
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: observability.openshift.io/v1alpha1
+    kind: UIPlugin
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_uiplugin_name }}"
+  register: verify_uiplugin
+  changed_when: false
+
+- name: Read the Perses content CR states
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: perses.dev/v1alpha2
+    kind: "{{ item.kind }}"
+    namespace: "{{ observability_namespace }}"
+    name: "{{ item.name }}"
+  register: verify_content_cr
+  loop:
+    - kind: PersesDatasource
+      name: "{{ observability_datasource_name }}"
+    - kind: PersesDashboard
+      name: openshift-cluster-overview
+    - kind: PersesDashboard
+      name: infra-cxl-glance
+  loop_control:
+    label: "{{ item.kind }}/{{ item.name }}"
+  changed_when: false
+
+- name: Read the CXL memory-tier rule
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: monitoring.coreos.com/v1
+    kind: PrometheusRule
+    namespace: "{{ observability_namespace }}"
+    name: "{{ observability_rule_name }}"
+  register: verify_cxl_rules
+  changed_when: false
+
+- name: Derive the content availability summary
+  ansible.builtin.set_fact:
+    verify_content_available: >-
+      {{ verify_content_cr.results
+         | map(attribute='resources') | flatten
+         | map(attribute='status.conditions') | flatten
+         | selectattr('type', 'equalto', 'Available')
+         | map(attribute='status') | list }}
+
+- name: Assert the storage and observability state
+  ansible.builtin.assert:
+    that:
+      - verify_storage_class.resources | length == 1
+      - verify_storage_class.resources[0].provisioner == storage_provisioner_name
+      - verify_storage_deployment.resources
+        | map(attribute='status.conditions') | flatten
+        | selectattr('type', 'equalto', 'Available')
+        | map(attribute='status') | join == 'True'
+      - verify_perses_pvc.resources | length == 1
+      - verify_perses_pvc.resources[0].status.phase == 'Bound'
+      - verify_perses_pvc.resources[0].spec.storageClassName == observability_perses_storage_class
+      - verify_coo_csv.resources | map(attribute='status.phase') | join == 'Succeeded'
+      - verify_uiplugin.resources
+        | map(attribute='status.conditions') | flatten
+        | selectattr('type', 'equalto', 'Available')
+        | map(attribute='status') | join == 'True'
+      - verify_content_available | select('equalto', 'True') | list | length
+        == verify_content_cr.results | length
+      - verify_cxl_rules.resources | length == 1
+    fail_msg: >-
+      Storage/observability check failed — StorageClass:
+      {{ verify_storage_class.resources | map(attribute='provisioner')
+      | join(', ') | default('absent') }}; provisioner deployment:
+      {{ verify_storage_deployment.resources | map(attribute='status.readyReplicas')
+      | join(', ') | default('absent') }} ready; Perses PVC:
+      {{ verify_perses_pvc.resources | map(attribute='status.phase')
+      | join(', ') | default('absent') }}; COO CSV:
+      {{ verify_coo_csv.resources | map(attribute='status.phase')
+      | join(', ') | default('absent') }}; UIPlugin Available:
+      {{ verify_uiplugin.resources | map(attribute='status.conditions') | flatten
+      | selectattr('type', 'equalto', 'Available') | map(attribute='status') | join }};
+      content CRs Available: {{ verify_content_available | join(', ') }};
+      rules present: {{ verify_cxl_rules.resources | length }}.
+
+- name: Collect the storage and observability evidence
+  ansible.builtin.set_fact:
+    verify_storage_report:
+      storage_class: >-
+        {{ storage_class_name }} ({{ storage_provisioner_name }})
+      provisioner_ready: >-
+        {{ verify_storage_deployment.resources
+           | map(attribute='status.readyReplicas') | join(', ') }}
+      perses_pvc: >-
+        {{ verify_perses_pvc.resources | map(attribute='status.phase') | join(', ') }}
+        on {{ verify_perses_pvc.resources | map(attribute='spec.storageClassName')
+        | join(', ') }}
+      coo_csv: >-
+        {{ verify_coo_csv.resources | map(attribute='status.phase') | join(', ') }}
+      uiplugin_available: >-
+        {{ verify_uiplugin.resources | map(attribute='status.conditions') | flatten
+           | selectattr('type', 'equalto', 'Available')
+           | map(attribute='status') | join }}
+      content_crs_available: >-
+        {{ verify_content_available | select('equalto', 'True') | list | length }}
+        / {{ verify_content_cr.results | length }}
+      cxl_rules: >-
+        {{ verify_cxl_rules.resources | length }}
+        PrometheusRule {{ observability_rule_name }} (ns {{ observability_namespace }})

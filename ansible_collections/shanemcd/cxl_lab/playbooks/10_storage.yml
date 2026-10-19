@@ -1,0 +1,13 @@
+---
+- name: Lab storage (host NFS export + in-cluster provisioner)
+  hosts: all
+  become: true
+  gather_facts: false
+  # One dynamically-provisioned StorageClass for the lab. The host runs
+  # the kernel nfsd (pattern-consistent with dnsmasq and the install
+  # registry); the in-cluster provisioner carves per-PVC subdirectories
+  # out of the export. LVM Storage is absent from the catalogs this lab
+  # can reach, and the in-catalog alternatives are Ceph-family — outside
+  # the host's RAM budget. See roles/storage.
+  roles:
+    - role: shanemcd.cxl_lab.storage

@@ -1,0 +1,296 @@
+# CXL at-a-glance dashboard (lab-owned, project
+# {{ observability_namespace }}): tier capacity/usage, workload
+# attribution, tiering traffic, VM placement. Consumes the
+# openshift:node:memory:tier:* / openshift:vm:memory:tier:* recording
+# rules from {{ observability_rule_name }}.
+#
+# Panel grid: 12x8 (half-width, third-height on the 24-column layout).
+# The threshold/line-width constants below are presentation choices of
+# this dashboard, not lab configuration.
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: infra-cxl-glance
+  namespace: {{ observability_namespace }}
+spec:
+  instanceSelector:
+    matchLabels:
+{% for key, value in observability_perses_instance_label.items() %}
+      {{ key }}: {{ value }}
+{% endfor %}
+  config:
+    display:
+      name: Infrastructure / CXL / Glance
+    panels:
+      CxlTierUsed:
+        kind: Panel
+        spec:
+          display:
+            name: Node memory used, by tier
+            description: >-
+              Physical memory used per node, split by tier: tier 0 is
+              CPU-attached DRAM (~100ns), tier 1 is the emulated CXL
+              Type-3 region exposed as CPU-less NUMA node 1 (~200ns).
+              Answers: how is each node's memory structured across
+              tiers, and how full is each tier?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+              visual:
+                areaOpacity: 1
+                display: line
+                lineWidth: 0.25  # hardcode-ok: chart line weight, presentation only
+                stack: all
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >-
+                      sum by (node, tier) (
+                        openshift:node:memory:tier:bytes{scope="node", utilized="true"}
+                      )
+                    seriesNameFormat: '{{ "{{node}} · tier {{tier}}" }}'
+      CxlTierUtilization:
+        kind: Panel
+        spec:
+          display:
+            name: Tier utilization ratio
+            description: >-
+              Used / capacity per tier per node. DRAM tiers run hot by
+              design; the CXL tier should stay low until the
+              tier-descheduler or memory pressure demotes cold pages onto
+              it. Answers: is the CXL tier actually being used, and is
+              DRAM under pressure?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: decimal
+                min: 0
+                max: 1
+                show: true
+              thresholds:
+                steps:
+                  - value: 0.85  # hardcode-ok: presentation thresholds, not lab config
+                  - color: '#FF9F1C'
+                    value: 0.95  # hardcode-ok: presentation threshold
+                  - color: '#EA4747'
+                    value: 0.99  # hardcode-ok: presentation threshold
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: openshift:node:memory:tier:utilization:ratio
+                    seriesNameFormat: '{{ "{{node}} · tier {{tier}}" }}'
+      CxlWorkloadsByTier:
+        kind: Panel
+        spec:
+          display:
+            name: Workload anonymous memory, by tier
+            description: >-
+              Anonymous (working-set) memory attributed to workloads per
+              tier via per-cgroup NUMA accounting. Movement from tier 0
+              to tier 1 is kernel demotion — what the memory-tiering demo
+              is about. Answers: how much workload memory has been
+              demoted onto CXL?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+              visual:
+                areaOpacity: 1
+                display: line
+                lineWidth: 0.25  # hardcode-ok: chart line weight, presentation only
+                stack: all
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >-
+                      sum by (tier) (
+                        openshift:node:memory:tier:bytes{scope="workloads", utilized="true"}
+                      )
+                    seriesNameFormat: '{{ "tier {{tier}}" }}'
+      CxlTieringTraffic:
+        kind: Panel
+        spec:
+          display:
+            name: Tiering traffic — demote into / promote out of CXL
+            description: >-
+              Kernel page demotion (kswapd/khugepaged/direct reclaim
+              moving pages to slower tiers — into CXL) and promotion (hot
+              pages pulled back to DRAM), from per-node vmstat
+              pgdemote/pgpromote counters. Answers: is the tiering
+              machinery moving pages right now?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum (openshift:node:memory:tier:demote:rate)
+                    seriesNameFormat: demote
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum (openshift:node:memory:tier:promote:rate)
+                    seriesNameFormat: promote
+      CxlVMPlacement:
+        kind: Panel
+        spec:
+          display:
+            name: VM memory placement by tier
+            description: >-
+              Anonymous memory per VirtualMachineInstance split by tier
+              (per-cgroup NUMA accounting of virt-launcher pods). Stacked
+              series per VM show the DRAM/CXL split of each guest's
+              resident memory. Answers: which VMs have memory on the CXL
+              tier?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+              visual:
+                areaOpacity: 1
+                display: line
+                lineWidth: 0.25  # hardcode-ok: chart line weight, presentation only
+                stack: all
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum by (vm, tier) (openshift:vm:memory:tier:bytes)
+                    seriesNameFormat: '{{ "{{vm}} · tier {{tier}}" }}'
+      CxlTierFree:
+        kind: Panel
+        spec:
+          display:
+            name: CXL tier — used vs free
+            description: >-
+              The emulated CXL region (System RAM on the CPU-less NUMA
+              node of the CXL worker) as used + free. Total height is the
+              region size; utilization near 0% means nothing has been
+              demoted or placed there yet. Answers: how much of the CXL
+              region is consumed?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+              visual:
+                areaOpacity: 1
+                display: line
+                lineWidth: 0.25  # hardcode-ok: chart line weight, presentation only
+                stack: all
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >-
+                      openshift:node:memory:tier:bytes{tier="1", scope="node",
+                      utilized="true"}
+                    seriesNameFormat: '{{ "{{node}} used" }}'
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >-
+                      openshift:node:memory:tier:bytes{tier="1", scope="node",
+                      utilized="false"}
+                    seriesNameFormat: '{{ "{{node}} free" }}'
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: At a Glance - CXL Memory Tier
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlTierUsed'
+            - x: 12
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlTierUtilization'
+            - x: 0
+              "y": 8
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlWorkloadsByTier'
+            - x: 12
+              "y": 8
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlTieringTraffic'
+            - x: 0
+              "y": 16
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlVMPlacement'
+            - x: 12
+              "y": 16
+              width: 12
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlTierFree'
+    duration: 1h
+    refreshInterval: 15s

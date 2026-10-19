@@ -1,0 +1,34 @@
+# Datasource for the built-in Thanos Querier. No auth section on
+# purpose: the console plugin forwards the logged-in user's token, so
+# every query is RBAC-filtered to what that user may see. TLS anchors on
+# the service CA the COO mounts into Perses at /ca; the operator
+# materializes the Perses-side secret named <datasource>-secret.
+apiVersion: perses.dev/v1alpha2
+kind: PersesDatasource
+metadata:
+  name: {{ observability_datasource_name }}
+  namespace: {{ observability_namespace }}
+spec:
+  instanceSelector:
+    matchLabels:
+{% for key, value in observability_perses_instance_label.items() %}
+      {{ key }}: {{ value }}
+{% endfor %}
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: file
+        certPath: /ca/service-ca.crt
+  config:
+    default: true
+    display:
+      name: Thanos Querier
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            secret: {{ observability_datasource_name }}-secret
+            url: {{ observability_thanos_querier_url }}

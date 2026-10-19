@@ -1,0 +1,18 @@
+---
+# storage: host-side kernel nfsd export + the in-cluster
+# nfs-subdir-external-provisioner behind the lab's single StorageClass.
+# Every knob that crosses roles or teardown lives in the taxonomy
+# (group_vars/all/storage.yml); the defaults below are role-internal.
+#
+# SCC note (OCP 5.x): the provisioner must run uid 0 with an nfs volume —
+# restricted/anyuid reject the nfs volume type, and the hostmount-anyuid
+# SCCs that allow it have EMPTY seccompProfiles, so the container must
+# not set a seccompProfile. Both hostmount-anyuid variants are granted
+# declaratively via ClusterRoleBindings below (oc adm add-scc-to-user
+# does the same thing but is not declarative).
+storage_scc_names:
+  - "hostmount-anyuid"
+  - "hostmount-anyuid-v2"
+# Deployment-readiness wait (leader election adds a little startup time).
+storage_provisioner_retries: 30
+storage_provisioner_delay_seconds: 5

@@ -1,0 +1,11 @@
+---
+# exportfs re-read is handler-driven: only the exports-render task
+# notifies it, so a converged re-run re-exports nothing.
+- name: Re-read the NFS export table
+  # -ra re-exports everything configured; additive for unrelated exports
+  # already present on the host.
+  ansible.builtin.command:
+    argv:
+      - exportfs
+      - -ra
+  changed_when: true

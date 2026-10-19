@@ -248,3 +248,9 @@ bootc_image_builder_image: >-
   quay.io/centos-bootc/bootc-image-builder@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b
 
 registry_image: "docker.io/library/registry:2"
+
+# In-cluster NFS provisioner backing the lab StorageClass (see
+# storage.yml). v4.x reads its config from env vars — CLI args make it
+# print help and CrashLoop.
+storage_provisioner_image: "registry.k8s.io/sig-storage/nfs-subdir-external-provisioner"
+storage_provisioner_version: "v4.0.2"

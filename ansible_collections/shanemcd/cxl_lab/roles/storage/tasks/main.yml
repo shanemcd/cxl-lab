@@ -1,0 +1,124 @@
+---
+# storage: the lab's single StorageClass ({{ storage_class_name }}) with
+# dynamic provisioning, backed by a host-native kernel nfsd export of
+# {{ storage_export_dir }} to the lab subnet. Pattern-consistent with the
+# lab's other host services (dnsmasq, the install registry): the host is
+# the backing service; teardown removes the export wholesale. LVM Storage
+# would be the first pick on paper, but the 5.1 nightly and the published
+# redhat-operator-index v5.0 catalogs no longer carry lvm-storage-operator
+# (verified by subscription resolution), and the in-catalog alternatives
+# are Ceph-family — outside the lab host's RAM budget.
+#
+# Host side: package + export dir + exports drop-in + nfs-server service.
+# Cluster side: the provisioner manifest, the SCC grants it needs on
+# OCP 5.x, and a readiness wait. Every step is idempotent.
+
+- name: Assert the storage taxonomy consistency
+  ansible.builtin.assert:
+    that:
+      # The export must live under the assets tree — the install-data
+      # teardown sweep and the storage layer both rely on it.
+      - storage_export_dir is match('^' ~ vm_assets_dir ~ '/')
+      - storage_class_name | length > 0
+      - storage_provisioner_name | length > 0
+    fail_msg: >-
+      Storage taxonomy inconsistent — storage_export_dir={{
+      storage_export_dir }} must live under vm_assets_dir={{
+      vm_assets_dir }}, and the class/provisioner names must be set.
+
+- name: Install the host NFS server package
+  # Same pattern as the network role's dnsmasq install: the storage
+  # layer owns its package so a --tags storage re-run works standalone.
+  ansible.builtin.package:
+    name: "{{ storage_nfs_package }}"
+    state: present
+
+- name: Ensure the NFS export directory
+  ansible.builtin.file:
+    path: "{{ storage_export_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Render the lab NFS exports drop-in
+  ansible.builtin.template:
+    src: nfs-exports.j2
+    dest: "{{ storage_exports_file }}"
+    mode: "0644"
+  notify: Re-read the NFS export table
+
+- name: Enable and start the host NFS server
+  ansible.builtin.service:
+    name: "{{ storage_nfs_service }}"
+    state: started
+    enabled: true
+
+- name: Apply the NFS provisioner manifest
+  # Multi-doc template: namespace, SA, RBAC, Deployment, StorageClass.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'nfs-provisioner.yaml.j2')
+                    | from_yaml_all | list }}"
+
+- name: Grant the hostmount SCCs to the provisioner service account
+  # OCP 5.x: uid 0 + an nfs volume requires hostmount-anyuid (and its
+  # -v2 sibling). Owned as declarative ClusterRoleBindings — the same
+  # grant `oc adm policy add-scc-to-user` makes, but convergent.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: "{{ storage_namespace }}-{{ item }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: "system:openshift:scc:{{ item }}"
+      subjects:
+        - kind: ServiceAccount
+          name: "{{ storage_provisioner_k8s_name }}"
+          namespace: "{{ storage_namespace }}"
+  loop: "{{ storage_scc_names }}"
+
+- name: Wait for the provisioner deployment
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ storage_namespace }}"
+    name: "{{ storage_provisioner_k8s_name }}"
+  register: storage_provisioner_state
+  until: >-
+    storage_provisioner_state.resources
+    | map(attribute='status.conditions')
+    | flatten
+    | selectattr('type', 'equalto', 'Available')
+    | map(attribute='status')
+    | join == 'True'
+  retries: "{{ storage_provisioner_retries }}"
+  delay: "{{ storage_provisioner_delay_seconds }}"
+  changed_when: false
+
+- name: Read the lab StorageClass
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: "{{ storage_class_name }}"
+  register: storage_class_state
+  changed_when: false
+
+- name: Assert the lab StorageClass is ours
+  ansible.builtin.assert:
+    that:
+      - storage_class_state.resources | length == 1
+      - storage_class_state.resources[0].provisioner == storage_provisioner_name
+    fail_msg: >-
+      StorageClass {{ storage_class_name }} missing or foreign
+      (provisioner: {{ storage_class_state.resources
+         | map(attribute='provisioner') | join(', ') | default('absent') }}).
+    success_msg: >-
+      StorageClass {{ storage_class_name }} present, provisioner
+      {{ storage_provisioner_name }}.

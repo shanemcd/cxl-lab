@@ -34,5 +34,14 @@ nodes:
 {% for line in verify_cluster_report.mcps %}  {{ line }}
 {% endfor %}cluster operators Available: {{ verify_cluster_report.operators_available }} / {{ verify_cluster_report.operators_total }}
 
+STORAGE + OBSERVABILITY ({{ storage_class_name }}, COO/Perses)
+StorageClass: {{ verify_storage_report.storage_class }}
+provisioner deployment ready replicas: {{ verify_storage_report.provisioner_ready }}
+Perses PVC: {{ verify_storage_report.perses_pvc }}
+COO CSV: {{ verify_storage_report.coo_csv }}
+UIPlugin {{ observability_uiplugin_name }} Available: {{ verify_storage_report.uiplugin_available }}
+Perses content CRs Available: {{ verify_storage_report.content_crs_available }}
+CXL rules: {{ verify_storage_report.cxl_rules }}
+
 ALL CHECKS PASSED — region committed on every CXL worker (test-only;
 cache coherency NOT verified).

@@ -1,0 +1,165 @@
+# The lab's CXL memory-tier recording rules — fills the tier "1" (cxl)
+# gap in the openshift:*:memory:* scheme used by the tiering dashboards.
+# Raw metrics come from the consumer-side memory-tier-exporter DaemonSet
+# (reads /sys/devices/system/node/*/meminfo and per-cgroup NUMA stats on
+# every node); without it these rules evaluate to empty series, which is
+# harmless.
+#
+# Label mapping into the tier/scope/utilized/temperature convention:
+#   kernel rank "0"   (CPU-attached DRAM) -> tier "0", temperature hot
+#   kernel rank != "0" (the CXL NUMA node) -> tier "1", temperature cold
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ observability_rule_name }}
+  namespace: {{ observability_namespace }}
+  labels:
+    # Namespace-label contract: cluster prometheus picks rules from any
+    # namespace carrying this label (the observability namespace gets it
+    # in-role).
+    openshift.io/cluster-monitoring: "true"
+spec:
+  groups:
+    - name: cxl.memory-tiers
+      rules:
+        # --- per-node, per-tier capacity ---
+        - record: openshift:node:memory:tier:capacity:bytes
+          labels:
+            tier: "0"
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memtotal_bytes{rank="0"})
+        - record: openshift:node:memory:tier:capacity:bytes
+          labels:
+            tier: "1"
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memtotal_bytes{rank!="0"})
+        # --- per-node, per-tier used / free ---
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "0"
+            scope: node
+            utilized: "true"
+            temperature: hot
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memused_bytes{rank="0"})
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "1"
+            scope: node
+            utilized: "true"
+            temperature: cold
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memused_bytes{rank!="0"})
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "0"
+            scope: node
+            utilized: "false"
+            temperature: hot
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memfree_bytes{rank="0"})
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "1"
+            scope: node
+            utilized: "false"
+            temperature: cold
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_memfree_bytes{rank!="0"})
+        # --- workload-attributed anonymous memory per tier ---
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "0"
+            scope: workloads
+            utilized: "true"
+            temperature: hot
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_workload_anon_bytes{rank="0"})
+        - record: openshift:node:memory:tier:bytes
+          labels:
+            tier: "1"
+            scope: workloads
+            utilized: "true"
+            temperature: cold
+            unit: bytes
+          expr: sum by (node) (node_memory_tier_workload_anon_bytes{rank!="0"})
+        # --- per-tier utilization ratio ---
+        - record: openshift:node:memory:tier:utilization:ratio
+          labels:
+            tier: "0"
+          expr: |
+            sum by (node) (node_memory_tier_memused_bytes{rank="0"})
+              / sum by (node) (node_memory_tier_memtotal_bytes{rank="0"})
+        - record: openshift:node:memory:tier:utilization:ratio
+          labels:
+            tier: "1"
+          expr: |
+            sum by (node) (node_memory_tier_memused_bytes{rank!="0"})
+              / sum by (node) (node_memory_tier_memtotal_bytes{rank!="0"})
+        # --- tiering traffic (kernel pgdemote/pgpromote counters are 4 KiB pages) ---
+        - record: openshift:node:memory:tier:demote:rate
+          labels:
+            unit: bytes/s
+          expr: 4096 * sum by (node) (rate(node_memory_tier_pgdemote_total[5m]))
+        - record: openshift:node:memory:tier:promote:rate
+          labels:
+            unit: bytes/s
+          expr: 4096 * sum by (node) (rate(node_memory_tier_pgpromote_total{mode="success"}[5m]))
+        # --- per-VM placement by tier ---
+        - record: openshift:vm:memory:tier:bytes
+          labels:
+            tier: "0"
+            unit: bytes
+          expr: |
+            sum by (vm) (
+              label_replace(
+                node_memory_tier_workload_anon_bytes{workload_kind="VirtualMachineInstance", rank="0"},
+                "vm", "$1", "workload", "(.*)"
+              )
+            )
+        - record: openshift:vm:memory:tier:bytes
+          labels:
+            tier: "1"
+            unit: bytes
+          expr: |
+            sum by (vm) (
+              label_replace(
+                node_memory_tier_workload_anon_bytes{workload_kind="VirtualMachineInstance", rank!="0"},
+                "vm", "$1", "workload", "(.*)"
+              )
+            )
+        # --- cluster aggregates ---
+        - record: openshift:cluster:memory:tier:bytes
+          labels:
+            tier: "0"
+            scope: node
+            utilized: "true"
+            unit: bytes
+          expr: sum (openshift:node:memory:tier:bytes{tier="0", scope="node", utilized="true"})
+        - record: openshift:cluster:memory:tier:bytes
+          labels:
+            tier: "1"
+            scope: node
+            utilized: "true"
+            unit: bytes
+          expr: sum (openshift:node:memory:tier:bytes{tier="1", scope="node", utilized="true"})
+        - record: openshift:cluster:memory:tier:bytes
+          labels:
+            tier: "0"
+            scope: workloads
+            utilized: "true"
+            unit: bytes
+          expr: sum (openshift:node:memory:tier:bytes{tier="0", scope="workloads", utilized="true"})
+        - record: openshift:cluster:memory:tier:bytes
+          labels:
+            tier: "1"
+            scope: workloads
+            utilized: "true"
+            unit: bytes
+          expr: sum (openshift:node:memory:tier:bytes{tier="1", scope="workloads", utilized="true"})
+        - record: openshift:cluster:memory:tier:utilization:ratio
+          labels:
+            tier: "1"
+          expr: |
+            sum (openshift:node:memory:tier:bytes{tier="1", scope="node", utilized="true"})
+              / sum (openshift:node:memory:tier:capacity:bytes{tier="1"})

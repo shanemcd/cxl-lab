@@ -1,0 +1,144 @@
+# Cluster side of the lab storage: the nfs-subdir-external-provisioner
+# and the {{ storage_class_name }} StorageClass. The host export (see
+# nfs-exports.j2) is the backend; this manifest only wires the dynamic
+# provisioning (Delete reclaim; one subdir per PVC under the export).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ storage_namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ storage_provisioner_k8s_name }}
+  namespace: {{ storage_namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ storage_provisioner_k8s_name }}-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csidrivers"]
+    verbs: ["get", "list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattributesclasses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-{{ storage_provisioner_k8s_name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ storage_provisioner_k8s_name }}
+    namespace: {{ storage_namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ storage_provisioner_k8s_name }}-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-{{ storage_provisioner_k8s_name }}
+  namespace: {{ storage_namespace }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-{{ storage_provisioner_k8s_name }}
+  namespace: {{ storage_namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ storage_provisioner_k8s_name }}
+    namespace: {{ storage_namespace }}
+roleRef:
+  kind: Role
+  name: leader-locking-{{ storage_provisioner_k8s_name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ storage_provisioner_k8s_name }}
+  namespace: {{ storage_namespace }}
+spec:
+  replicas: 1
+  # Recreate: a single provisioner leader holds the nfs mount; rolling
+  # updates would race two leaders.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ storage_provisioner_k8s_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ storage_provisioner_k8s_name }}
+    spec:
+      serviceAccount: {{ storage_provisioner_k8s_name }}
+      containers:
+        - name: {{ storage_provisioner_k8s_name }}
+          image: {{ storage_provisioner_image }}:{{ storage_provisioner_version }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            # uid 0 + nfs volume: requires the hostmount-anyuid SCCs
+            # (granted below). NO seccompProfile — those SCCs allow
+            # none, and an explicit RuntimeDefault is rejected.
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            # v4.x reads ALL configuration from env vars (CLI args make
+            # it print help and CrashLoop).
+            - name: PROVISIONER_NAME
+              value: {{ storage_provisioner_name }}
+            - name: NFS_SERVER
+              value: "{{ lab_gateway_ip }}"
+            - name: NFS_PATH
+              value: {{ storage_export_dir }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: {{ lab_gateway_ip }}
+            path: {{ storage_export_dir }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ storage_class_name }}
+provisioner: {{ storage_provisioner_name }}
+parameters:
+  # Delete drops the subdir with the PV (no archival copies of lab data).
+  archiveOnDelete: "false"
+  pathPattern: "${.PVC.namespace}-${.PVC.name}"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

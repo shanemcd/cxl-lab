@@ -1,7 +1,7 @@
 ---
 # teardown: reverse-layer rollback. Layers are TAGGED; a bare run
-# executes every layer in file order (reverse build order): mco →
-# vms → network → images → artifacts → install-data. Use --tags <layer>
+# executes every layer in file order (reverse build order): storage →
+# mco → vms → network → images → artifacts → install-data. Use --tags <layer>
 # for a single layer. Every task is idempotent — a second teardown run is
 # a no-op. Destructive command tasks are check-guarded, so --check
 # dry-runs the whole playbook. The QEMU host PREFIX is never removed
@@ -44,6 +44,52 @@
       {{ teardown_kubeconfig_stat.stat.exists
          and (ansible_check_mode or (teardown_api_probe.rc | default(1) == 0)) }}
   tags: always
+
+# --- Layer: storage ----------------------------------------------------------
+# Reverse build order: 10_storage is newer than the mco layer, so it
+# tears down first. Cluster objects go when the cluster answers (the
+# lab-storage namespace cascades the SA/RBAC/provisioner/StorageClass);
+# host side is the exports drop-in, the nfs-server service, and the
+# export tree itself.
+
+- name: Remove the lab storage namespace
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: Namespace
+    name: "{{ storage_namespace }}"
+  tags: storage
+
+- name: Remove the lab NFS exports drop-in
+  ansible.builtin.file:
+    path: "{{ storage_exports_file }}"
+    state: absent
+  tags: storage
+
+- name: Re-read the NFS export table
+  # Drops the lab's now-unconfigured export from the kernel table.
+  ansible.builtin.command:
+    argv:
+      - exportfs
+      - -ra
+  failed_when: false
+  changed_when: false
+  tags: storage
+
+- name: Stop and disable the host NFS server
+  ansible.builtin.service:
+    name: "{{ storage_nfs_service }}"
+    state: stopped
+    enabled: false
+  failed_when: false
+  tags: storage
+
+- name: Remove the NFS export directory
+  ansible.builtin.file:
+    path: "{{ storage_export_dir }}"
+    state: absent
+  tags: storage
 
 # --- Layer: mco --------------------------------------------------------------
 # Removing the install-time worker-cxl MachineConfigs lets the MCO roll the
@@ -369,8 +415,8 @@
 - name: Teardown summary
   ansible.builtin.debug:
     msg: >-
-      teardown complete for the requested tags — layers: mco,
-      vms, network, images, artifacts, install-data. The QEMU host prefix
+      teardown complete for the requested tags — layers: storage,
+      mco, vms, network, images, artifacts, install-data. The QEMU host prefix
       ({{ qemu_install_prefix }}) and the pulled third-party base images
       in the podman store remain (content-addressed caches, re-used on
       rebuild). For a rebuild, re-run the pipeline from 01 (ignition must

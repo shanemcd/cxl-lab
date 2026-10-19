@@ -1,0 +1,32 @@
+---
+# Lab storage (role: storage). The host-native kernel nfsd export + the
+# in-cluster nfs-subdir-external-provisioner provide the lab's single
+# StorageClass. Why NFS and not LVM Storage: the 5.1 nightly catalog (and
+# the published redhat-operator-index v5.0) no longer carry
+# lvm-storage-operator (verified live via subscription resolution against
+# both), and the remaining in-catalog options are Ceph-family (ODF, rook)
+# — far outside the lab host's RAM budget. A host nfsd is the same
+# pattern as the lab's other host services (dnsmasq, the install
+# registry): the lab host is the backing service, and teardown removes
+# the export wholesale with the cluster.
+
+# Export root on the host (under vm_assets_dir: dies with the assets
+# sweep; the storage teardown layer also removes it explicitly).
+storage_export_dir: "{{ vm_assets_dir }}/nfs"
+# Exports drop-in (teardown removes it; re-rendered on every run).
+storage_exports_file: "/etc/exports.d/cxl-lab.exports"
+# Host service + package (kernel nfsd).
+storage_nfs_service: "nfs-server"
+storage_nfs_package: "nfs-utils"
+# Export options: no_root_squash is required — the provisioner chowns
+# created subdirectories to the consuming pod's security context.
+storage_export_options: "rw,sync,no_subtree_check,no_root_squash"
+
+# Cluster-side namespace + object names.
+storage_namespace: "lab-storage"
+storage_provisioner_k8s_name: "nfs-subdir-external-provisioner"
+# Provisioner identity advertised to the StorageClass.
+storage_provisioner_name: "cluster.local/nfs-subdir-external-provisioner"
+# The single StorageClass the lab installs (RWO, dynamic, Delete reclaim;
+# PV subdirs land under storage_export_dir).
+storage_class_name: "lab-nfs"

@@ -39,6 +39,9 @@
 - name: Verify the cluster state
   ansible.builtin.include_tasks: cluster.yml
 
+- name: Verify the storage and observability state
+  ansible.builtin.include_tasks: storage-observability.yml
+
 - name: Write the evidence report
   ansible.builtin.include_tasks: evidence.yml
 

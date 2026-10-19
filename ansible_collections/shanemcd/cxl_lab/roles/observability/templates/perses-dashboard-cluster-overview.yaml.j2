@@ -1,0 +1,110 @@
+# Cluster-level overview dashboard (lab-owned, project
+# {{ observability_namespace }}): API health, cluster CPU, node memory,
+# top pods. 12x8 panel grid (half-width, one-third-height on the Perses
+# 24-column layout — the convention the COO's own dashboards use).
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: openshift-cluster-overview
+  namespace: {{ observability_namespace }}
+spec:
+  instanceSelector:
+    matchLabels:
+{% for key, value in observability_perses_instance_label.items() %}
+      {{ key }}: {{ value }}
+{% endfor %}
+  config:
+    display:
+      name: OpenShift Cluster Overview
+    duration: 1h
+    refreshInterval: 30s
+    panels:
+      api-up:
+        kind: Panel
+        spec:
+          display:
+            name: API Servers Up
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: up{job=~"apiserver|openshift-apiserver|kube-scheduler|kube-controller-manager"}
+      cluster-cpu:
+        kind: Panel
+        spec:
+          display:
+            name: Cluster CPU Usage (cores)
+          plugin:
+            kind: TimeSeriesChart
+            spec: {}
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (instance)
+      node-mem:
+        kind: Panel
+        spec:
+          display:
+            name: Node Memory Available
+          plugin:
+            kind: TimeSeriesChart
+            spec: {}
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: node_memory_MemAvailable_bytes
+      pod-mem:
+        kind: Panel
+        spec:
+          display:
+            name: Top Pods by Memory Working Set
+          plugin:
+            kind: TimeSeriesChart
+            spec: {}
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: topk(5, sum by (namespace,pod) (container_memory_working_set_bytes{namespace!=""}))
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/api-up"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/cluster-cpu"
+            - x: 0
+              "y": 8
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/node-mem"
+            - x: 12
+              "y": 8
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/pod-mem"

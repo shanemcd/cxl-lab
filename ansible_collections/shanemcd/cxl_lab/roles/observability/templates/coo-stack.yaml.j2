@@ -1,0 +1,25 @@
+# COO install stack. The Cluster Observability Operator supports
+# AllNamespaces install ONLY, so the operator namespace carries a
+# catch-all OperatorGroup (no spec = all namespaces).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ observability_operator_namespace }}
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: {{ observability_subscription_name }}
+  namespace: {{ observability_operator_namespace }}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ observability_subscription_name }}
+  namespace: {{ observability_operator_namespace }}
+spec:
+  channel: {{ observability_subscription_channel }}
+  name: {{ observability_subscription_name }}
+  source: {{ observability_catalog_source }}
+  sourceNamespace: {{ observability_catalog_namespace }}
+  installPlanApproval: Automatic

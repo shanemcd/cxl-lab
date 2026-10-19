@@ -26,6 +26,15 @@ After the pipeline runs you have, all idempotent and re-runnable:
   the CXL region committed (`region0/commit=1`) and `dax0.0` onlined as System
   RAM on the CPU-less guest NUMA node;
 - a 0600 deterministic evidence report in the install dir;
+- a dynamically-provisioned StorageClass (`lab-nfs`) — host kernel nfsd + the
+  in-cluster NFS subdir provisioner — so stateful add-ons (Perses, CDI,
+  VirtualMachines) have persistent volumes;
+- observability: the Cluster Observability Operator with the **Red Hat build of
+  Perses** (console Observe → Dashboards), persisting on `lab-nfs`, wired to
+  the built-in Thanos Querier with per-user RBAC, plus CXL memory-tier
+  recording rules (`openshift:node:memory:tier:*` — the tier 1/cxl slot of the
+  openshift memory-tier vocabulary) and two lab dashboards (cluster overview,
+  infra-cxl-glance);
 - operational helpers (status, single-worker cold restart) and a per-layer
   tagged teardown.
 
@@ -117,7 +126,7 @@ without installation. Always run from the repo root.
 
 | Playbook | Invocation | What it does |
 |---|---|---|
-| `site` | `shanemcd.cxl_lab.site` | Runs the numbered stages in order, 01→09, then verify (see `site.yml`). The stages overlap by design: the master installs and converges while the layered image builds. |
+| `site` | `shanemcd.cxl_lab.site` | Runs the numbered stages in order, 01→11, then verify (see `site.yml`). The stages overlap by design: the master installs and converges while the layered image builds. |
 | `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity; RHSM check (RHEL-gated); ensures packages incl. dnsmasq. |
 | `02_artifacts` | `shanemcd.cxl_lab.02_artifacts` | Downloads + SHA-verifies installer/oc/RHCOS live ISO and the kernel SRPM (entitled CDN route); launches the stock QEMU build into `/opt/qemu-<version>` (exists-guard: never rebuilt, never torn down) fire-and-forget — the master stage collects it. |
 | `03_network` | `shanemcd.cxl_lab.03_network` | Persistent bridge + gateway address, `ip_forward` sysctl drop-in, host `/etc/hosts` block, one tagged MASQUERADE rule, host-native dnsmasq (DNS + DHCP reservations), egress probe (veth+netns → TCP to quay.io). |
@@ -127,6 +136,8 @@ without installation. Always run from the repo root.
 | `07_workers` | `shanemcd.cxl_lab.07_workers` | Worker qcow2 overlays over the pre-baked BIB disk; one fleet-parallel start command; kernel-boot evidence in the serial logs; holds until the installed master's Machine Config Server answers (the workers ride ignition's own retry loop against it from their first boot). |
 | `08_install` | `shanemcd.cxl_lab.08_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
 | `09_region_commit` | `shanemcd.cxl_lab.09_region_commit` | Labels the CXL workers into the install-time worker-cxl pool; verifies the outcome — layered image + cxltest kernel booted, region-commit service active, region committed (the service itself ships via the workers' first-boot ignition). |
+| `10_storage` | `shanemcd.cxl_lab.10_storage` | The lab StorageClass (`lab-nfs`): host kernel nfsd exports the assets tree to the lab subnet; the in-cluster `nfs-subdir-external-provisioner` (with the OCP 5.x hostmount SCC grants it needs) dynamically provisions per-PVC subdirectories. LVM Storage is absent from the reachable catalogs and the in-catalog alternatives are Ceph-family — outside the lab host's RAM budget. |
+| `11_observability` | `shanemcd.cxl_lab.11_observability` | Cluster Observability Operator (Red Hat build of Perses) from `redhat-operators`; monitoring UIPlugin (console Observe → Dashboards); Perses persisting on the `lab-nfs` StorageClass; Thanos Querier datasource (per-user RBAC via the console plugin, TLS-anchored on the service CA); CXL memory-tier recording rules (`openshift:node:memory:tier:*`) + the cluster-overview and infra-cxl-glance dashboards. |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
 | `ops.status` | `shanemcd.cxl_lab.ops.status` | Read-only summary: nodes, clusterversion, VM `--status`, network/resolver, region commit, layered image. |
@@ -137,7 +148,7 @@ reports `changed=0`. Mid-install re-runs resume cleanly.
 
 ## Teardown
 
-`teardown` removes layers in reverse build order — `mco` → `vms` →
+`teardown` removes layers in reverse build order — `storage` → `mco` → `vms` →
 `network` → `images` → `artifacts` → `install-data` (secrets last), tagged per
 layer:
 
@@ -153,6 +164,11 @@ ansible-playbook shanemcd.cxl_lab.teardown --check         # dry run (safe:
 - The vms layer shuts guests down **fleet-parallel** (one poweroff command, one
   fleet poller, `--stop` fallback); the QEMU host prefix is never removed, so a
   same-version rebuild skips the QEMU build entirely.
+- The storage layer removes the `lab-storage` namespace (provisioner,
+  StorageClass) when the cluster answers, then the host side: exports drop-in,
+  nfs-server service, export tree. Cluster-side COO/Perses objects live and die
+  with the VMs (no host state), so observability has no teardown layer of its
+  own.
 - Removing the `mco` layer lets the MCO roll CXL workers back to the release
   base image (not waited on); a network-only teardown with running VMs requires
   restarting them (taps re-enslave at VM start); a rebuild after the `vms` layer
@@ -188,6 +204,8 @@ address space reserved for DHCP.
 | `inventory/group_vars/all/versions.yml` | OpenShift version + feature set, installer/oc/RHCOS-ISO URLs **with pinned SHA-256s**, kernel NVR + per-source SHA pins, QEMU version/prefix + source SHA, `machine_os_content_ref`, layered image refs. |
 | `inventory/group_vars/all/paths.yml` | Install dir (secrets, stamps), VM assets dir and its subdirs (images/ignition/logs/scripts/run), verification dir, per-master boot-ISO name. |
 | `inventory/group_vars/all/host.yml` | RHSM knobs + host package list. |
+| `inventory/group_vars/all/storage.yml` | NFS export dir/options, exports drop-in path, nfs-server service + package names, provisioner namespace/k8s names, StorageClass name. |
+| `inventory/group_vars/all/observability.yml` | COO namespace/subscription/channel/catalog, UIPlugin name, Perses name + storage class/size, instance selector label, content namespace, datasource name + Thanos Querier URL, rule name. |
 | `inventory/hosts.yml` | Lab host connection (local by default). |
 
 ## Development model
@@ -259,3 +277,24 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
 - The region commit's real failure mode is a stale `MEM_ENABLE` bit across warm
   reboots; the region-commit service clears it via setpci + rebinds `cxl_pci`,
   and a drain → poweroff → cold-start fallback remains encoded.
+- **LVM Storage is absent from the catalogs this lab reaches** (checked by
+  subscription resolution against both the nightly's `redhat-operators` and
+  the published `redhat-operator-index` v5.0); the in-catalog alternatives
+  are Ceph-family, outside the lab host's RAM budget. The lab therefore runs
+  a host-native nfsd + `nfs-subdir-external-provisioner` — same host-service
+  pattern as dnsmasq and the install registry.
+- **NFS provisioner SCCs (OCP 5.x)**: uid 0 + an `nfs` volume requires
+  `hostmount-anyuid` (and its `-v2` sibling), whose seccomp lists are empty —
+  the container must NOT set `seccompProfile` or admission rejects it. The
+  grants are owned declaratively as ClusterRoleBindings.
+- **Perses storage is patch-managed**: the COO owns the `Perses` CR, so the lab
+  JSON-patch-adds `spec.storage.pvcTemplate` (a merge patch leaves the COO's
+  default `emptyDir` beside it and the CRD rejects the pair as mutually
+  exclusive). Switching storage later wipes the database — the operator only
+  re-reconciles `PersesDashboard`/`PersesDatasource` CRs on CR events, so
+  re-apply (or annotate) them after a storage flip to repopulate.
+- **The CXL memory-tier rules need the consumer-side exporter**: they map
+  `node_memory_tier_*` from the memory-tier-exporter DaemonSet (part of the
+  memory-tiering work that consumes this lab, not this repo) onto the
+  `openshift:*:memory:tier:*` vocabulary; without it they evaluate to empty
+  series, harmlessly.

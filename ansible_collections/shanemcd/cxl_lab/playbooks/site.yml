@@ -26,5 +26,9 @@
   import_playbook: 08_install.yml
 - name: MCO and region commit stage
   import_playbook: 09_region_commit.yml
+- name: Lab storage stage
+  import_playbook: 10_storage.yml
+- name: Observability stage
+  import_playbook: 11_observability.yml
 - name: Verification stage
   import_playbook: verify.yml

@@ -1,0 +1,11 @@
+# The console plugin CR: lights up Observe -> Dashboards with the COO's
+# Red Hat build of Perses.
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: {{ observability_uiplugin_name }}
+spec:
+  type: Monitoring
+  monitoring:
+    perses:
+      enabled: true

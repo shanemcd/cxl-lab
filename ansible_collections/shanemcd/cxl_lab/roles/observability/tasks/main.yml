@@ -1,0 +1,223 @@
+---
+# observability: COO (Red Hat build of Perses) + the lab's CXL tier
+# rules and dashboards. All cluster access goes through the install
+# kubeconfig; every apply is idempotent (k8s module diffs), every wait
+# is bounded, and a converged re-run reports changed=0.
+#
+# Order matters: COO subscription → CSV Succeeded → UIPlugin (the COO
+# creates the Perses CR on its first reconcile) → storage patch (emptyDir
+# → PVC on the lab StorageClass) → content CRs into Perses.
+
+- name: Assert the observability taxonomy consistency
+  ansible.builtin.assert:
+    that:
+      # The Perses instance label must match what the COO stamps on the
+      # Perses CR it creates — the datasource/dashboard CRs select the
+      # instance with it.
+      - observability_perses_instance_label | length > 0
+      - observability_perses_storage_class | length > 0
+      - observability_namespace != observability_operator_namespace
+    fail_msg: >-
+      Observability taxonomy inconsistent — need a perses instance
+      label, a storage class, and distinct content/operator namespaces.
+
+- name: Wait for the cluster API
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - "--kubeconfig"
+      - "{{ kubeconfig_path }}"
+      - "get"
+      - "--raw"
+      - "/readyz"
+  register: observability_api_ready
+  until: observability_api_ready.rc == 0 and observability_api_ready.stdout == 'ok'
+  retries: "{{ observability_api_ready_retries }}"
+  delay: "{{ observability_api_ready_delay_seconds }}"
+  changed_when: false
+
+- name: Apply the COO install stack
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'coo-stack.yaml.j2')
+                    | from_yaml_all | list }}"
+
+- name: Wait for the COO CSV
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ observability_operator_namespace }}"
+    label_selectors:
+      - "operators.coreos.com/{{ observability_subscription_name }}.{{ observability_operator_namespace }}="
+  register: observability_csv
+  until: >-
+    observability_csv.resources
+    | map(attribute='status.phase')
+    | join == 'Succeeded'
+  retries: "{{ observability_csv_retries }}"
+  delay: "{{ observability_csv_delay_seconds }}"
+  changed_when: false
+
+- name: Apply the monitoring UIPlugin
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'uiplugin.yaml.j2') | from_yaml }}"
+
+- name: Wait for the UIPlugin to become available
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: observability.openshift.io/v1alpha1
+    kind: UIPlugin
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_uiplugin_name }}"
+  register: observability_uiplugin
+  until: >-
+    observability_uiplugin.resources
+    | map(attribute='status.conditions')
+    | flatten
+    | selectattr('type', 'equalto', 'Available')
+    | map(attribute='status')
+    | join == 'True'
+  retries: "{{ observability_uiplugin_retries }}"
+  delay: "{{ observability_uiplugin_delay_seconds }}"
+  changed_when: false
+
+- name: Wait for the COO to create the Perses CR
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: perses.dev/v1alpha2
+    kind: Perses
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_perses_name }}"
+  register: observability_perses_cr
+  until: observability_perses_cr.resources | length == 1
+  retries: "{{ observability_perses_retries }}"
+  delay: "{{ observability_perses_delay_seconds }}"
+  changed_when: false
+
+- name: Point Perses storage at the lab StorageClass
+  # JSON-patch "add" replaces the existing map wholesale. A merge patch
+  # would leave the COO's default emptyDir next to pvcTemplate, which the
+  # CRD rejects as mutually exclusive. k8s_json_patch diffs server-side,
+  # so a converged re-run is unchanged.
+  kubernetes.core.k8s_json_patch:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: perses.dev/v1alpha2
+    kind: Perses
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_perses_name }}"
+    patch:
+      - op: add
+        path: /spec/storage
+        value:
+          pvcTemplate:
+            accessModes:
+              - ReadWriteOnce
+            storageClassName: "{{ observability_perses_storage_class }}"
+            resources:
+              requests:
+                storage: "{{ observability_perses_storage_size }}"
+
+- name: Wait for the Perses StatefulSet
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: apps/v1
+    kind: StatefulSet
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_perses_name }}"
+  register: observability_perses_sts
+  until: >-
+    observability_perses_sts.resources
+    | map(attribute='status.readyReplicas')
+    | map('default', 0)
+    | map('int')
+    | join | int >= 1
+  retries: "{{ observability_perses_retries }}"
+  delay: "{{ observability_perses_delay_seconds }}"
+  changed_when: false
+
+- name: Read the Perses PVC state
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: "{{ observability_operator_namespace }}"
+    name: "{{ observability_perses_pvc_name }}"
+  register: observability_perses_pvc
+  changed_when: false
+
+- name: Assert the Perses PVC is bound on the lab StorageClass
+  ansible.builtin.assert:
+    that:
+      - observability_perses_pvc.resources | length == 1
+      - observability_perses_pvc.resources[0].status.phase == 'Bound'
+      - >-
+        observability_perses_pvc.resources[0].spec.storageClassName
+        == observability_perses_storage_class
+    fail_msg: >-
+      Perses PVC {{ observability_perses_pvc_name }} not bound on
+      {{ observability_perses_storage_class }} (phase: {{
+      observability_perses_pvc.resources
+      | map(attribute='status.phase') | join(', ') | default('absent') }}).
+    success_msg: >-
+      Perses PVC {{ observability_perses_pvc_name }} bound on
+      {{ observability_perses_storage_class }}.
+
+- name: Create the observability content namespace
+  # The cluster-monitoring label opts the namespace's PrometheusRules
+  # into the cluster prometheus' rule selector.
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ observability_namespace }}"
+        labels:
+          openshift.io/cluster-monitoring: "true"
+
+- name: Apply the Perses content
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ item }}"
+  loop:
+    - "{{ lookup('template', 'perses-datasource.yaml.j2') | from_yaml }}"
+    - "{{ lookup('template', 'perses-dashboard-cluster-overview.yaml.j2') | from_yaml }}"
+    - "{{ lookup('template', 'perses-dashboard-infra-cxl-glance.yaml.j2') | from_yaml }}"
+
+- name: Apply the CXL memory-tier recording rules
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'cxl-memory-tiers.yaml.j2') | from_yaml }}"
+
+- name: Wait for the Perses content CRs
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    api_version: perses.dev/v1alpha2
+    kind: "{{ item.kind }}"
+    namespace: "{{ observability_namespace }}"
+    name: "{{ item.name }}"
+  register: observability_content_cr
+  until: >-
+    observability_content_cr.resources
+    | map(attribute='status.conditions')
+    | flatten
+    | selectattr('type', 'equalto', 'Available')
+    | map(attribute='status')
+    | join == 'True'
+  retries: "{{ observability_cr_retries }}"
+  delay: "{{ observability_cr_delay_seconds }}"
+  changed_when: false
+  loop:
+    - kind: PersesDatasource
+      name: "{{ observability_datasource_name }}"
+    - kind: PersesDashboard
+      name: openshift-cluster-overview
+    - kind: PersesDashboard
+      name: infra-cxl-glance

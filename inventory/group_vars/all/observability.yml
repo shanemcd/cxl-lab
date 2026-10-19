@@ -1,0 +1,50 @@
+---
+# Observability (role: observability): the Cluster Observability Operator
+# (COO) from the redhat-operators catalog, its Red Hat build of Perses,
+# and the lab's CXL memory-tier recording rules + dashboards. The COO's
+# console plugin lights up Observe -> Dashboards; dashboards query the
+# built-in Thanos Querier with the logged-in user's token (RBAC-filtered
+# series — no cluster-credentials in the Perses database).
+
+# COO subscription knobs. The COO only supports AllNamespaces install,
+# so the operator namespace carries a catch-all OperatorGroup.
+observability_operator_namespace: "openshift-observability-operator"
+observability_subscription_name: "cluster-observability-operator"
+observability_subscription_channel: "stable"
+observability_catalog_source: "redhat-operators"
+observability_catalog_namespace: "openshift-marketplace"
+
+# UIPlugin name is fixed by the COO API (spec.type Monitoring + the
+# perses block enables the dashboard UI).
+observability_uiplugin_name: "monitoring"
+
+# The Perses instance the COO creates for the UIPlugin. The lab does NOT
+# own the whole object — it pins only spec.storage, moving the dashboard
+# database from the default emptyDir onto the lab StorageClass so
+# dashboards survive pod restarts (JSON-patch add: the CRD rejects merge
+# patches that leave both storage shapes present).
+observability_perses_name: "perses"
+observability_perses_storage_class: "{{ storage_class_name }}"
+observability_perses_storage_size: "2Gi"
+
+# Label binding PersesDatasource/PersesDashboard CRs to the COO-managed
+# Perses instance (perses-operator instanceSelector contract; matches the
+# label the COO puts on its Perses CR).
+observability_perses_instance_label:
+  app.kubernetes.io/instance: "perses-observability-operator"
+
+# Lab observability project: the lab's datasources, recording rules, and
+# dashboards. Consumer-side content (e.g. the memory-tiering demo's
+# kubevirt dashboards) lives elsewhere by design.
+observability_namespace: "perses-dev"
+# Datasource for the built-in Thanos Querier (cluster metrics). The
+# operator materializes a Perses-side TLS secret named
+# <datasource>-secret; the service CA comes from the configmap the COO
+# mounts at /ca.
+observability_datasource_name: "thanos-querier"
+observability_thanos_querier_url: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
+# The lab's CXL memory-tier recording rules (fills the tier "1" gap in
+# the openshift:*:memory:* scheme; raw metrics come from the
+# consumer-side memory-tier-exporter DaemonSet — the rules evaluate to
+# empty series without it, which is harmless).
+observability_rule_name: "cxl-memory-tiers"

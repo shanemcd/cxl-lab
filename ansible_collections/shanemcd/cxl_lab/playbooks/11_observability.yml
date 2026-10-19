@@ -1,0 +1,12 @@
+---
+- name: Observability (COO with Perses, CXL memory-tier rules)
+  hosts: all
+  become: true
+  gather_facts: false
+  # Cluster Observability Operator from the redhat-operators catalog,
+  # the monitoring UIPlugin (console Observe -> Dashboards, backed by
+  # the Red Hat build of Perses), the lab's Thanos Querier datasource,
+  # the CXL memory-tier recording rules, and the lab's dashboards.
+  # Perses persists on the lab StorageClass from 10_storage.
+  roles:
+    - role: shanemcd.cxl_lab.observability

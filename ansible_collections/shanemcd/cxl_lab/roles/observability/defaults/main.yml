@@ -1,0 +1,35 @@
+---
+# observability: COO install + Perses wiring + the lab's CXL tier rules
+# and dashboards. Waits are the only long part — a cold COO install
+# pulls ~5 images and takes a few minutes; a converged re-run is fast.
+#
+# Perses storage note: the lab does not own the COO-created Perses CR —
+# it JSON-patch-adds spec.storage.pvcTemplate (a merge patch that leaves
+# both the default emptyDir and the template present is rejected by the
+# CRD as mutually exclusive). Switching storage later wipes the database:
+# PersesDashboards/PersesDatasources are reconciled on CR events only, so
+# re-annotate them (or restart perses-operator) to repopulate.
+
+# API warm-up wait (same discipline as cluster_install).
+observability_api_ready_retries: 30
+observability_api_ready_delay_seconds: 5
+
+# COO CSV: install → Running → Succeeded (image pulls dominate cold time).
+observability_csv_retries: 60
+observability_csv_delay_seconds: 10
+
+# UIPlugin reconcile → Perses CR + console plugin deployment.
+observability_uiplugin_retries: 40
+observability_uiplugin_delay_seconds: 10
+
+# Perses StatefulSet rollout after the storage patch (PVC bind + pod).
+observability_perses_retries: 40
+observability_perses_delay_seconds: 10
+
+# Per-CR reconcile waits (datasource + dashboards → Available).
+observability_cr_retries: 30
+observability_cr_delay_seconds: 5
+
+# The COO names the StatefulSet's volumeClaimTemplate "storage"; the PVC
+# the wait asserts follows from it.
+observability_perses_pvc_name: "storage-{{ observability_perses_name }}-0"
