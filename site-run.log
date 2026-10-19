@@ -712,7 +712,7 @@ ok: [lab-server]
 TASK [shanemcd.cxl_lab.network : Set host nameservers fact] ********************
 ok: [lab-server]
 
-TASK [shanemcd.cxl_lab.network : Set upstream candidates fact (resolv.conf minus loopbacks and the lab subnet)] ***
+TASK [shanemcd.cxl_lab.network : Set upstream candidates fact (resolv.conf minus loopbacks, the lab subnet, and blocklisted split-horizon resolvers)] ***
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Set local resolver stub fact] *****************
@@ -740,7 +740,7 @@ TASK [shanemcd.cxl_lab.network : Render lab resolver config (dnsmasq on the brid
 changed: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Enable and start the lab resolver] ************
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Apply resolver config changes before verification] ***
 
@@ -748,7 +748,7 @@ RUNNING HANDLER [shanemcd.cxl_lab.network : Restart lab resolver] **************
 changed: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Render lab egress probe script] ***************
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Run lab egress probe (veth + netns emulating a VM tap)] ***
 ok: [lab-server]
@@ -781,52 +781,103 @@ TASK [shanemcd.cxl_lab.network : Resolve an internet record via the lab resolver
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Assert lab network state] *********************
-[ERROR]: Task failed: Action failed: Lab network verification failed — bridge 150: ocpcxlbr0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default qlen 1000\    link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff, addresses [{"ifindex":150,"ifname":"ocpcxlbr0","flags":["NO-CARRIER","BROADCAST","MULTICAST","UP"],"mtu":1500,"qdisc":"noqueue","operstate":"DOWN","group":"default","txqlen":1000,"addr_info":[{"family":"inet","local":"192.168.124.1","prefixlen":24,"scope":"global","label":"ocpcxlbr0","valid_life_time":4294967295,"preferred_life_time":4294967295}]}], ip_forward 1, FORWARD policy -P FORWARD ACCEPT
--A FORWARD -m comment --comment "kube-router netpol - TEMCG2JMHZYE7H7T" -j KUBE-ROUTER-FORWARD
--A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes load balancer firewall" -j KUBE-PROXY-FIREWALL
--A FORWARD -m comment --comment "kubernetes forwarding rules" -j KUBE-FORWARD
--A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
--A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes externally-visible service portals" -j KUBE-EXTERNAL-SERVICES
--A FORWARD -m comment --comment "KUBE-ROUTER rule to explicitly ACCEPT traffic that comply to network policies" -m mark --mark 0x20000/0x20000 -j ACCEPT
--A FORWARD -j ts-forward
--A FORWARD -m comment --comment "flanneld forward" -j FLANNEL-FWD, masquerade rc 0, egress EGRESS_OK (probe 192.168.124.250 -> quay.io:443), hosts content # Loopback entries; do not change.
-# For historical reasons, localhost precedes localhost.localdomain:
-127.0.0.1        localhost localhost.localdomain localhost4 localhost4.localdomain4
-::1              localhost localhost.localdomain localhost6 localhost6.localdomain6
-# See hosts(5) for proper format and other examples:
-# 192.168.1.10     foo.example.org foo
-# 192.168.1.13     bar.example.org bar
-
-# Added by CRC
-127.0.0.1        api.crc.testing canary-openshift-ingress-canary.apps-crc.testing console-openshift-console.apps-crc.testing default-route-openshift-image-registry.apps-crc.testing downloads-openshift-console.apps-crc.testing host.crc.testing oauth-openshift.apps-crc.testing
-# End of CRC section
-192.168.122.50   api.sno.home.arpa api-int.sno.home.arpa console-openshift-console.apps.sno.home.arpa oauth-openshift.apps.sno.home.arpa
-192.168.122.51   api.sno-2.home.arpa api-int.sno-2.home.arpa
-192.168.122.52   api.sno-3.home.arpa api-int.sno-3.home.arpa
-192.168.122.51   console-openshift-console.apps.sno-2.home.arpa
-192.168.122.51   oauth-openshift.apps.sno-2.home.arpa
-192.168.122.52   console-openshift-console.apps.sno-3.home.arpa
-192.168.122.52   oauth-openshift.apps.sno-3.home.arpa
-# BEGIN cxl-lab
-192.168.124.11 api.cxl.ocp.lab api-int.cxl.ocp.lab
-192.168.124.11 console-openshift-console.apps.cxl.ocp.lab oauth-openshift.apps.cxl.ocp.lab
-192.168.124.11 canary-openshift-ingress-canary.apps.cxl.ocp.lab
-# END cxl-lab
-, resolver service active, cluster lookup 192.168.124.11, forwarded lookup .
-Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/network/tasks/main.yml:324:3
-
-322   changed_when: false
-323
-324 - name: Assert lab network state
-      ^ column 3
-
-fatal: [lab-server]: FAILED! => {
-    "assertion": "network_verify_dns_forward.stdout | trim | length > 0",
+ok: [lab-server] => {
     "changed": false,
-    "evaluated_to": false,
-    "msg": "Lab network verification failed — bridge 150: ocpcxlbr0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default qlen 1000\\    link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff, addresses [{\"ifindex\":150,\"ifname\":\"ocpcxlbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.124.1\",\"prefixlen\":24,\"scope\":\"global\",\"label\":\"ocpcxlbr0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}], ip_forward 1, FORWARD policy -P FORWARD ACCEPT\n-A FORWARD -m comment --comment \"kube-router netpol - TEMCG2JMHZYE7H7T\" -j KUBE-ROUTER-FORWARD\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes load balancer firewall\" -j KUBE-PROXY-FIREWALL\n-A FORWARD -m comment --comment \"kubernetes forwarding rules\" -j KUBE-FORWARD\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes service portals\" -j KUBE-SERVICES\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes externally-visible service portals\" -j KUBE-EXTERNAL-SERVICES\n-A FORWARD -m comment --comment \"KUBE-ROUTER rule to explicitly ACCEPT traffic that comply to network policies\" -m mark --mark 0x20000/0x20000 -j ACCEPT\n-A FORWARD -j ts-forward\n-A FORWARD -m comment --comment \"flanneld forward\" -j FLANNEL-FWD, masquerade rc 0, egress EGRESS_OK (probe 192.168.124.250 -> quay.io:443), hosts content # Loopback entries; do not change.\n# For historical reasons, localhost precedes localhost.localdomain:\n127.0.0.1        localhost localhost.localdomain localhost4 localhost4.localdomain4\n::1              localhost localhost.localdomain localhost6 localhost6.localdomain6\n# See hosts(5) for proper format and other examples:\n# 192.168.1.10     foo.example.org foo\n# 192.168.1.13     bar.example.org bar\n\n# Added by CRC\n127.0.0.1        api.crc.testing canary-openshift-ingress-canary.apps-crc.testing console-openshift-console.apps-crc.testing default-route-openshift-image-registry.apps-crc.testing downloads-openshift-console.apps-crc.testing host.crc.testing oauth-openshift.apps-crc.testing\n# End of CRC section\n192.168.122.50   api.sno.home.arpa api-int.sno.home.arpa console-openshift-console.apps.sno.home.arpa oauth-openshift.apps.sno.home.arpa\n192.168.122.51   api.sno-2.home.arpa api-int.sno-2.home.arpa\n192.168.122.52   api.sno-3.home.arpa api-int.sno-3.home.arpa\n192.168.122.51   console-openshift-console.apps.sno-2.home.arpa\n192.168.122.51   oauth-openshift.apps.sno-2.home.arpa\n192.168.122.52   console-openshift-console.apps.sno-3.home.arpa\n192.168.122.52   oauth-openshift.apps.sno-3.home.arpa\n# BEGIN cxl-lab\n192.168.124.11 api.cxl.ocp.lab api-int.cxl.ocp.lab\n192.168.124.11 console-openshift-console.apps.cxl.ocp.lab oauth-openshift.apps.cxl.ocp.lab\n192.168.124.11 canary-openshift-ingress-canary.apps.cxl.ocp.lab\n# END cxl-lab\n, resolver service active, cluster lookup 192.168.124.11, forwarded lookup ."
+    "msg": "All assertions passed"
 }
 
+TASK [shanemcd.cxl_lab.network : Lab network summary] **************************
+ok: [lab-server] => {
+    "msg": "Lab network OK — bridge ocpcxlbr0 up with gateway 192.168.124.1, ip_forward persisted, single reversible masquerade rule for 192.168.124.0/24 present, egress probe (tap emulation) passed, hosts block (3 entries) applied, lab resolver active on 192.168.124.1 (cluster + forwarded lookups verified; DHCP reservations for 3 nodes)."
+}
+
+PLAY [SNO install config, manifests, and ignition] *****************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stat the install pull secret] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert the install pull secret exists] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Validate install pull secret JSON without exposing contents] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert the install pull secret is valid JSON] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the install directory] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the install ssh key directory] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the VM ignition staging directory] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the VM scripts directory] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Generate the core user ssh keypair for the install config] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stat existing ignition artifacts] ******
+ok: [lab-server] => (item=metadata.json)
+ok: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign)
+ok: [lab-server] => (item=worker.ign)
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition generation state facts] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition age fact] *****************
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/tasks/main.yml:103:40
+
+101 - name: Set ignition age fact
+102   ansible.builtin.set_fact:
+103     install_config_ignition_age_hours: >-
+                                           ^ column 40
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert existing ignition is inside the fresh window] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Guard against partial or consumed install state] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Render the install config] *************
+[ERROR]: Task failed: The lookup plugin 'ansible.builtin.file' failed: Unable to access the file '/var/home/shanemcd/ocp-install-cxl/pull-secret-merged.json': File not found. Use -vvvvv to see paths searched.
+
+Task failed.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/tasks/main.yml:134:7
+
+132   block:
+133
+134     - name: Render the install config
+          ^ column 7
+
+<<< caused by >>>
+
+The lookup plugin 'ansible.builtin.file' failed: Unable to access the file '/var/home/shanemcd/ocp-install-cxl/pull-secret-merged.json': File not found. Use -vvvvv to see paths searched.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/templates/install-config.yaml.j2
+
+fatal: [lab-server]: FAILED! => {"censored": "the output has been hidden due to the fact that 'no_log: true' was specified for this result", "changed": false}
+
 PLAY RECAP *********************************************************************
-lab-server                 : ok=117  changed=7    unreachable=0    failed=1    skipped=44   rescued=0    ignored=0   
+lab-server                 : ok=133  changed=7    unreachable=0    failed=1    skipped=45   rescued=0    ignored=0   
 
