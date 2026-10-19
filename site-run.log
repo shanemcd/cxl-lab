@@ -1,0 +1,163 @@
+
+PLAY [Host preparation (assert and ensure)] ************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert RedHat OS family] ********************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Record SELinux status] **********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the generated node topology is sane] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Build the lab node list for the capacity assert] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Set the per-node RAM specs for the committed-RAM measure] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Measure guest RAM already committed by running lab VMs] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Compute guest resource requirements] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert memory capacity] *********************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Assert CPU capacity] ************************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure workspace directories] ***************
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl', 'mode': '0700'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl/verification', 'mode': '0700'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/artifacts', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/node-images', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/images', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/ignition', 'mode': '0700'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/logs', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/scripts', 'mode': '0755'})
+changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/run', 'mode': '0755'})
+
+TASK [shanemcd.cxl_lab.host_prep : Stat the base pull secret] ******************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the base pull secret exists] *********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat the CI pull secret] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the CI pull secret exists] ***********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Render the merged install pull secret] ******
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert nightly profiles have a CI secret configured] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read free space at vm_assets_dir] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Read current lab disk usage at vm_assets_dir] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Set disk budget GiB (free + existing lab usage)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert disk capacity at vm_assets_dir] ******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat required devices] **********************
+ok: [lab-server] => (item=/dev/kvm)
+ok: [lab-server] => (item=/dev/vhost-net)
+ok: [lab-server] => (item=/dev/net/tun)
+
+TASK [shanemcd.cxl_lab.host_prep : Assert required devices exist as character devices] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge link] ***********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge identity (present only on bridge devices)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert lab bridge name is free or already a bridge] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read host IPv4 addresses as JSON] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert lab subnet addresses only exist on the lab bridge] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read NTP synchronization state] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert NTP is synchronized] *****************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Check RHSM registration (assert-only; no credentials needed when registered)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure RHSM registration with activation key] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure RHSM registration with credentials] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure required host packages] **************
+[ERROR]: Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/host_prep/tasks/main.yml:319:3
+
+317   no_log: true
+318
+319 - name: Ensure required host packages
+      ^ column 3
+
+fatal: [lab-server]: FAILED! => {"changed": false, "msg": "Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0."}
+
+PLAY RECAP *********************************************************************
+lab-server                 : ok=29   changed=2    unreachable=0    failed=1    skipped=4    rescued=0    ignored=0   
+

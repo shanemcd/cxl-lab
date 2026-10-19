@@ -316,16 +316,54 @@
     - rhsm_username | default('') | length > 0
   no_log: true
 
-- name: Ensure required host packages
+- name: Detect rpm-ostree (atomic) host
+  ansible.builtin.stat:
+    path: /run/ostree-booted
+  register: host_prep_ostree_booted
+
+- name: Query which required host packages are already installed
+  ansible.builtin.command:
+    argv: "{{ ['rpm', '-q', '--qf', '%{NAME} %{ARCH}\\n'] + host_packages }}"
+  register: host_prep_pkg_query
+  changed_when: false
+  failed_when: false
+  when: host_packages | length > 0
+
+- name: Compute missing host packages
+  ansible.builtin.set_fact:
+    host_prep_missing_packages: >-
+      {{ host_prep_pkg_query.stdout_lines
+         | select('search', 'is not installed')
+         | map('regex_replace', '^package (.+) is not installed$', '\1')
+         | list }}
+  when: host_prep_pkg_query is not skipped
+
+- name: Ensure required host packages (dnf host)
   ansible.builtin.package:
     name: "{{ host_packages }}"
     state: present
-  when: host_packages | length > 0
+  when:
+    - not host_prep_ostree_booted.stat.exists
+    - host_packages | length > 0
+
+- name: Layer missing host packages (rpm-ostree host)
+  ansible.builtin.command:
+    argv: "{{ ['rpm-ostree', 'install', '--apply-live', '--idempotent']
+               + host_prep_missing_packages }}"
+  register: host_prep_ostree_install
+  changed_when:
+    - host_prep_ostree_install is not skipped
+    - "'No changes' not in host_prep_ostree_install.stdout"
+  when:
+    - host_prep_ostree_booted.stat.exists
+    - host_prep_missing_packages | default([]) | length > 0
+    - not ansible_check_mode
 
 - name: Ensure the kubernetes Python library for kubernetes.core modules
   ansible.builtin.pip:
     name: "{{ python_kubernetes_package }}"
     executable: pip3
+    extra_args: "--user"
 
 - name: Host preparation summary
   ansible.builtin.debug:
