@@ -112,7 +112,7 @@ TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge link] ***********************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge identity (present only on bridge devices)] ***
-skipping: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.host_prep : Assert lab bridge name is free or already a bridge] ***
 ok: [lab-server] => {
@@ -167,7 +167,7 @@ ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.host_prep : Host preparation summary] *******************
 ok: [lab-server] => {
-    "msg": "host prep OK — os=Fedora, selinux=enabled, mem=107G free vs 68G required, vcpu=32 vs 24 required, disk=1199G budget (free + lab usage) vs 270G required."
+    "msg": "host prep OK — os=Fedora, selinux=enabled, mem=107G free vs 68G required, vcpu=32 vs 24 required, disk=1195G budget (free + lab usage) vs 270G required."
 }
 
 PLAY [Lab artifacts (cxltest kernel RPMs, pinned downloads, host QEMU)] ********
@@ -202,13 +202,12 @@ TASK [shanemcd.cxl_lab.artifacts : Compute the nightly client tarballs absent fr
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Wait for the CI artifacts service to serve the nightly client tools] ***
-ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8760da09dae151061353cb4d8e65950f2700020dbb16577dd0598755cb0308d4'})
-ok: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8586fd11c8fe93f26d378b78997e68a499aeae9fc846668ecc48b50e422f9cc8'})
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Download pinned artifacts] ******************
-changed: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8760da09dae151061353cb4d8e65950f2700020dbb16577dd0598755cb0308d4'})
-changed: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8586fd11c8fe93f26d378b78997e68a499aeae9fc846668ecc48b50e422f9cc8'})
-changed: [lab-server] => (item={'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'})
+ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8760da09dae151061353cb4d8e65950f2700020dbb16577dd0598755cb0308d4'})
+ok: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8586fd11c8fe93f26d378b78997e68a499aeae9fc846668ecc48b50e422f9cc8'})
+ok: [lab-server] => (item={'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'})
 
 TASK [shanemcd.cxl_lab.artifacts : Stat downloaded artifacts] ******************
 ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '8760da09dae151061353cb4d8e65950f2700020dbb16577dd0598755cb0308d4'})
@@ -428,17 +427,18 @@ TASK [shanemcd.cxl_lab.artifacts : Stat client tools stamp] ********************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Read client tools stamp] ********************
-skipping: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Set client tools extraction need fact] ******
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Extract OpenShift client tools] *************
-changed: [lab-server] => (item=openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz)
-changed: [lab-server] => (item=openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz)
+skipping: [lab-server] => (item=openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server] => (item=openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Write client tools stamp] *******************
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Assert extracted installer matches the pinned version] ***
 ok: [lab-server]
@@ -492,57 +492,46 @@ TASK [shanemcd.cxl_lab.artifacts : Set the SRPM acquisition need fact] *********
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Discover the host RHSM entitlement key] *****
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Assert exactly one entitlement key exists] ***
-ok: [lab-server] => {
-    "changed": false,
-    "msg": "All assertions passed"
-}
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Set the entitlement certificate facts] ******
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Stat the RHSM CA file] **********************
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Assert the RHSM CA file exists] *************
-ok: [lab-server] => {
-    "changed": false,
-    "msg": "All assertions passed"
-}
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Set the RHSM CA fact] ***********************
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Set the CDN repo file path fact] ************
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Render the CDN source repo file] ************
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Render the CDN download script] *************
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Remove stale SRPM downloader container] *****
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Run the SRPM downloader container] **********
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Wait for the SRPM download to finish] *******
-FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.artifacts : Wait for the SRPM download to finish (39 retries left).
-FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.artifacts : Wait for the SRPM download to finish (38 retries left).
-ok: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Assert the SRPM download succeeded] *********
-ok: [lab-server] => {
-    "changed": false,
-    "msg": "All assertions passed"
-}
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Remove the SRPM downloader container] *******
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Stat the kernel SRPM after acquisition] *****
 ok: [lab-server]
@@ -578,7 +567,7 @@ ok: [lab-server] => {
 }
 
 TASK [shanemcd.cxl_lab.artifacts : Download RHCOS live ISO (declared checksum)] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.artifacts : Artifacts summary] **************************
 ok: [lab-server] => {
@@ -616,10 +605,10 @@ TASK [shanemcd.cxl_lab.qemu_builder : Remove a stale distro-QEMU stamp on the pi
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Ensure the QEMU build workspace] *********
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Stage the SHA-verified QEMU source tarball in the workspace] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Discover the host RHSM entitlement key] ***
 ok: [lab-server]
@@ -643,13 +632,13 @@ ok: [lab-server] => {
 }
 
 TASK [shanemcd.cxl_lab.qemu_builder : Render the entitled CDN repo file for the builder] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Render the QEMU build script] ************
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Remove stale QEMU builder container] *****
-ok: [lab-server]
+changed: [lab-server]
 
 TASK [shanemcd.cxl_lab.qemu_builder : Run the QEMU builder container] **********
 changed: [lab-server]
@@ -678,13 +667,13 @@ TASK [shanemcd.cxl_lab.network : Check lab bridge link] ************************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Create lab bridge] ****************************
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Read lab bridge admin state] ******************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Bring lab bridge up] **************************
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Read current lab bridge addresses] ************
 ok: [lab-server]
@@ -693,31 +682,151 @@ TASK [shanemcd.cxl_lab.network : Set existing lab bridge addresses fact] *******
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Add missing lab addresses to the bridge] ******
-changed: [lab-server] => (item=192.168.124.1/24)
+skipping: [lab-server] => (item=192.168.124.1/24) 
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Enable IPv4 forwarding (persistent drop-in; teardown removes it)] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Check lab masquerade rule] ********************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Add lab masquerade rule (single, reversible)] ***
-changed: [lab-server]
+skipping: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Add lab host-resolution block to /etc/hosts] ***
-changed: [lab-server]
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Check dnsmasq presence] ***********************
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Install dnsmasq (host-native lab resolver)] ***
-[ERROR]: Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0.
-Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/network/tasks/main.yml:114:3
+skipping: [lab-server]
 
-112     block: "{{ network_hosts_block | join('\n') }}"
-113
-114 - name: Install dnsmasq (host-native lab resolver)
+TASK [shanemcd.cxl_lab.network : Set pinned upstream resolvers] ****************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read the host resolver configuration] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set host nameservers fact] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set upstream candidates fact (resolv.conf minus loopbacks and the lab subnet)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set local resolver stub fact] *****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read systemd-resolved upstreams] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set detected upstream resolvers fact] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Fall back to systemd-resolved upstreams] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Fall back to the host's local resolver stub] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Assert upstream resolvers were determined] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.network : Render lab resolver config (dnsmasq on the bridge gateway)] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Enable and start the lab resolver] ************
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Apply resolver config changes before verification] ***
+
+RUNNING HANDLER [shanemcd.cxl_lab.network : Restart lab resolver] **************
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Render lab egress probe script] ***************
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Run lab egress probe (veth + netns emulating a VM tap)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read lab bridge state for verification] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read lab bridge addresses for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read IPv4 forwarding state for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read FORWARD chain policy for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Verify lab masquerade rule present] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read lab hosts block for verification] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read lab resolver service state for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Resolve a cluster record via the lab resolver] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Resolve an internet record via the lab resolver] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Assert lab network state] *********************
+[ERROR]: Task failed: Action failed: Lab network verification failed — bridge 150: ocpcxlbr0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default qlen 1000\    link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff, addresses [{"ifindex":150,"ifname":"ocpcxlbr0","flags":["NO-CARRIER","BROADCAST","MULTICAST","UP"],"mtu":1500,"qdisc":"noqueue","operstate":"DOWN","group":"default","txqlen":1000,"addr_info":[{"family":"inet","local":"192.168.124.1","prefixlen":24,"scope":"global","label":"ocpcxlbr0","valid_life_time":4294967295,"preferred_life_time":4294967295}]}], ip_forward 1, FORWARD policy -P FORWARD ACCEPT
+-A FORWARD -m comment --comment "kube-router netpol - TEMCG2JMHZYE7H7T" -j KUBE-ROUTER-FORWARD
+-A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes load balancer firewall" -j KUBE-PROXY-FIREWALL
+-A FORWARD -m comment --comment "kubernetes forwarding rules" -j KUBE-FORWARD
+-A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes externally-visible service portals" -j KUBE-EXTERNAL-SERVICES
+-A FORWARD -m comment --comment "KUBE-ROUTER rule to explicitly ACCEPT traffic that comply to network policies" -m mark --mark 0x20000/0x20000 -j ACCEPT
+-A FORWARD -j ts-forward
+-A FORWARD -m comment --comment "flanneld forward" -j FLANNEL-FWD, masquerade rc 0, egress EGRESS_OK (probe 192.168.124.250 -> quay.io:443), hosts content # Loopback entries; do not change.
+# For historical reasons, localhost precedes localhost.localdomain:
+127.0.0.1        localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1              localhost localhost.localdomain localhost6 localhost6.localdomain6
+# See hosts(5) for proper format and other examples:
+# 192.168.1.10     foo.example.org foo
+# 192.168.1.13     bar.example.org bar
+
+# Added by CRC
+127.0.0.1        api.crc.testing canary-openshift-ingress-canary.apps-crc.testing console-openshift-console.apps-crc.testing default-route-openshift-image-registry.apps-crc.testing downloads-openshift-console.apps-crc.testing host.crc.testing oauth-openshift.apps-crc.testing
+# End of CRC section
+192.168.122.50   api.sno.home.arpa api-int.sno.home.arpa console-openshift-console.apps.sno.home.arpa oauth-openshift.apps.sno.home.arpa
+192.168.122.51   api.sno-2.home.arpa api-int.sno-2.home.arpa
+192.168.122.52   api.sno-3.home.arpa api-int.sno-3.home.arpa
+192.168.122.51   console-openshift-console.apps.sno-2.home.arpa
+192.168.122.51   oauth-openshift.apps.sno-2.home.arpa
+192.168.122.52   console-openshift-console.apps.sno-3.home.arpa
+192.168.122.52   oauth-openshift.apps.sno-3.home.arpa
+# BEGIN cxl-lab
+192.168.124.11 api.cxl.ocp.lab api-int.cxl.ocp.lab
+192.168.124.11 console-openshift-console.apps.cxl.ocp.lab oauth-openshift.apps.cxl.ocp.lab
+192.168.124.11 canary-openshift-ingress-canary.apps.cxl.ocp.lab
+# END cxl-lab
+, resolver service active, cluster lookup 192.168.124.11, forwarded lookup .
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/network/tasks/main.yml:324:3
+
+322   changed_when: false
+323
+324 - name: Assert lab network state
       ^ column 3
 
-fatal: [lab-server]: FAILED! => {"changed": false, "msg": "Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0."}
+fatal: [lab-server]: FAILED! => {
+    "assertion": "network_verify_dns_forward.stdout | trim | length > 0",
+    "changed": false,
+    "evaluated_to": false,
+    "msg": "Lab network verification failed — bridge 150: ocpcxlbr0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default qlen 1000\\    link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff, addresses [{\"ifindex\":150,\"ifname\":\"ocpcxlbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.124.1\",\"prefixlen\":24,\"scope\":\"global\",\"label\":\"ocpcxlbr0\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}], ip_forward 1, FORWARD policy -P FORWARD ACCEPT\n-A FORWARD -m comment --comment \"kube-router netpol - TEMCG2JMHZYE7H7T\" -j KUBE-ROUTER-FORWARD\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes load balancer firewall\" -j KUBE-PROXY-FIREWALL\n-A FORWARD -m comment --comment \"kubernetes forwarding rules\" -j KUBE-FORWARD\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes service portals\" -j KUBE-SERVICES\n-A FORWARD -m conntrack --ctstate NEW -m comment --comment \"kubernetes externally-visible service portals\" -j KUBE-EXTERNAL-SERVICES\n-A FORWARD -m comment --comment \"KUBE-ROUTER rule to explicitly ACCEPT traffic that comply to network policies\" -m mark --mark 0x20000/0x20000 -j ACCEPT\n-A FORWARD -j ts-forward\n-A FORWARD -m comment --comment \"flanneld forward\" -j FLANNEL-FWD, masquerade rc 0, egress EGRESS_OK (probe 192.168.124.250 -> quay.io:443), hosts content # Loopback entries; do not change.\n# For historical reasons, localhost precedes localhost.localdomain:\n127.0.0.1        localhost localhost.localdomain localhost4 localhost4.localdomain4\n::1              localhost localhost.localdomain localhost6 localhost6.localdomain6\n# See hosts(5) for proper format and other examples:\n# 192.168.1.10     foo.example.org foo\n# 192.168.1.13     bar.example.org bar\n\n# Added by CRC\n127.0.0.1        api.crc.testing canary-openshift-ingress-canary.apps-crc.testing console-openshift-console.apps-crc.testing default-route-openshift-image-registry.apps-crc.testing downloads-openshift-console.apps-crc.testing host.crc.testing oauth-openshift.apps-crc.testing\n# End of CRC section\n192.168.122.50   api.sno.home.arpa api-int.sno.home.arpa console-openshift-console.apps.sno.home.arpa oauth-openshift.apps.sno.home.arpa\n192.168.122.51   api.sno-2.home.arpa api-int.sno-2.home.arpa\n192.168.122.52   api.sno-3.home.arpa api-int.sno-3.home.arpa\n192.168.122.51   console-openshift-console.apps.sno-2.home.arpa\n192.168.122.51   oauth-openshift.apps.sno-2.home.arpa\n192.168.122.52   console-openshift-console.apps.sno-3.home.arpa\n192.168.122.52   oauth-openshift.apps.sno-3.home.arpa\n# BEGIN cxl-lab\n192.168.124.11 api.cxl.ocp.lab api-int.cxl.ocp.lab\n192.168.124.11 console-openshift-console.apps.cxl.ocp.lab oauth-openshift.apps.cxl.ocp.lab\n192.168.124.11 canary-openshift-ingress-canary.apps.cxl.ocp.lab\n# END cxl-lab\n, resolver service active, cluster lookup 192.168.124.11, forwarded lookup ."
+}
 
 PLAY RECAP *********************************************************************
-lab-server                 : ok=113  changed=20   unreachable=0    failed=1    skipped=22   rescued=0    ignored=0   
+lab-server                 : ok=117  changed=7    unreachable=0    failed=1    skipped=44   rescued=0    ignored=0   
 

@@ -163,11 +163,12 @@
              | select('match', '^\s*nameserver\s+\S+') | list
              | map('regex_replace', '^\s*nameserver\s+', '') | map('trim') | list }}
 
-    - name: Set upstream candidates fact (resolv.conf minus loopbacks and the lab subnet)
+    - name: Set upstream candidates fact (resolv.conf minus loopbacks, the lab subnet, and blocklisted split-horizon resolvers)
       ansible.builtin.set_fact:
         network_dns_candidates: >-
           {{ network_dns_resolv_nameservers
              | reject('in', network_dns_loopback_addresses)
+             | reject('in', upstream_dns_blocklist | default([]))
              | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
              | unique | list }}
 
@@ -195,6 +196,7 @@
         network_upstream_dns: >-
           {{ (network_dns_resolved_raw.stdout | default(''))
              | regex_findall(network_dns_ipv4_pattern)
+             | reject('in', upstream_dns_blocklist | default([]))
              | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
              | unique | list }}
 
