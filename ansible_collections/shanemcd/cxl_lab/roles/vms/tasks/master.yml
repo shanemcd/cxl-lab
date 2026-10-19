@@ -114,10 +114,47 @@
       - "{{ masters[0].disk }}"
     creates: "{{ vm_images_dir }}/{{ masters[0].name }}.qcow2"
 
-- name: Install coreos-installer (master boot-media preparation)
+- name: Detect rpm-ostree (atomic) host
+  ansible.builtin.stat:
+    path: /run/ostree-booted
+  register: vms_master_ostree_booted
+
+- name: Check coreos-installer presence
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - coreos-installer
+  register: vms_master_coreos_query
+  changed_when: false
+  failed_when: false
+
+- name: Install coreos-installer (master boot-media preparation, dnf host)
   ansible.builtin.package:
     name: coreos-installer
     state: present
+  when:
+    - vms_master_coreos_query.rc != 0
+    - not vms_master_ostree_booted.stat.exists
+
+- name: Layer coreos-installer (rpm-ostree host)
+  # ansible.builtin.package cannot be used on atomic hosts — its atomic
+  # backend was removed from community.general 13.x.
+  ansible.builtin.command:
+    argv:
+      - rpm-ostree
+      - install
+      - --apply-live
+      - --idempotent
+      - coreos-installer
+  register: vms_master_coreos_layer
+  changed_when:
+    - vms_master_coreos_layer is not skipped
+    - "'No changes' not in vms_master_coreos_layer.stdout"
+  when:
+    - vms_master_coreos_query.rc != 0
+    - vms_master_ostree_booted.stat.exists
+    - not ansible_check_mode
 
 - name: Copy the live ISO as the master's boot medium
   # force=false: never overwrite a prepared copy (the kargs modification

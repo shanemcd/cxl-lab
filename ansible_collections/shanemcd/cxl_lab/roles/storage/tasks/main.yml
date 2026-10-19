@@ -26,12 +26,42 @@
       storage_export_dir }} must live under vm_assets_dir={{
       vm_assets_dir }}, and the class/provisioner names must be set.
 
-- name: Install the host NFS server package
-  # Same pattern as the network role's dnsmasq install: the storage
-  # layer owns its package so a --tags storage re-run works standalone.
+- name: Detect rpm-ostree (atomic) host
+  ansible.builtin.stat:
+    path: /run/ostree-booted
+  register: storage_ostree_booted
+
+- name: Check the host NFS server package presence
+  ansible.builtin.command:
+    argv: "{{ ['rpm', '-q'] + [storage_nfs_package] }}"
+  register: storage_nfs_query
+  changed_when: false
+  failed_when: false
+
+- name: Install the host NFS server package (dnf host)
+  # The storage layer owns its package so a --tags storage re-run works
+  # standalone.
   ansible.builtin.package:
     name: "{{ storage_nfs_package }}"
     state: present
+  when:
+    - storage_nfs_query.rc != 0
+    - not storage_ostree_booted.stat.exists
+
+- name: Layer the host NFS server package (rpm-ostree host)
+  # ansible.builtin.package cannot be used on atomic hosts — its atomic
+  # backend was removed from community.general 13.x.
+  ansible.builtin.command:
+    argv: "{{ ['rpm-ostree', 'install', '--apply-live', '--idempotent']
+               + [storage_nfs_package] }}"
+  register: storage_nfs_layer
+  changed_when:
+    - storage_nfs_layer is not skipped
+    - "'No changes' not in storage_nfs_layer.stdout"
+  when:
+    - storage_nfs_query.rc != 0
+    - storage_ostree_booted.stat.exists
+    - not ansible_check_mode
 
 - name: Ensure the NFS export directory
   ansible.builtin.file:

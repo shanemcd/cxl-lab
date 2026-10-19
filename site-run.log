@@ -737,15 +737,12 @@ ok: [lab-server] => {
 }
 
 TASK [shanemcd.cxl_lab.network : Render lab resolver config (dnsmasq on the bridge gateway)] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Enable and start the lab resolver] ************
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Apply resolver config changes before verification] ***
-
-RUNNING HANDLER [shanemcd.cxl_lab.network : Restart lab resolver] **************
-changed: [lab-server]
 
 TASK [shanemcd.cxl_lab.network : Render lab egress probe script] ***************
 ok: [lab-server]
@@ -818,7 +815,7 @@ TASK [shanemcd.cxl_lab.install_config : Ensure the install directory] **********
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.install_config : Ensure the install ssh key directory] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.install_config : Ensure the VM ignition staging directory] ***
 ok: [lab-server]
@@ -827,7 +824,7 @@ TASK [shanemcd.cxl_lab.install_config : Ensure the VM scripts directory] *******
 ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.install_config : Generate the core user ssh keypair for the install config] ***
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.install_config : Stat existing ignition artifacts] ******
 ok: [lab-server] => (item=metadata.json)
@@ -860,24 +857,513 @@ ok: [lab-server] => {
     "msg": "All assertions passed"
 }
 
+TASK [shanemcd.cxl_lab.install_config : Read the install pull secret (privileged; controller-side lookups cannot read root-owned 0600 files)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the install ssh public key (privileged; same reason)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set install secret facts for the template] ***
+ok: [lab-server]
+
 TASK [shanemcd.cxl_lab.install_config : Render the install config] *************
-[ERROR]: Task failed: The lookup plugin 'ansible.builtin.file' failed: Unable to access the file '/var/home/shanemcd/ocp-install-cxl/pull-secret-merged.json': File not found. Use -vvvvv to see paths searched.
+changed: [lab-server]
 
-Task failed.
-Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/tasks/main.yml:134:7
+TASK [shanemcd.cxl_lab.install_config : Keep the pristine install config copy] ***
+changed: [lab-server]
 
-132   block:
-133
-134     - name: Render the install config
-          ^ column 7
+TASK [shanemcd.cxl_lab.install_config : Create manifests] **********************
+changed: [lab-server]
 
-<<< caused by >>>
+TASK [shanemcd.cxl_lab.install_config : Set lab hosts-block base64 facts for the node MachineConfigs] ***
+ok: [lab-server]
 
-The lookup plugin 'ansible.builtin.file' failed: Unable to access the file '/var/home/shanemcd/ocp-install-cxl/pull-secret-merged.json': File not found. Use -vvvvv to see paths searched.
-Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/templates/install-config.yaml.j2
+TASK [shanemcd.cxl_lab.install_config : Set SNO master hostname base64 fact] ***
+ok: [lab-server]
 
-fatal: [lab-server]: FAILED! => {"censored": "the output has been hidden due to the fact that 'no_log: true' was specified for this result", "changed": false}
+TASK [shanemcd.cxl_lab.install_config : Ensure the custom manifests directory] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the master node MachineConfig] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the worker node MachineConfig] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the worker-cxl MachineConfigPool manifest] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the layered osImageURL MachineConfig manifest] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Create the single-node (bootstrap-in-place) ignition config] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition artifact permissions] *****
+changed: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign)
+changed: [lab-server] => (item=worker.ign)
+
+TASK [shanemcd.cxl_lab.install_config : Harden the auth directory permissions] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Harden auth file permissions] **********
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/auth/kubeconfig)
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/auth/kubeadmin-password)
+
+TASK [shanemcd.cxl_lab.install_config : Read the install metadata] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set install metadata fact] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stage the shared hosts snippet for per-node merges] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the per-node ignition merge script] ***
+changed: [lab-server]
+
+TASK [Render the region-commit ignition snippet] *******************************
+included: shanemcd.cxl_lab.region_commit for lab-server
+
+TASK [shanemcd.cxl_lab.region_commit : Assert every CXL worker carries the same vmem size] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.region_commit : Set the region commit script fact] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.region_commit : Write the region commit ignition snippet] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set the node list for per-node ignition assembly] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assemble per-node ignition configs] ****
+changed: [lab-server] => (item=cxl-master-0)
+changed: [lab-server] => (item=worker-cxl-0)
+changed: [lab-server] => (item=worker-dram-0)
+
+TASK [shanemcd.cxl_lab.install_config : Set per-node ignition permissions] *****
+changed: [lab-server] => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'kind': 'master', 'base': 'bootstrap-in-place-for-live-iso.ign'})
+changed: [lab-server] => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+changed: [lab-server] => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram', 'base': 'worker.ign'})
+
+TASK [shanemcd.cxl_lab.install_config : Stat the generated ignition artifacts] ***
+ok: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign)
+ok: [lab-server] => (item=worker.ign)
+
+TASK [shanemcd.cxl_lab.install_config : Stat the per-node ignition artifacts] ***
+ok: [lab-server] => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'kind': 'master', 'base': 'bootstrap-in-place-for-live-iso.ign'})
+ok: [lab-server] => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+ok: [lab-server] => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram', 'base': 'worker.ign'})
+
+TASK [shanemcd.cxl_lab.install_config : Read the BiP ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the worker stub ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the merged master ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the merged CXL worker ignition for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert ignition generation and content] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Stat generated credentials] ************
+ok: [lab-server] => (item=auth/kubeconfig)
+ok: [lab-server] => (item=auth/kubeadmin-password)
+ok: [lab-server] => (item=install-config.yaml.pristine)
+
+TASK [shanemcd.cxl_lab.install_config : Assert credentials exist with mode 0600] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Stat the current BiP ignition for the generation stamp] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Write the ignition generation stamp] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Install config summary] ****************
+ok: [lab-server] => {
+    "msg": "ignition OK (BiP) — infraID cxl-84kz9, age 497902.9h (window 12h), generated this run: True; master ignition = merged BiP (install-to-disk → /dev/vda), workers = merged MCS stubs; 3 per-node ignition files staged at 0600 in /var/home/shanemcd/ocp-cxl/ignition for fw_cfg delivery."
+}
+
+PLAY [Master VM phase — start the master and drive its install] ****************
+
+TASK [Collect the in-flight QEMU build, if any] ********************************
+included: shanemcd.cxl_lab.qemu_builder for lab-server
+
+TASK [shanemcd.cxl_lab.qemu_builder : Wait for the QEMU build to finish] *******
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.qemu_builder : Wait for the QEMU build to finish (119 retries left).
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the QEMU build succeeded] *********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Remove the QEMU builder container] *******
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the staged install tree exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the staged QEMU binary exists] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Copy the staged tree to the host prefix] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Restore SELinux contexts on the host prefix] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the installed QEMU binary exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert QEMU binary presence] *************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the installed QEMU version] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the installed QEMU version] *******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the installed QEMU device list] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert CXL device support in the host QEMU] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "Host QEMU 11.1.2 at /opt/qemu-11.1.2/bin/qemu-system-x86_64 with pxb-cxl / cxl-rp / cxl-type3 device support."
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : QEMU builder summary] ********************
+ok: [lab-server] => {
+    "msg": "qemu builder OK — stock upstream 11.1.2 built in the RHEL 10 builder and installed to /opt/qemu-11.1.2 (built this run: True); CXL devices verified. Set qemu_source: distro on hosts whose distribution QEMU carries CXL (Fedora: qemu-system-x86-core) to skip this build entirely."
+}
+
+TASK [Run the vms master phase] ************************************************
+included: shanemcd.cxl_lab.vms for lab-server
+
+TASK [shanemcd.cxl_lab.vms : Stat the resolved QEMU binary stamp] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Read the resolved QEMU binary stamp] **************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Point the lab at the resolved distro QEMU binary] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Build the node list] ******************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Set the worker node list fact] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stat per-node ignition configs] *******************
+ok: [lab-server] => (item=cxl-master-0)
+ok: [lab-server] => (item=worker-dram-0)
+ok: [lab-server] => (item=worker-cxl-0)
+
+TASK [shanemcd.cxl_lab.vms : Assert per-node ignition configs exist] ***********
+ok: [lab-server] => (item=cxl-master-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "disk": "150G",
+            "ip_suffix": 11,
+            "kind": "master",
+            "mac_suffix": "0b",
+            "name": "cxl-master-0",
+            "ram": "32G",
+            "vcpu": 16
+        },
+        "stat": {
+            "atime": 1792450434.0199142,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 488,
+            "charset": "us-ascii",
+            "checksum": "14e11b7e1fda94c4d5283a3a80ba30e8877f5be3",
+            "ctime": 1792450432.5687132,
+            "dev": 37,
+            "device_type": 0,
+            "disk_usage_bytes": 249856,
+            "executable": false,
+            "exists": true,
+            "gid": 0,
+            "gr_name": "root",
+            "inode": 8007990,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792450431.953919,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/cxl-master-0.ign",
+            "pw_name": "root",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 246204,
+            "uid": 0,
+            "version": "132100",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "disk": "60G",
+            "ip_suffix": 21,
+            "kind": "worker-dram",
+            "mac_suffix": "15",
+            "name": "worker-dram-0",
+            "ram": "16G",
+            "vcpu": 4
+        },
+        "stat": {
+            "atime": 1792450434.6866918,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 8,
+            "charset": "us-ascii",
+            "checksum": "985097446f59963e1ffeebccb4638fc7b3de2809",
+            "ctime": 1792450432.9507093,
+            "dev": 37,
+            "device_type": 0,
+            "disk_usage_bytes": 4096,
+            "executable": false,
+            "exists": true,
+            "gid": 0,
+            "gr_name": "root",
+            "inode": 8008180,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792450432.3674707,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/worker-dram-0.ign",
+            "pw_name": "root",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 2520,
+            "uid": 0,
+            "version": "132100",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "kind": "worker-cxl",
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "stat": {
+            "atime": 1792450434.3506951,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 24,
+            "charset": "us-ascii",
+            "checksum": "569b87a8fa835e737421c56d06ee49a426575143",
+            "ctime": 1792450432.7507114,
+            "dev": 37,
+            "device_type": 0,
+            "disk_usage_bytes": 12288,
+            "executable": false,
+            "exists": true,
+            "gid": 0,
+            "gr_name": "root",
+            "inode": 8008006,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792450432.1574645,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/worker-cxl-0.ign",
+            "pw_name": "root",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 9918,
+            "uid": 0,
+            "version": "132100",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Stat the downloaded RHCOS artifacts] **************
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/downloads/rhcos-10.2.20261015-0-live-iso.x86_64.iso)
+
+TASK [shanemcd.cxl_lab.vms : Assert the RHCOS artifacts were downloaded] *******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Ensure VM asset directories] **********************
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/images)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/logs)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/scripts)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/run)
+
+TASK [shanemcd.cxl_lab.vms : Assert tap names fit the interface name limit] ****
+ok: [lab-server] => (item=cxl-master-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "disk": "150G",
+        "ip_suffix": 11,
+        "kind": "master",
+        "mac_suffix": "0b",
+        "name": "cxl-master-0",
+        "ram": "32G",
+        "vcpu": 16
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "disk": "60G",
+        "ip_suffix": 21,
+        "kind": "worker-dram",
+        "mac_suffix": "15",
+        "name": "worker-dram-0",
+        "ram": "16G",
+        "vcpu": 4
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "cxl_bus_nr": 12,
+        "disk": "60G",
+        "ip_suffix": 20,
+        "kind": "worker-cxl",
+        "mac_suffix": "14",
+        "name": "worker-cxl-0",
+        "ram": "16G",
+        "vcpu": 4,
+        "vmem_size": "4G"
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Create the master install target disk] ************
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Install coreos-installer (master boot-media preparation)] ***
+[ERROR]: Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/master.yml:117:3
+
+115     creates: "{{ vm_images_dir }}/{{ masters[0].name }}.qcow2"
+116
+117 - name: Install coreos-installer (master boot-media preparation)
+      ^ column 3
+
+fatal: [lab-server]: FAILED! => {"changed": false, "msg": "Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0."}
 
 PLAY RECAP *********************************************************************
-lab-server                 : ok=133  changed=7    unreachable=0    failed=1    skipped=45   rescued=0    ignored=0   
+lab-server                 : ok=198  changed=24   unreachable=0    failed=1    skipped=47   rescued=0    ignored=0   
 
