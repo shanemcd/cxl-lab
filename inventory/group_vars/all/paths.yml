@@ -1,10 +1,14 @@
 ---
+# The invoking user's home — all lab paths are rooted here so the pipeline
+# runs as any user (playbooks escalate with become: true where needed).
+lab_user_home: "{{ lookup('env', 'HOME') }}"
+
 # Workspace layout. install_dir holds secrets: 0700 dir / 0600 files,
 # enforced by the roles that write there. Everything mutable lives under
 # vm_assets_dir.
-install_dir: "/root/ocp-install-cxl"
+install_dir: "{{ lab_user_home }}/ocp-install-cxl"
 install_bin_dir: "{{ install_dir }}/bin"
-vm_assets_dir: "/home/ocp-cxl"
+vm_assets_dir: "{{ lab_user_home }}/ocp-cxl"
 artifacts_dir: "{{ vm_assets_dir }}/artifacts"
 artifacts_srpm_dir: "{{ artifacts_dir }}/srpm"
 artifacts_kernel_rpms_dir: "{{ artifacts_dir }}/kernel-rpms"
@@ -55,7 +59,7 @@ vm_run_dir: "{{ vm_assets_dir }}/run"
 # normal checksum verification then applies. Lives outside vm_assets_dir
 # so teardown does not remove it; nightly sources (CI artifacts service)
 # are flakier than the GA mirrors, so seeding de-risks rebuilds.
-artifacts_local_cache_dir: "/root/ocp-artifacts-cache"
+artifacts_local_cache_dir: "{{ lab_user_home }}/ocp-artifacts-cache"
 
 # Installer-fixed ignition output name (shared by install_config, vms, and
 # teardown). The bootstrap-in-place flow boots the live ISO on

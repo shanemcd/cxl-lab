@@ -111,7 +111,7 @@ git clone https://github.com/shanemcd/cxl-lab && cd cxl-lab
 ansible-galaxy collection install -r requirements.yml -p ansible_collections
 
 # site inputs — see "Variable reference" below. At minimum, place your pull
-# secret at the path secrets.yml expects (default /root/pull-secret.txt, 0600).
+# secret at the path secrets.yml expects (default ~/pull-secret.txt in the invoking user's home, 0600).
 
 # full pipeline + verification (~1 h on suitable hardware; the heavy
 # stages overlap — see the playbook table below):
