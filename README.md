@@ -264,6 +264,17 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
   `internal-registry-pull-secret-ref` annotation across the live→installed
   transition degrades the MCO; `07_install` drops the annotation and the MCO
   resync heals.
+- **The CI artifacts service is lazy, flappy, and forgetful** (nightly
+  profiles): client-tool tarballs 404 for tens of minutes on first hit
+  (on-demand extraction), the directory index flaps ready/extracting, a
+  download issued mid-extraction can arrive truncated, and old builds are
+  garbage-collected outright. The artifacts role therefore HEAD-polls until
+  the service serves each absent nightly tarball (bounded; see
+  `artifacts_ci_readiness_*` in the role defaults — skipped when the
+  tarballs are already on disk) and re-fetches pinned downloads on checksum
+  mismatch. A build whose tools never appear within the poll window is
+  GC'd: re-pin with `scripts/find-nightly-pins.sh`, which prints the
+  `versions.yml` profile block for the latest accepted nightly.
 - **oc column formats are unstable**: `oc get -o wide` renders RESTARTS as
   `2 (23m ago)` (two fields) once aged — positional awk indexes silently check
   the wrong column. Placement is polled via jsonpath (`{.status.phase}`,

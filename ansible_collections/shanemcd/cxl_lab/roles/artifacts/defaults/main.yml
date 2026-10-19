@@ -37,6 +37,30 @@ artifacts_cache_seeds:
   - name: "{{ rhcos_iso_image_name }}"
     dest: "{{ rhcos_live_iso_path }}"
 
+# The client tools sourced from the CI artifacts service (nightly
+# profiles): the readiness poll below targets exactly these. Selected by
+# URL prefix so GA profiles (stable mirror) match nothing and skip the
+# poll entirely.
+artifacts_ci_client_tarballs: >-
+  {{ artifacts_downloads
+     | selectattr('url', 'startswith', ocp_nightly_client_base_url ~ '/')
+     | list }}
+
+# Nightly readiness poll bounds: the CI artifacts service extracts client
+# tools lazily on first hit — a fresh nightly 404s for tens of minutes
+# (extraction has been observed taking ~35 min) and the dir state can flap
+# 200/404 mid-extraction. The poll is a bounded HEAD wait so a re-run
+# resumes instead of failing at elapsed=0; the pinned sha256 in the
+# download below remains the authority either way.
+artifacts_ci_readiness_retries: 90
+artifacts_ci_readiness_delay: 30
+
+# Bounded re-fetch for the pinned downloads themselves: rides out 200/404
+# flapping and truncated-while-writing tarballs (a checksum mismatch
+# triggers a fresh download on the next attempt).
+artifacts_download_retries: 10
+artifacts_download_delay: 60
+
 # Kernel SRPM sha pin selection happens in tasks (per kernel_srpm_source).
 
 # Entitled CDN SRPM download: repo file + script rendered into

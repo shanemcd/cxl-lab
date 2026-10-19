@@ -41,6 +41,62 @@
     label: "{{ item.item.name }}"
   when: item.stat.exists
 
+# --- nightly CI-artifacts readiness ---------------------------------------
+# The CI artifacts service extracts client tools lazily: the first hit on
+# a fresh nightly 404s (tens of minutes), the dir index flaps
+# ready/extracting, and tarballs can be served truncated while the
+# extraction is still writing. Poll HEAD until the service serves each
+# tarball that is not already on disk, then let the pinned downloads
+# (with their sha256 pins) fetch. Skipped for GA profiles and when both
+# tarballs are already present (local cache seed or a previous run), so
+# mid-install re-runs never re-wait on the service.
+
+- name: Stat the nightly client-tool tarballs
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ artifacts_ci_client_tarballs }}"
+  register: artifacts_ci_tarball_stat
+
+- name: Compute the nightly client tarballs absent from the artifact dirs
+  ansible.builtin.set_fact:
+    artifacts_ci_absent_tarballs: >-
+      {{ artifacts_ci_tarball_stat.results
+         | rejectattr('stat.exists', 'true')
+         | map(attribute='item')
+         | list }}
+
+- name: Poll the CI artifacts service until it serves the nightly client tools
+  when: artifacts_ci_absent_tarballs | length > 0
+  block:
+
+    - name: Wait for the CI artifacts service to serve the nightly client tools
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        method: HEAD
+        status_code: ["200", "404", "403", "429", "503"]
+        timeout: 30
+      loop: "{{ artifacts_ci_absent_tarballs }}"
+      register: artifacts_ci_readiness
+      until: artifacts_ci_readiness.status | default(0) == 200
+      retries: "{{ artifacts_ci_readiness_retries }}"
+      delay: "{{ artifacts_ci_readiness_delay }}"
+
+  rescue:
+
+    - name: Explain the nightly client-tool readiness failure
+      ansible.builtin.fail:
+        msg: >-
+          The CI artifacts service did not serve the client tools for
+          {{ ocp_version }} within
+          {{ ((artifacts_ci_readiness_retries | int) * (artifacts_ci_readiness_delay | int) / 60) | round(0, 'ceil') }}
+          minutes (last HTTP statuses:
+          {{ artifacts_ci_readiness.results | map(attribute='status', default='error') | list | unique | join(', ') }}).
+          A freshly accepted nightly extracts its tools lazily — re-run the
+          pipeline later — but a build whose tools never appear has usually
+          been garbage-collected: re-pin to a newer accepted nightly with
+          scripts/find-nightly-pins.sh (it prints the versions.yml block)
+          and re-run.
+
 - name: Download pinned artifacts
   ansible.builtin.get_url:
     url: "{{ item.url }}"
@@ -48,6 +104,10 @@
     mode: "0644"
     checksum: "{{ ('sha256:' ~ item.sha256) if item.sha256 | length > 0 else omit }}"
   loop: "{{ artifacts_downloads }}"
+  register: artifacts_pinned_download
+  until: artifacts_pinned_download is succeeded
+  retries: "{{ artifacts_download_retries }}"
+  delay: "{{ artifacts_download_delay }}"
 
 - name: Stat downloaded artifacts
   ansible.builtin.stat:
