@@ -111,13 +111,28 @@
     marker: "# {mark} cxl-lab"
     block: "{{ network_hosts_block | join('\n') }}"
 
+- name: Check dnsmasq presence
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - dnsmasq
+  register: network_dnsmasq_query
+  changed_when: false
+  failed_when: false
+
 - name: Install dnsmasq (host-native lab resolver)
   # Ignition fetches config.merge sources before applying storage, so
   # worker stubs need api-int resolvable at initramfs fetch time with only
   # the NM keyfile resolver — hence a resolver on the gateway.
+  # rpm-ostree hosts are covered by host_prep's package layering (dnsmasq
+  # is in host_packages); ansible.builtin.package cannot be used there —
+  # its atomic backend was removed from community.general 13.x — so this
+  # task only runs when dnsmasq is genuinely absent (regular dnf hosts).
   ansible.builtin.package:
     name: dnsmasq
     state: present
+  when: network_dnsmasq_query.rc != 0
 
 # --- upstream resolver selection -----------------------------------------
 # The taxonomy may pin upstream_dns_servers; an empty list means

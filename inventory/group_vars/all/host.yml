@@ -25,6 +25,7 @@ host_packages:
   - policycoreutils-python-utils
   - openssh-clients
   - bind-utils
+  - dnsmasq
 
 # Python library required on the host by kubernetes.core modules.
 python_kubernetes_package: "kubernetes"
