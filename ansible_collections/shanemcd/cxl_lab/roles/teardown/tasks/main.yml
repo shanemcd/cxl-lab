@@ -291,6 +291,29 @@
 
 # --- Layer: network ----------------------------------------------------------
 
+- name: Remove the lab subnet trusted source from firewalld (runtime)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --remove-source={{ lab_subnet_cidr }}
+  register: teardown_firewalld_untrust_runtime
+  changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_runtime.stderr"
+  failed_when: false
+  tags: network
+
+- name: Remove the lab subnet trusted source from firewalld (permanent)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --remove-source={{ lab_subnet_cidr }}
+      - --permanent
+  register: teardown_firewalld_untrust_permanent
+  changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_permanent.stderr"
+  failed_when: false
+  tags: network
+
 - name: Stop and disable the lab resolver
   ansible.builtin.service:
     name: "{{ network_dnsmasq_service }}"

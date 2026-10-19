@@ -232,6 +232,46 @@
     state: started
     enabled: true
 
+- name: Check firewalld state
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --state
+  register: network_firewalld_state
+  changed_when: false
+  failed_when: false
+
+- name: Permit the lab subnet to reach the host resolver (firewalld trusted source, runtime)
+  # Guests reach the gateway's dnsmasq (DNS + DHCP) and later the MCS/API.
+  # firewalld's default zone rejects bridge-originated INPUT traffic —
+  # the failure surfaces inside guests as "no route to host" toward the
+  # gateway, while every host-side check stays green (the egress probe
+  # only exercises FORWARD). Trusting the lab subnet source mirrors the
+  # trusted-CNI-interface pattern k3s and libvirt use on Fedora hosts.
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --add-source={{ lab_subnet_cidr }}
+  register: network_firewalld_trust_runtime
+  changed_when:
+    - network_firewalld_state.stdout == 'running'
+    - "'ALREADY_' not in network_firewalld_trust_runtime.stderr"
+  when: network_firewalld_state.stdout == 'running'
+
+- name: Permit the lab subnet to reach the host resolver (firewalld trusted source, permanent)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --add-source={{ lab_subnet_cidr }}
+      - --permanent
+  register: network_firewalld_trust_permanent
+  changed_when:
+    - network_firewalld_state.stdout == 'running'
+    - "'ALREADY_' not in network_firewalld_trust_permanent.stderr"
+  when: network_firewalld_state.stdout == 'running'
+
 - name: Apply resolver config changes before verification
   # The restart handler defers to end-of-play; a changed config must be live
   # before the asserts below query the resolver (a re-run with config drift
