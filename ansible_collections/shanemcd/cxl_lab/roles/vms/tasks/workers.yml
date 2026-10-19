@@ -92,6 +92,17 @@
   loop_control:
     label: "{{ item.item.name }}"
 
+- name: Stage the reboot-hang watchdog client
+  # Standalone file because the HMP client's python cannot live inside
+  # the wait task's shell block scalar: a heredoc's column-0 terminator
+  # would break out of the scalar (and an indented one is never
+  # recognized by bash), while an inline multi-line quoted script
+  # trips ansible-lint's argument splitter.
+  ansible.builtin.copy:
+    src: reboot-watchdog.py
+    dest: "{{ vm_run_dir }}/reboot-watchdog.py"
+    mode: "0750"
+
 - name: Wait for the master's install-to-disk reboot
   # Gate for starting the workers: their first-boot ignition merges from the
   # master's Machine Config Server, and it must be the INSTALLED master's —
@@ -117,34 +128,26 @@
     case "${rootdev}" in
       {{ bip_installation_disk }}*) ;;
       *)
-        # Reboot-hang watchdog: the master's install-to-disk reboot can
+        # Reboot-hang watchdog: the master install-to-disk reboot can
         # hang under QEMU (observed with kernel 6.12.0-211.62.1 on the
-        # pinned QEMU 11.1.2 build: the guest's reset request does not
+        # pinned QEMU 11.1.2 build: the guest reset request does not
         # propagate to a platform reset — CPU halts in kernel space, the
         # serial log freezes on "reboot: Restarting system"). Detect
         # exactly that frozen state (log quiet >2 min, reboot message
         # last) and issue an HMP system_reset through the monitor
-        # socket; the VM then boots the installed disk system and this
-        # gate's SSH probe succeeds on the next retry.
+        # socket; the VM then boots the installed disk system and the
+        # SSH probe of this gate succeeds on the next retry.
+        # (Script comments here stay apostrophe-free: a lone single
+        # quote inside a comment reads as unterminated to the
+        # ansible-lint argument splitter.)
         serial='{{ vm_logs_dir }}/{{ masters[0].name }}.serial.log'
         monsock='{{ vm_run_dir }}/{{ masters[0].name }}.monitor.sock'
         if [ -f "$serial" ] && [ -S "$monsock" ] \
            && [ "$(find "$serial" -mmin +2 | wc -l)" -eq 1 ] \
            && tail -n 1 "$serial" | grep -q 'reboot: Restarting system'; then
-          python3 - "$monsock" <<'PYEOF' >&2 || true
-import socket, sys, time
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.connect(sys.argv[1])
-s.settimeout(3)
-s.recv(4096)  # HMP greeting
-s.sendall(b"system_reset\n")
-time.sleep(1)
-try:
-    s.recv(65536)
-except socket.timeout:
-    pass
-print("watchdog: issued system_reset (frozen install-to-disk reboot)")
-PYEOF
+          # NOTE: the HMP reset client is staged by the copy task
+          # above (see the comment there for why it is a file).
+          python3 '{{ vm_run_dir }}/reboot-watchdog.py' "$monsock" >&2 || true
         fi
         echo "master not installed yet (sysroot: ${rootdev:-unreachable})" >&2
         exit 1

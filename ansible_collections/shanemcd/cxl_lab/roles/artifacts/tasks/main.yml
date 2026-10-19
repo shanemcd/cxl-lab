@@ -457,10 +457,16 @@
   # escape handling, so they are kept out of it. Single backslashes: the
   # block-scalar convention this codebase uses (no escape processing in
   # 2.19 block-scalar templates).
+  # 5.1 payloads report machine-os as a comma-separated dual-stream list
+  # ("10.2.20261015-0, 9.8.20261016-0 Red Hat Enterprise Linux CoreOS
+  # 10.2, …"); the first entry is the default rhel-10 build this lab
+  # boots — take it and strip the trailing comma (single-value payloads
+  # pass through unchanged).
   ansible.builtin.set_fact:
     artifacts_payload_machine_os: >-
-      {{ (artifacts_release_info.stdout
-          | regex_findall('(?m)^\s*machine-os\s+(\S+)') + ['']) | first }}
+      {{ ((artifacts_release_info.stdout
+          | regex_findall('(?m)^\s*machine-os\s+(\S+)') + ['']) | first)
+         | regex_replace(',$', '') }}
     artifacts_iso_build: >-
       {{ rhcos_iso_image_name | regex_replace('^rhcos-(\S+)-live-iso.*$', '\1') }}
   when: ocp_artifact_profile == 'nightly'

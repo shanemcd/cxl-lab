@@ -126,54 +126,19 @@
 
 - name: Run the bounded CXL touch test on {{ worker.name }}
   when: verify_bounded_touch | bool
+  # The test script is rendered from a template and fed over ssh stdin:
+  # its python heredoc terminator must start at column 0, which cannot
+  # live inside a YAML block scalar (a column-0 line would end the
+  # scalar, and an indented terminator is never recognized by bash).
   ansible.builtin.shell: |
     set -o pipefail
     ssh -i {{ install_ssh_key_path }} \
         -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=10 \
-        core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }} 'sudo bash -s' <<'SCRIPT'
-    set -eu
-    SZ={{ verify_touch_size_mib }}
-    NODE={{ cxl_guest_numa_node }}
-    # Probe node placement directly from numa_maps: an anonymous mapping
-    # under membind reports its exact per-node residency. A node MemUsed
-    # delta is not a usable signal here — freed pages cycle through the
-    # per-cpu allocator caches without re-crossing the zone accounting,
-    # so back-to-back runs measure deltas of the full blob, zero, then
-    # noise (observed live on identical input). Read-back is checked
-    # twice against the written pattern for data integrity.
-    numactl --membind=${NODE} python3 - "${SZ}" "${NODE}" <<'PY'
-    import ctypes
-    import hashlib
-    import mmap
-    import re
-    import sys
-
-    size_mib, node = int(sys.argv[1]), sys.argv[2]
-    size = size_mib * 1024 * 1024
-    pattern = bytes(range(256)) * (size // 256)
-    expect = hashlib.md5(pattern).hexdigest()
-    buf = mmap.mmap(-1, size)
-    buf.write(pattern)
-    buf.seek(0)
-    first = hashlib.md5(buf.read(size)).hexdigest()
-    buf.seek(0)
-    second = hashlib.md5(buf.read(size)).hexdigest()
-    addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
-    # numa_maps lines start with the bare mapping address — no 0x prefix
-    pages = 0
-    for line in open("/proc/self/numa_maps"):
-        if line.startswith(format(addr, "x")):
-            m = re.search(r"(?:^|\s)N%s=(\d+)" % node, line)
-            pages = int(m.group(1)) if m else 0
-            break
-    print("TOUCH_NODE1_KIB=%d" % (pages * 4))
-    print("TOUCH_MD5_OK=%s"
-          % ("yes" if first == second == expect else "no"))
-    PY
-    SCRIPT
+        core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }} 'sudo bash -s'
   args:
     executable: /bin/bash
+    stdin: "{{ lookup('template', 'guest-touch-test.sh.j2') }}"
   register: verify_touch
   changed_when: false
 
