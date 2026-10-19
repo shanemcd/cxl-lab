@@ -235,6 +235,10 @@
             mode: "0600"
 
     - name: Create the single-node (bootstrap-in-place) ignition config
+      # Nightly profiles: opt the installer out of the sigstore signing
+      # requirement for release images (nightly mirrors are unsigned —
+      # signatures exist only on GA/EC/RC/z-stream builds). Deliberately an
+      # EXPERIMENTAL env var rather than install-config, per upstream.
       ansible.builtin.command:
         argv:
           - "{{ install_bin_dir }}/openshift-install"
@@ -242,6 +246,8 @@
           - single-node-ignition-config
           - "--dir"
           - "{{ install_dir }}"
+      environment: "{{ {'OPENSHIFT_INSTALL_EXPERIMENTAL_DISABLE_IMAGE_POLICY': 'true'}
+                       if ocp_artifact_profile == 'nightly' else {} }}"
       changed_when: true
 
     - name: Set ignition artifact permissions

@@ -122,32 +122,57 @@ upsert_file(
 )
 
 {% if ocp_artifact_profile == 'nightly' %}
-# Nightly payloads publish UNSIGNED machine-os-content images, but RHCOS's
-# stock container policy requires sigstore signatures for
-# quay.io/openshift-release-dev/*. Without this override, the
-# machine-config-daemon-pull firstboot service loops forever on "A
-# signature was required, but no signature exists": no pivot to the
-# payload's machine OS (which carries cri-o; the live ISO's ostree is
-# podman-only in the bootc era), kubelet stays blocked (Requires=crio),
-# and bootkube hangs at "Waiting for api". GA/RC images are signed, so
-# this only affects nightly profiles. Firstboot-scoped by design: once
-# the pull succeeds and the pivot applies, the MCD re-asserts the
-# config-sanctioned (strict) policy — observed self-healing, no lasting
-# divergence, no MachineConfig drift.
-upsert_file(
-    "/etc/containers/policy.json",
-    420,
-    json.dumps(
-        {
-            "default": [{"type": "insecureAcceptAnything"}],
-            "transports": {
-                "docker-daemon": {"": [{"type": "insecureAcceptAnything"}]}
-            },
+# Nightly payloads publish UNSIGNED images, but RHCOS's stock container
+# policy requires sigstore signatures for quay.io/openshift-release-dev/*.
+# A plain ignition file drop does NOT survive: on every boot the payload's
+# node-image-overlay re-projects /etc/containers/policy.json from the
+# machine-os image AFTER ignition and BEFORE machine-config-daemon-pull —
+# the pull then loops forever on "A signature was required, but no
+# signature exists" and the boot transaction (kubelet, bootkube, MCS)
+# never converges. GA/RC images are signed; nightly only.
+#
+# Strategy: stage the relaxed policy at a stash path (ignition file), and
+# install a oneshot unit that re-applies it After=node-image-overlay.target
+# and Before=machine-config-daemon-pull. The unit is firstboot-scoped via
+# the encapsulated-config stamp (unlinked when MCD firstboot completes);
+# afterwards the MCO owns the policy.
+nightly_policy = json.dumps(
+    {
+        "default": [{"type": "insecureAcceptAnything"}],
+        "transports": {
+            "docker-daemon": {"": [{"type": "insecureAcceptAnything"}]}
         },
-        indent=1,
-    )
-    + "\n",
+    },
+    indent=1,
+) + "\n"
+upsert_file("/etc/containers/cxl-lab-policy-nightly.json", 420, nightly_policy)
+
+unit_name = "cxl-lab-nightly-podman-policy.service"
+unit_def = (
+    "[Unit]\n"
+    "Description=cxl-lab: relax container signature policy for unsigned nightly payloads\n"
+    "# Re-applies the stashed relaxed policy after the node-image overlay\n"
+    "# re-projects the strict one, and before machine-config-daemon-pull\n"
+    "# needs to pull the (unsigned) MCO image.\n"
+    "After=node-image-overlay.target\n"
+    "Before=machine-config-daemon-pull.service machine-config-daemon-firstboot.service firstboot-osupdate.target\n"
+    "ConditionPathExists=/etc/ignition-machine-config-encapsulated.json\n"
+    "ConditionPathExists=/etc/containers/cxl-lab-policy-nightly.json\n"
+    "\n"
+    "[Service]\n"
+    "Type=oneshot\n"
+    "ExecStart=/usr/bin/cp /etc/containers/cxl-lab-policy-nightly.json /etc/containers/policy.json\n"
+    "\n"
+    "[Install]\n"
+    "WantedBy=firstboot-osupdate.target\n"
 )
+units = config.setdefault("systemd", {}).setdefault("units", [])
+for i, existing in enumerate(units):
+    if existing.get("name") == unit_name:
+        units[i] = {"name": unit_name, "enabled": True, "contents": unit_def}
+        break
+else:
+    units.append({"name": unit_name, "enabled": True, "contents": unit_def})
 {% endif %}
 
 # Extra snippet (optional): upsert its systemd units by name and its
