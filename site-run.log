@@ -44,16 +44,16 @@ ok: [lab-server] => {
 }
 
 TASK [shanemcd.cxl_lab.host_prep : Ensure workspace directories] ***************
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl', 'mode': '0700'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl/verification', 'mode': '0700'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/artifacts', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/node-images', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/images', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/ignition', 'mode': '0700'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/logs', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/scripts', 'mode': '0755'})
-changed: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/run', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl/verification', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/artifacts', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/node-images', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/images', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/ignition', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/logs', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/scripts', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/run', 'mode': '0755'})
 
 TASK [shanemcd.cxl_lab.host_prep : Stat the base pull secret] ******************
 ok: [lab-server]
@@ -74,7 +74,7 @@ ok: [lab-server] => {
 }
 
 TASK [shanemcd.cxl_lab.host_prep : Render the merged install pull secret] ******
-changed: [lab-server]
+ok: [lab-server]
 
 TASK [shanemcd.cxl_lab.host_prep : Assert nightly profiles have a CI secret configured] ***
 ok: [lab-server] => {
@@ -147,17 +147,64 @@ skipping: [lab-server]
 TASK [shanemcd.cxl_lab.host_prep : Ensure RHSM registration with credentials] ***
 skipping: [lab-server]
 
-TASK [shanemcd.cxl_lab.host_prep : Ensure required host packages] **************
-[ERROR]: Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0.
-Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/host_prep/tasks/main.yml:319:3
+TASK [shanemcd.cxl_lab.host_prep : Detect rpm-ostree (atomic) host] ************
+ok: [lab-server]
 
-317   no_log: true
-318
-319 - name: Ensure required host packages
-      ^ column 3
+TASK [shanemcd.cxl_lab.host_prep : Query which required host packages are already installed] ***
+ok: [lab-server]
 
-fatal: [lab-server]: FAILED! => {"changed": false, "msg": "Task failed: The 'community.general.atomic_container' module has been removed. Project Atomic was sunset by the end of 2019. This feature was removed from collection 'community.general' version 13.0.0."}
+TASK [shanemcd.cxl_lab.host_prep : Compute missing host packages] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure required host packages (dnf host)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Layer missing host packages (rpm-ostree host)] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure the kubernetes Python library for kubernetes.core modules] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Host preparation summary] *******************
+ok: [lab-server] => {
+    "msg": "host prep OK — os=Fedora, selinux=enabled, mem=108G free vs 68G required, vcpu=32 vs 24 required, disk=1199G budget (free + lab usage) vs 270G required."
+}
+
+PLAY [Lab artifacts (cxltest kernel RPMs, pinned downloads, host QEMU)] ********
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Ensure artifact directories] ****************
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/srpm)
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms)
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/downloads)
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/bin)
+
+TASK [shanemcd.cxl_lab.artifacts : Stat local artifact cache seeds] ************
+ok: [lab-server] => (item={'name': 'openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz'})
+ok: [lab-server] => (item={'name': 'openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz'})
+ok: [lab-server] => (item={'name': 'kernel-6.12.0-211.64.1.el10_2.src.rpm', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/srpm/kernel-6.12.0-211.64.1.el10_2.src.rpm'})
+ok: [lab-server] => (item={'name': 'rhcos-10.2.20261015-0-live-iso.x86_64.iso', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/rhcos-10.2.20261015-0-live-iso.x86_64.iso'})
+
+TASK [shanemcd.cxl_lab.artifacts : Seed pinned artifacts from the local cache] ***
+skipping: [lab-server] => (item=openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server] => (item=openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server] => (item=kernel-6.12.0-211.64.1.el10_2.src.rpm) 
+skipping: [lab-server] => (item=rhcos-10.2.20261015-0-live-iso.x86_64.iso) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Stat the nightly client-tool tarballs] ******
+[ERROR]: The filter plugin 'ansible.builtin.selectattr' failed: No test named 'startswith'.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/artifacts/tasks/main.yml:57:9
+
+55   ansible.builtin.stat:
+56     path: "{{ item.dest }}"
+57   loop: "{{ artifacts_ci_client_tarballs }}"
+           ^ column 9
+
+fatal: [lab-server]: FAILED! => {"changed": false, "msg": "The filter plugin 'ansible.builtin.selectattr' failed: No test named 'startswith'."}
 
 PLAY RECAP *********************************************************************
-lab-server                 : ok=29   changed=2    unreachable=0    failed=1    skipped=4    rescued=0    ignored=0   
+lab-server                 : ok=38   changed=3    unreachable=0    failed=1    skipped=6    rescued=0    ignored=0   
 

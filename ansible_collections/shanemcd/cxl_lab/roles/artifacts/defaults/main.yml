@@ -43,7 +43,8 @@ artifacts_cache_seeds:
 # poll entirely.
 artifacts_ci_client_tarballs: >-
   {{ artifacts_downloads
-     | selectattr('url', 'startswith', ocp_nightly_client_base_url ~ '/')
+     | selectattr('url', 'match',
+                 (ocp_nightly_client_base_url ~ '/') | regex_escape ~ '.*')
      | list }}
 
 # Nightly readiness poll bounds: the CI artifacts service extracts client
