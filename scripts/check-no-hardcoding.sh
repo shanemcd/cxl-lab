@@ -24,6 +24,10 @@ mapfile -t FILES < <(find "$BASE" -type f \( -name '*.yml' -o -name '*.yaml' -o 
   ! -path '*/meta/*' \
   ! -path '*/defaults/*' ! -path '*/vars/*' ! -path '*/molecule/*' | sort)
 
+# One combined alternation, one grep per file — a per-line grep -q loop
+# forks thousands of subprocesses and dominates the runtime.
+PATTERN='([0-9]{1,3}\.){3}[0-9]{1,3}|https?://[^[:space:]}]|([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|(^|[^0-9.])[0-9]+\.[0-9]+\.[0-9]+([^0-9.]|$)'
+
 fail=0
 for f in "${FILES[@]}"; do
   while IFS= read -r num_line; do
@@ -33,14 +37,9 @@ for f in "${FILES[@]}"; do
     stripped="${line#"${line%%[![:space:]]*}"}"
     case "$stripped" in \#*) continue ;; esac
     case "$line" in *'# hardcode-ok'*) continue ;; esac
-    if grep -qE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<<"$line" \
-      || grep -qE 'https?://[^[:space:]}]' <<<"$line" \
-      || grep -qE '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' <<<"$line" \
-      || grep -qE '(^|[^0-9.])[0-9]+\.[0-9]+\.[0-9]+([^0-9.]|$)' <<<"$line"; then
-      echo "hardcoding gate: $f:$num: $line" >&2
-      fail=1
-    fi
-  done < <(grep -n '' "$f")
+    echo "hardcoding gate: $f:$num: $line" >&2
+    fail=1
+  done < <(grep -nE "$PATTERN" "$f" || true)
 done
 
 if [ "$fail" -ne 0 ]; then
