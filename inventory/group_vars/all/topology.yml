@@ -19,28 +19,30 @@ mac_base: "52:54:00:0c:0c"
 cxl_worker_count: 1
 dram_worker_count: 1
 
-# Per-node specs — workers at the OpenShift-documented minimum resource
-# requirements ("Minimum resource requirements for cluster installation":
-# 2 vCPUs, 8 GB RAM). The master keeps the documented 16 GB RAM but runs
-# DOUBLE the documented minimum vCPUs: at 4 vCPUs the platform's own stack
-# (monitoring, console, ingress, layered operators) oversubscribes the
-# node's allocatable CPU so hard that kube-scheduler's 1-second liveness
-# probe times out under run-queue starvation (observed live: load average
-# 120+ on 4 vCPUs, scheduler exit-137 "Error" crash-loop, leader-lease
-# deadlock, ZERO OOM kills — memory was not the killer; the documented
-# minimum profile assumes a far leaner platform surface than a lab that
-# keeps the monitoring stack and schedulable workers). Guest DISKS are
-# lab-tuned below the documented minimums (120 GB master / 100 GB workers):
-# the bootstrap-in-place path enforces no disk minimums at install time (only
-# the Assisted Installer does), the overlays are sparse qcow2, and the cluster
-# is disposable — the trade is long-run headroom (etcd + monitoring growth on
-# the master's root LV; expect DiskPressure eventually if left running).
-master_vcpu: 8
-master_ram: "16G"
-master_disk: "100G"
-worker_vcpu: 2
-worker_ram: "8G"
-worker_disk: "40G"
+# Per-node specs — lab-tuned UP from the OpenShift-documented minimums
+# for this host (96 cores / 125 GiB RAM): master 2x, workers 2x RAM/vCPU.
+# The documented minimums ("Minimum resource requirements for cluster
+# installation": 2 vCPUs, 8 GB RAM per worker; 4 vCPUs / 16 GB master)
+# starve a lab that keeps the monitoring stack: at 4 master vCPUs the
+# platform's own stack (monitoring, console, ingress, layered operators)
+# oversubscribes the node's allocatable CPU so hard that kube-scheduler's
+# 1-second liveness probe times out under run-queue starvation (observed
+# live: load average 120+ on 4 vCPUs, scheduler exit-137 "Error"
+# crash-loop, leader-lease deadlock, ZERO OOM kills — memory was not the
+# killer; the documented minimum profile assumes a far leaner platform
+# surface than a lab that keeps the monitoring stack and schedulable
+# workers). Guest DISKS are lab-tuned (150 GB master / 60 GB workers):
+# the bootstrap-in-place path enforces no disk minimums at install time
+# (only the Assisted Installer does), the overlays are sparse qcow2, and
+# the cluster is disposable — the trade is long-run headroom (etcd +
+# monitoring growth on the master's root LV; expect DiskPressure
+# eventually if left running).
+master_vcpu: 16
+master_ram: "32G"
+master_disk: "150G"
+worker_vcpu: 4
+worker_ram: "16G"
+worker_disk: "60G"
 
 masters:
   - name: "cxl-master-0"
