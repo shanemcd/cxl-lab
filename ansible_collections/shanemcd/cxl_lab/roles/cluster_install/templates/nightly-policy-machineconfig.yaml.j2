@@ -1,0 +1,34 @@
+# Managed by shanemcd.cxl_lab.cluster_install — do not edit.
+# Nightly container-policy alignment MachineConfig for the {{ mc_role }}
+# pool. The boot-time relax unit (install_config's ignition merge) leaves
+# the on-disk /etc/containers/policy.json differing from the
+# payload-rendered one, so the MCD's on-disk validation marks every pool
+# carrying it Degraded forever (observed live: "content mismatch for file
+# /etc/containers/policy.json (expected 255 bytes, got 175 bytes)").
+# Shipping the relaxed policy through the rendered config lets the MCD's
+# update path write it and converge; the boot unit keeps covering the
+# ignition -> node-image-overlay -> machine-config-daemon-pull window on
+# payloads whose stock policy is strict (observed on the 10-06 nightly;
+# 10-18's stock policy is permissive but byte-different, which trips
+# validation all the same).
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: {{ mc_role }}
+  name: {{ cluster_install_nightly_policy_mc_prefix }}-{{ mc_role }}
+spec:
+  config:
+    ignition:
+      version: {{ cluster_install_nightly_policy_ignition_version }}
+    storage:
+      files:
+        - path: /etc/containers/policy.json
+          mode: 420
+          overwrite: true
+          user:
+            name: root
+          group:
+            name: root
+          contents:
+            source: "data:text/plain;base64,{{ (cluster_install_nightly_policy_dict | to_json(indent=1) ~ '\n') | b64encode }}"

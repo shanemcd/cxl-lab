@@ -178,6 +178,26 @@
   register: cluster_install_ingress_pin
   changed_when: "'(no changes)' not in cluster_install_ingress_pin.stdout"
 
+- name: Align the rendered container policy with the boot-time nightly relax
+  # The ignition merge's policy-relax unit leaves an on-disk
+  # /etc/containers/policy.json that differs from the payload-rendered
+  # one; the MCD's on-disk validation then holds every worker pool
+  # Degraded (observed live: "content mismatch for file
+  # /etc/containers/policy.json (expected 255 bytes, got 175 bytes)").
+  # Give each pool a MachineConfig carrying the SAME relaxed policy so
+  # the rendered config matches the disk; the boot unit keeps covering
+  # the ignition/overlay/mcd-pull window for strict-stock payloads.
+  when: ocp_artifact_profile == 'nightly'
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_controller_path }}"
+    definition: "{{ lookup('template', 'nightly-policy-machineconfig.yaml.j2') }}"
+  loop: "{{ cluster_install_nightly_policy_mc_roles }}"
+  loop_control:
+    loop_var: mc_role
+  register: cluster_install_nightly_policy_mc
+  changed_when: "(cluster_install_nightly_policy_mc.results | map(attribute='changed') | select | list | length) > 0"
+
 - name: Wait for cluster operators to settle
   # One poller over the whole operator table (fleet-parallel discipline):
   # green when every operator reports Available=True and Degraded=False.

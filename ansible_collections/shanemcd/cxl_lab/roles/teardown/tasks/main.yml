@@ -97,6 +97,16 @@
 # to the plain worker pool. This layer does NOT wait for the rollback
 # reboots.
 
+- name: Remove the nightly container-policy MachineConfigs
+  when: teardown_cluster_available | bool
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_controller_path }}"
+    kind: MachineConfig
+    name: "{{ cluster_install_nightly_policy_mc_prefix }}-{{ item }}"
+  loop: "{{ cluster_install_nightly_policy_mc_roles }}"
+  tags: mco
+
 - name: Remove the osImageURL MachineConfig
   when: teardown_cluster_available | bool
   kubernetes.core.k8s:
