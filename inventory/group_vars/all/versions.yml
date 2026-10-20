@@ -149,8 +149,15 @@ ocp_profiles:
     # CDN-carried 211.64.1 SRPM point below (stream-prefix assert
     # holds; the GA profile documents the content≠SRPM-point pattern).
     ocp_version: "5.1.0-0.nightly-2026-10-18-125305"
-    openshift_install_sha256: "8760da09dae151061353cb4d8e65950f2700020dbb16577dd0598755cb0308d4"
-    oc_sha256: "8586fd11c8fe93f26d378b78997e68a499aeae9fc846668ecc48b50e422f9cc8"
+    # Client tools extracted directly from the accepted payload image
+    # (oc adm release extract --command=oc/--command=openshift-install),
+    # tarred locally and seeded via ocp-artifacts-cache: the artifacts
+    # service never finished its lazy re-extraction for this build
+    # (>50 min in the placeholder state). The binaries are the genuine
+    # 10-18 builds (version-verified); the tarball bytes are ours, so
+    # the pins below describe OUR tarballs, not the service's.
+    openshift_install_sha256: "20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d"
+    oc_sha256: "aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841"
     # 5.1 payload still publishes under ocp-v5.0-art-dev.
     machine_os_content_ref: >-
       quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:8f0a85b07bb5037ee780dbe4c227fdf62374976d02630188200880e663221b05
