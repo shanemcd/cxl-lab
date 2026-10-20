@@ -181,13 +181,20 @@
 - name: Wait for cluster operators to settle
   # One poller over the whole operator table (fleet-parallel discipline):
   # green when every operator reports Available=True and Degraded=False.
+  # cluster-api is excluded: on platform=None installs (bootstrap-in-place)
+  # its CoreClusterController cannot map the platform to a CAPI
+  # infrastructure-cluster kind, so the operator stays Progressing with
+  # reason Uninitialized forever — upstream steady state, not a fault
+  # (verified live: all controllers "initializing", no CAPI machines,
+  # nothing to migrate; see cluster-capi-operator corecluster_controller.go
+  # mapOCPPlatformToInfraClusterKindAndVersionAndGroup).
   ansible.builtin.shell: |
     set -o pipefail
     bad=$("{{ install_bin_dir }}/oc" get clusteroperators --no-headers 2>/dev/null \
-      | awk '$3 != "True" || $5 == "True"' | wc -l)
+      | awk '$1 != "cluster-api" && ($3 != "True" || $5 == "True")' | wc -l)
     if [ "${bad}" -gt 0 ]; then
       "{{ install_bin_dir }}/oc" get clusteroperators --no-headers 2>/dev/null \
-        | awk '$3 != "True" || $5 == "True" {print $1"("$3"/"$5")"}' >&2
+        | awk '$1 != "cluster-api" && ($3 != "True" || $5 == "True") {print $1"("$3"/"$5")"}' >&2
       exit 1
     fi
   environment:
