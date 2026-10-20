@@ -76,6 +76,13 @@
     mode: "0644"
   notify: Re-read the NFS export table
 
+- name: Flush the export-table re-read now
+  # The provisioner manifest applied below mounts this export; a
+  # pending handler at end-of-play is too late (and never runs at all if
+  # a later task in this play fails — observed live: kubelet mount
+  # 'access denied by server' because exportfs -ra never executed).
+  ansible.builtin.meta: flush_handlers
+
 - name: Enable and start the host NFS server
   ansible.builtin.service:
     name: "{{ storage_nfs_service }}"
