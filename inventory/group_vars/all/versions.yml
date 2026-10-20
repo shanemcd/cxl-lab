@@ -9,7 +9,7 @@
 # content ref, kernel SRPM, live ISO). Roles keep reading the flat names;
 # they are derived from the active profile. Reverting to GA is a one-key
 # change back to the ga-4.22.16 profile.
-ocp_profile: "nightly-5.1.0-0.nightly-2026-10-19-171115"
+ocp_profile: "nightly-5.1.0-0.nightly-2026-10-18-125305"
 
 ocp_profiles:
   rc-5.0.0-rc.6:
