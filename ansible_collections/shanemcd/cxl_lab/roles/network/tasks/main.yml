@@ -270,7 +270,7 @@
     argv:
       - firewall-cmd
       - --zone=trusted
-      - --add-interface={{ network_bridge_name }}
+      - --add-interface={{ lab_bridge_name }}
   register: network_firewalld_trust_if_runtime
   changed_when:
     - network_firewalld_state.stdout == 'running'
@@ -282,7 +282,7 @@
     argv:
       - firewall-cmd
       - --zone=trusted
-      - --add-interface={{ network_bridge_name }}
+      - --add-interface={{ lab_bridge_name }}
       - --permanent
   register: network_firewalld_trust_if_permanent
   changed_when:

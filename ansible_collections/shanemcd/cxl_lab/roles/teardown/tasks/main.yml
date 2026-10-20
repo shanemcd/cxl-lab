@@ -297,7 +297,7 @@
     argv:
       - firewall-cmd
       - --zone=trusted
-      - --remove-interface={{ network_bridge_name }}
+      - --remove-interface={{ lab_bridge_name }}
   register: teardown_firewalld_untrust_if_runtime
   changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_if_runtime.stderr"
   failed_when: false
@@ -308,7 +308,7 @@
     argv:
       - firewall-cmd
       - --zone=trusted
-      - --remove-interface={{ network_bridge_name }}
+      - --remove-interface={{ lab_bridge_name }}
       - --permanent
   register: teardown_firewalld_untrust_if_permanent
   changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_if_permanent.stderr"
