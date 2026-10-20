@@ -259,6 +259,37 @@
     - "'ALREADY_' not in network_firewalld_trust_runtime.stderr"
   when: network_firewalld_state.stdout == 'running'
 
+- name: Trust the lab bridge itself (firewalld, runtime)
+  # Source-based trust alone is not enough: initramfs DHCP broadcasts
+  # arrive with source 0.0.0.0 (pre-lease), which no subnet source ever
+  # matches — firewalld silently eats the DISCOVERs and worker ignition
+  # stalls at "lookup api-int ... connection refused" for hours. Trusting
+  # the bridge interface covers all bridge-ingress traffic regardless of
+  # source address (the same pattern libvirt's virbr0 uses).
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --add-interface={{ network_bridge_name }}
+  register: network_firewalld_trust_if_runtime
+  changed_when:
+    - network_firewalld_state.stdout == 'running'
+    - "'ALREADY_' not in network_firewalld_trust_if_runtime.stderr"
+  when: network_firewalld_state.stdout == 'running'
+
+- name: Trust the lab bridge itself (firewalld, permanent)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --add-interface={{ network_bridge_name }}
+      - --permanent
+  register: network_firewalld_trust_if_permanent
+  changed_when:
+    - network_firewalld_state.stdout == 'running'
+    - "'ALREADY_' not in network_firewalld_trust_if_permanent.stderr"
+  when: network_firewalld_state.stdout == 'running'
+
 - name: Permit the lab subnet to reach the host resolver (firewalld trusted source, permanent)
   ansible.builtin.command:
     argv:

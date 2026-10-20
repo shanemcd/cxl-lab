@@ -291,6 +291,30 @@
 
 # --- Layer: network ----------------------------------------------------------
 
+- name: Remove the lab bridge from the firewalld trusted zone (runtime)
+  # Mirror of the network role's interface trust (DHCP-broadcast ingress).
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --remove-interface={{ network_bridge_name }}
+  register: teardown_firewalld_untrust_if_runtime
+  changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_if_runtime.stderr"
+  failed_when: false
+  tags: network
+
+- name: Remove the lab bridge from the firewalld trusted zone (permanent)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone=trusted
+      - --remove-interface={{ network_bridge_name }}
+      - --permanent
+  register: teardown_firewalld_untrust_if_permanent
+  changed_when: "'NOT_ENABLED' not in teardown_firewalld_untrust_if_permanent.stderr"
+  failed_when: false
+  tags: network
+
 - name: Remove the lab subnet trusted source from firewalld (runtime)
   ansible.builtin.command:
     argv:
