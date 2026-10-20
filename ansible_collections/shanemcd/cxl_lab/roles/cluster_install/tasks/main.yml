@@ -195,8 +195,6 @@
   loop: "{{ cluster_install_nightly_policy_mc_roles }}"
   loop_control:
     loop_var: mc_role
-  register: cluster_install_nightly_policy_mc
-  changed_when: "(cluster_install_nightly_policy_mc.results | map(attribute='changed') | select | list | length) > 0"
 
 - name: Wait for cluster operators to settle
   # One poller over the whole operator table (fleet-parallel discipline):
