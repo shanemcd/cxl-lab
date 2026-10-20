@@ -56,7 +56,7 @@
   when: teardown_cluster_available | bool
   kubernetes.core.k8s:
     state: absent
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     kind: Namespace
     name: "{{ storage_namespace }}"
   tags: storage
@@ -101,7 +101,7 @@
   when: teardown_cluster_available | bool
   kubernetes.core.k8s:
     state: absent
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     kind: MachineConfig
     name: "{{ worker_cxl_osimage_mc_name }}"
   tags: mco
@@ -110,7 +110,7 @@
   when: teardown_cluster_available | bool
   kubernetes.core.k8s:
     state: absent
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     kind: MachineConfigPool
     name: "{{ worker_cxl_mcp_name }}"
   tags: mco
@@ -119,7 +119,7 @@
   when: teardown_cluster_available | bool
   kubernetes.core.k8s:
     state: patched
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     kind: Node
     name: "{{ item.name }}"
     definition:

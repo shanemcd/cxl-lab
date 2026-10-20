@@ -156,23 +156,27 @@
   # The default IngressController runs only on the
   # master so the *.apps hosts entries (master IP) stay valid across
   # worker restarts.
-  kubernetes.core.k8s:
-    state: patched
-    kubeconfig: "{{ kubeconfig_path }}"
-    api_version: operator.openshift.io/v1
-    kind: IngressController
-    namespace: "{{ cluster_install_ingress_namespace }}"
-    name: "{{ cluster_install_ingress_name }}"
-    definition:
-      spec:
-        nodePlacement:
-          nodeSelector:
-            matchLabels:
-              node-role.kubernetes.io/master: ""
-          tolerations:
-            - key: node-role.kubernetes.io/master
-              operator: Exists
-              effect: NoSchedule
+  # Deliberately `oc patch` and not kubernetes.core.k8s: the k8s action
+  # plugin reads the kubeconfig on the controller as the invoking user,
+  # but the installer's auth dir is root-owned 0700 (hardened) — only the
+  # become-elevated module side can read it.
+  ansible.builtin.command:
+    argv:
+      - "{{ install_bin_dir }}/oc"
+      - patch
+      - ingresscontroller
+      - "{{ cluster_install_ingress_name }}"
+      - "-n"
+      - "{{ cluster_install_ingress_namespace }}"
+      - "--type=merge"
+      - "-p"
+      - >-
+        {"spec":{"nodePlacement":{"nodeSelector":{"matchLabels":{"node-role.kubernetes.io/master":""}},
+        "tolerations":[{"key":"node-role.kubernetes.io/master","operator":"Exists","effect":"NoSchedule"}]}}}
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: cluster_install_ingress_pin
+  changed_when: "'(no changes)' not in cluster_install_ingress_pin.stdout"
 
 - name: Wait for cluster operators to settle
   # One poller over the whole operator table (fleet-parallel discipline):

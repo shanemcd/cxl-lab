@@ -5,7 +5,7 @@
 
 - name: Read the lab StorageClass
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: storage.k8s.io/v1
     kind: StorageClass
     name: "{{ storage_class_name }}"
@@ -14,7 +14,7 @@
 
 - name: Read the storage provisioner deployment
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: apps/v1
     kind: Deployment
     namespace: "{{ storage_namespace }}"
@@ -24,7 +24,7 @@
 
 - name: Read the Perses PVC
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: v1
     kind: PersistentVolumeClaim
     namespace: "{{ observability_operator_namespace }}"
@@ -34,7 +34,7 @@
 
 - name: Read the COO CSV phase
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: operators.coreos.com/v1alpha1
     kind: ClusterServiceVersion
     namespace: "{{ observability_operator_namespace }}"
@@ -45,7 +45,7 @@
 
 - name: Read the UIPlugin state
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: observability.openshift.io/v1alpha1
     kind: UIPlugin
     namespace: "{{ observability_operator_namespace }}"
@@ -55,7 +55,7 @@
 
 - name: Read the Perses content CR states
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: perses.dev/v1alpha2
     kind: "{{ item.kind }}"
     namespace: "{{ observability_namespace }}"
@@ -74,7 +74,7 @@
 
 - name: Read the CXL memory-tier rule
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: monitoring.coreos.com/v1
     kind: PrometheusRule
     namespace: "{{ observability_namespace }}"

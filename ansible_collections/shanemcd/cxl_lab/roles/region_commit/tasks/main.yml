@@ -17,7 +17,7 @@
   # worker-cxl.
   kubernetes.core.k8s:
     state: patched
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     kind: Node
     name: "{{ item.name }}"
     definition:

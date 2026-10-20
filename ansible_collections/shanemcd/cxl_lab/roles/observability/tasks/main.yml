@@ -39,13 +39,13 @@
 - name: Apply the COO install stack
   kubernetes.core.k8s:
     state: present
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     definition: "{{ lookup('template', 'coo-stack.yaml.j2')
                     | from_yaml_all | list }}"
 
 - name: Wait for the COO CSV
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: operators.coreos.com/v1alpha1
     kind: ClusterServiceVersion
     namespace: "{{ observability_operator_namespace }}"
@@ -63,12 +63,12 @@
 - name: Apply the monitoring UIPlugin
   kubernetes.core.k8s:
     state: present
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     definition: "{{ lookup('template', 'uiplugin.yaml.j2') | from_yaml }}"
 
 - name: Wait for the UIPlugin to become available
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: observability.openshift.io/v1alpha1
     kind: UIPlugin
     namespace: "{{ observability_operator_namespace }}"
@@ -87,7 +87,7 @@
 
 - name: Wait for the COO to create the Perses CR
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: perses.dev/v1alpha2
     kind: Perses
     namespace: "{{ observability_operator_namespace }}"
@@ -104,7 +104,7 @@
   # CRD rejects as mutually exclusive. k8s_json_patch diffs server-side,
   # so a converged re-run is unchanged.
   kubernetes.core.k8s_json_patch:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: perses.dev/v1alpha2
     kind: Perses
     namespace: "{{ observability_operator_namespace }}"
@@ -123,7 +123,7 @@
 
 - name: Wait for the Perses StatefulSet
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: apps/v1
     kind: StatefulSet
     namespace: "{{ observability_operator_namespace }}"
@@ -141,7 +141,7 @@
 
 - name: Read the Perses PVC state
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: v1
     kind: PersistentVolumeClaim
     namespace: "{{ observability_operator_namespace }}"
@@ -171,7 +171,7 @@
   # into the cluster prometheus' rule selector.
   kubernetes.core.k8s:
     state: present
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     definition:
       apiVersion: v1
       kind: Namespace
@@ -183,7 +183,7 @@
 - name: Apply the Perses content
   kubernetes.core.k8s:
     state: present
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     definition: "{{ item }}"
   loop:
     - "{{ lookup('template', 'perses-datasource.yaml.j2') | from_yaml }}"
@@ -193,12 +193,12 @@
 - name: Apply the CXL memory-tier recording rules
   kubernetes.core.k8s:
     state: present
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     definition: "{{ lookup('template', 'cxl-memory-tiers.yaml.j2') | from_yaml }}"
 
 - name: Wait for the Perses content CRs
   kubernetes.core.k8s_info:
-    kubeconfig: "{{ kubeconfig_path }}"
+    kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: perses.dev/v1alpha2
     kind: "{{ item.kind }}"
     namespace: "{{ observability_namespace }}"
