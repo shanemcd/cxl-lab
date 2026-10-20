@@ -76,7 +76,7 @@
   register: observability_uiplugin
   until: >-
     observability_uiplugin.resources
-    | map(attribute='status.conditions')
+    | map(attribute='status.conditions', default=[])
     | flatten
     | selectattr('type', 'equalto', 'Available')
     | map(attribute='status')
@@ -206,7 +206,7 @@
   register: observability_content_cr
   until: >-
     observability_content_cr.resources
-    | map(attribute='status.conditions')
+    | map(attribute='status.conditions', default=[])
     | flatten
     | selectattr('type', 'equalto', 'Available')
     | map(attribute='status')

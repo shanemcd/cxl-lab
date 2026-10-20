@@ -87,7 +87,7 @@
     verify_content_available: >-
       {{ verify_content_cr.results
          | map(attribute='resources') | flatten
-         | map(attribute='status.conditions') | flatten
+         | map(attribute='status.conditions', default=[]) | flatten
          | selectattr('type', 'equalto', 'Available')
          | map(attribute='status') | list }}
 
@@ -97,7 +97,7 @@
       - verify_storage_class.resources | length == 1
       - verify_storage_class.resources[0].provisioner == storage_provisioner_name
       - verify_storage_deployment.resources
-        | map(attribute='status.conditions') | flatten
+        | map(attribute='status.conditions', default=[]) | flatten
         | selectattr('type', 'equalto', 'Available')
         | map(attribute='status') | join == 'True'
       - verify_perses_pvc.resources | length == 1
@@ -105,7 +105,7 @@
       - verify_perses_pvc.resources[0].spec.storageClassName == observability_perses_storage_class
       - verify_coo_csv.resources | map(attribute='status.phase') | join == 'Succeeded'
       - verify_uiplugin.resources
-        | map(attribute='status.conditions') | flatten
+        | map(attribute='status.conditions', default=[]) | flatten
         | selectattr('type', 'equalto', 'Available')
         | map(attribute='status') | join == 'True'
       - verify_content_available | select('equalto', 'True') | list | length
@@ -121,7 +121,7 @@
       | join(', ') | default('absent') }}; COO CSV:
       {{ verify_coo_csv.resources | map(attribute='status.phase')
       | join(', ') | default('absent') }}; UIPlugin Available:
-      {{ verify_uiplugin.resources | map(attribute='status.conditions') | flatten
+      {{ verify_uiplugin.resources | map(attribute='status.conditions', default=[]) | flatten
       | selectattr('type', 'equalto', 'Available') | map(attribute='status') | join }};
       content CRs Available: {{ verify_content_available | join(', ') }};
       rules present: {{ verify_cxl_rules.resources | length }}.
@@ -141,7 +141,7 @@
       coo_csv: >-
         {{ verify_coo_csv.resources | map(attribute='status.phase') | join(', ') }}
       uiplugin_available: >-
-        {{ verify_uiplugin.resources | map(attribute='status.conditions') | flatten
+        {{ verify_uiplugin.resources | map(attribute='status.conditions', default=[]) | flatten
            | selectattr('type', 'equalto', 'Available')
            | map(attribute='status') | join }}
       content_crs_available: >-

@@ -129,7 +129,7 @@
   register: storage_provisioner_state
   until: >-
     storage_provisioner_state.resources
-    | map(attribute='status.conditions')
+    | map(attribute='status.conditions', default=[])
     | flatten
     | selectattr('type', 'equalto', 'Available')
     | map(attribute='status')
