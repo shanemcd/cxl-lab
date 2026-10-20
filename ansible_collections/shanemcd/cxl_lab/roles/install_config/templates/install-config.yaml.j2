@@ -27,5 +27,7 @@ networking:
   serviceNetwork:
   - {{ service_network_cidr }}
 fips: {{ cluster_fips | bool | ternary('true', 'false') }}
+{% if install_feature_set | length > 0 %}
 featureSet: {{ install_feature_set }}
+{% endif %}
 osImageStream: {{ rhcos_stream_name }}

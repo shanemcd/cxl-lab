@@ -196,11 +196,17 @@ openshift_install_tarball_name: "openshift-install-linux-{{ ocp_version }}.tar.g
 openshift_client_tarball_name: "openshift-client-linux-{{ ocp_version }}.tar.gz"
 openshift_mirror_sha256sum_name: "sha256sum.txt"
 
-# TechPreviewNoUpgrade is REQUIRED for osImageStream (rhel-10) — the
-# installer gates it behind a non-default feature set. It also keeps DRA
-# alpha feature gates visible on the cluster (relevant for the memory
-# tiering work that consumes this lab).
-install_feature_set: "TechPreviewNoUpgrade"
+# 5.1: DRA gates are GA and RHEL 10 is the default OS stream, so the lab
+# installs on the DEFAULT feature set. (Historical: 4.x needed
+# TechPreviewNoUpgrade for osImageStream rhel-10 and alpha DRA gates —
+# stale reasoning that, on 5.1 nightlies, silently deployed the broken
+# TechPreview CAPI stack: on platform=None its operator can never settle
+# and the CVO then holds clusterversion at Available=False forever.)
+# Verified against the 5.1 nightly installer: rhel-10 osImageStream with
+# no featureSet is accepted, and the rendered OSImageStream manifest
+# declares defaultStream: rhel-10. If a needed gate turns out off on the
+# default set, prefer CustomNoUpgrade with an explicit gate list.
+install_feature_set: ""
 
 # Payload component carrying the rhel-10 RHCOS bootc base (from
 # github.com/openshift/os; rhel-coreos is the rhel-9 sibling).
