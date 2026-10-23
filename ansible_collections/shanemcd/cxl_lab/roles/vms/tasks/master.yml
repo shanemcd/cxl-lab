@@ -89,17 +89,6 @@
     - "{{ vm_scripts_dir }}"
     - "{{ vm_run_dir }}"
 
-- name: Assert tap names fit the interface name limit
-  ansible.builtin.assert:
-    that:
-      - (vm_tap_prefix ~ item.name) | length <= 15
-    fail_msg: >-
-      Tap name {{ vm_tap_prefix }}{{ item.name }} exceeds the 15-char Linux
-      ifname limit — shorten the node name or vm_tap_prefix.
-  loop: "{{ vms_nodes }}"
-  loop_control:
-    label: "{{ item.name }}"
-
 - name: Create the master install target disk
   # BiP: a BLANK disk — coreos-installer writes the installed master to it
   # (installationDisk /dev/vda) once the live-env bootstrap completes. The
@@ -204,13 +193,20 @@
   loop_control:
     loop_var: node
 
-- name: Parse-validate the master command line
-  # --validate replays the command line paused (-S) under timeout(1) —
-  # rc 124 means the graph parsed and the process stayed alive. Only the
-  # master here: the worker overlays do not exist until the workers phase
-  # (the layered_image stage builds their backing disk after this phase
-  # starts the master — the two overlap by design), so worker command
-  # lines are validated there, against real overlay files.
+- name: Configure the emulator for sVirt
+  ansible.builtin.include_tasks: libvirt-host.yml
+  when: qemu_binary_path == qemu_install_prefix ~ "/bin/qemu-system-x86_64"
+
+- name: Stage and define the persistent master
+  ansible.builtin.include_tasks: libvirt-node.yml
+  loop: "{{ vms_nodes | selectattr('kind', 'equalto', 'master') | list }}"
+  loop_control:
+    loop_var: node
+
+- name: Parse-validate the master domain
+  # The compatibility wrapper starts an inactive domain paused and destroys
+  # it before returning 124; a running domain is left untouched. Workers are
+  # validated later, after their backing image and overlays exist.
   ansible.builtin.command:
     argv:
       - bash
@@ -227,108 +223,6 @@
     fail_msg: >-
       {{ masters[0].name }} command line failed validation (rc={{ vms_validate.rc }}):
       {{ vms_validate.stderr | default('') | trim }}
-
-- name: Read rendered run scripts for shape verification
-  ansible.builtin.slurp:
-    src: "{{ vm_scripts_dir }}/run-{{ item.name }}.sh"
-  loop: "{{ vms_nodes }}"
-  loop_control:
-    label: "{{ item.name }}"
-  register: vms_scripts_raw
-
-- name: Set run-script content facts
-  ansible.builtin.set_fact:
-    vms_script_contents: >-
-      {{ vms_scripts_raw.results
-         | map(attribute='item.name') | zip(vms_scripts_raw.results
-         | map(attribute='content') | map('b64decode')) | list }}
-
-- name: Assert CXL worker run-script shapes
-  # The emulated CXL shape on CXL workers, MINUS host-node binding
-  # everywhere — encoded as asserts so the
-  # deviation is enforced, not just documented.
-  ansible.builtin.assert:
-    that:
-      # full Type-3 graph: pxb-cxl bus, root port, type-3 device, window
-      - >-
-        'pxb-cxl' in (vms_script_contents
-                      | selectattr(0, 'equalto', item.name)
-                      | map(attribute=1) | first)
-      - >-
-        'cxl-type3' in (vms_script_contents
-                        | selectattr(0, 'equalto', item.name)
-                        | map(attribute=1) | first)
-      - >-
-        'cxl-fmw.0' in (vms_script_contents
-                        | selectattr(0, 'equalto', item.name)
-                        | map(attribute=1) | first)
-      # CPU-less guest NUMA node as the CXL target
-      - >-
-        '-numa node,nodeid=1' in (vms_script_contents
-                                  | selectattr(0, 'equalto', item.name)
-                                  | map(attribute=1) | first)
-      # NO host-node binding (host NUMA is not pinned)
-      - >-
-        'host-nodes' not in (vms_script_contents
-                             | selectattr(0, 'equalto', item.name)
-                             | map(attribute=1) | first)
-    fail_msg: >-
-      {{ item.name }} run script does not match the expected CXL shape
-      (minus host-nodes) — see {{ vm_scripts_dir }}/run-{{ item.name }}.sh.
-  loop: "{{ cxl_workers }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Assert master run-script shape
-  # BiP boot model: live ISO media + bootindex-ranked blank install target;
-  # no CXL graph, no host-node binding.
-  ansible.builtin.assert:
-    that:
-      - >-
-        'media=cdrom' in (vms_script_contents
-                          | selectattr(0, 'equalto', masters[0].name)
-                          | map(attribute=1) | first)
-      - >-
-        ('bootindex=' ~ vms_disk_bootindex) in (vms_script_contents
-                                               | selectattr(0, 'equalto', masters[0].name)
-                                               | map(attribute=1) | first)
-      - >-
-        vms_master_iso_name in (vms_script_contents
-                                | selectattr(0, 'equalto', masters[0].name)
-                                | map(attribute=1) | first)
-      - >-
-        'pxb-cxl' not in (vms_script_contents
-                          | selectattr(0, 'equalto', masters[0].name)
-                          | map(attribute=1) | first)
-      - >-
-        'host-nodes' not in (vms_script_contents
-                             | selectattr(0, 'equalto', masters[0].name)
-                             | map(attribute=1) | first)
-    fail_msg: >-
-      Master run script does not match the BiP boot model — see
-      {{ vm_scripts_dir }}/run-{{ masters[0].name }}.sh.
-
-- name: Assert plain worker run-script shape
-  ansible.builtin.assert:
-    that:
-      - >-
-        'pxb-cxl' not in (vms_script_contents
-                          | selectattr(0, 'equalto', item.name)
-                          | map(attribute=1) | first)
-      - >-
-        'host-nodes' not in (vms_script_contents
-                             | selectattr(0, 'equalto', item.name)
-                             | map(attribute=1) | first)
-      - >-
-        'media=cdrom' not in (vms_script_contents
-                              | selectattr(0, 'equalto', item.name)
-                              | map(attribute=1) | first)
-    fail_msg: >-
-      {{ item.name }} run script shape wrong — see
-      {{ vm_scripts_dir }}/run-{{ item.name }}.sh.
-  loop: "{{ dram_workers }}"
-  loop_control:
-    label: "{{ item.name }}"
 
 - name: Start the master
   ansible.builtin.command:

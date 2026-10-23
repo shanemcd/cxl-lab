@@ -2,7 +2,7 @@
 # Lab network. lab_subnet_prefix is the source of truth; every address
 # derives as {{ lab_subnet_prefix }}.{{ <x>_suffix }} and never restates the
 # prefix. No load balancer and no VIPs: the single-node master serves the API
-# and (pinned) ingress itself. The lab resolver is a host-native dnsmasq on
+# and (pinned) ingress itself. Libvirt's dedicated dnsmasq listens on
 # the gateway — load-bearing because ignition fetches each worker's config
 # merge BEFORE applying storage/files, so the initramfs must resolve api-int
 # (via DHCP-provided resolver) before the node's static keyfile exists.
@@ -13,12 +13,11 @@ cluster_name: "cxl"
 base_domain: "ocp.lab"
 lab_domain: "{{ cluster_name }}.{{ base_domain }}"
 
-# The lab bridge is ours (iproute2, persistent; VM taps enslave to it at VM
-# start). Egress NAT is a single reversible masquerade rule tagged
-# 'cxl-lab-nat' — podman/netavark's bridge + NAT are container-attachment-
-# scoped and cannot serve host-QEMU VM taps, so the lab owns the rule.
+# Libvirt persistently defines this network and owns its bridge, NAT,
+# guest interfaces, and DNS/DHCP process. Network and domains autostart.
 # Kernel ifnames cap at 15 chars.
 lab_bridge_name: "ocpcxlbr0"
+libvirt_network_name: "cxl-lab"
 
 host_gateway_suffix: 1
 
@@ -61,7 +60,8 @@ service_network_cidr: "172.30.0.0/16"
 # defaults never cross roles). Teardown reverses exactly these. The bridge
 # carries only the gateway address (no DNS or VIP addresses).
 network_sysctl_conf_name: "99-cxl-lab.conf"
-# Lab resolver config (host-native dnsmasq; teardown removes it).
+# Legacy raw-QEMU resolver/NAT names, retained only for scoped migration
+# and teardown cleanup. New networks use libvirt's own dnsmasq and NAT.
 network_nat_rule_comment: "cxl-lab-nat"
 network_dnsmasq_conf_name: "99-cxl-lab.conf"
 network_dnsmasq_conf_path: "/etc/dnsmasq.d/{{ network_dnsmasq_conf_name }}"

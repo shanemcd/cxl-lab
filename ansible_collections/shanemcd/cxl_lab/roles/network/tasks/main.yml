@@ -1,438 +1,196 @@
 ---
-# network: plain persistent Linux bridge via iproute2 (ours — netavark
-# bridges are container-attachment-scoped and cannot serve host-QEMU VM
-# taps), single reversible masquerade rule for egress NAT, persistent
-# ip_forward drop-in, and the host /etc/hosts block. The egress path is
-# proven by a veth+netns probe that emulates a VM tap on the bridge.
-
-- name: Set all node IP suffixes fact (probe-collision check)
-  ansible.builtin.set_fact:
-    network_all_node_suffixes: "{{ (masters | map(attribute='ip_suffix') | list)
-      + (cxl_workers | map(attribute='ip_suffix') | list)
-      + (dram_workers | map(attribute='ip_suffix') | list) }}"
-
-- name: Assert network taxonomy consistency
+# libvirt owns this network's bridge, NAT, dnsmasq, DHCP and autostart.
+# Never modify the user's default/hostbridge networks.
+- name: Validate network addressing
   ansible.builtin.assert:
     that:
-      # kernel ifnames cap at 15 chars
       - lab_bridge_name | length <= 15
-      # the bridge carries only the gateway address (no DNS/VIP/LB)
-      - network_bridge_addresses | length == 1
-      - network_bridge_addresses[0] | regex_replace('/.*', '') == lab_gateway_ip
-      # the egress probe IP must not collide with the gateway or any node
-      - network_probe_suffix | int not in
-        ([host_gateway_suffix | int] + network_all_node_suffixes | map('int') | list)
-      # the DHCP free range must not cover the gateway, probe, or any node
-      # suffix (only unknown clients ever draw from it)
-      - (range(network_dhcp_range_start_suffix | int,
-               network_dhcp_range_end_suffix | int + 1) | list
-         | intersect([host_gateway_suffix | int, network_probe_suffix | int]
-                    + network_all_node_suffixes | map('int') | list)) == []
-    fail_msg: >-
-      Network taxonomy inconsistent — lab_bridge_name={{ lab_bridge_name }},
-      network_bridge_addresses={{ network_bridge_addresses }},
-      lab_gateway_ip={{ lab_gateway_ip }},
-      network_probe_suffix={{ network_probe_suffix }},
-      node suffixes {{ network_all_node_suffixes }}.
+      - network_probe_suffix | int not in ([host_gateway_suffix | int] + ((masters + cxl_workers + dram_workers) | map(attribute='ip_suffix') | map('int') | list))
+      - (range(network_dhcp_range_start_suffix | int, network_dhcp_range_end_suffix | int + 1) | list | intersect([host_gateway_suffix | int, network_probe_suffix | int] + ((masters + cxl_workers + dram_workers) | map(attribute='ip_suffix') | map('int') | list))) == []
 
-- name: Check lab bridge link
+- name: Select upstream DNS servers
+  ansible.builtin.include_tasks: upstream-dns.yml
+
+- name: Check for the former lab-only dnsmasq configuration
   ansible.builtin.stat:
-    path: "/sys/class/net/{{ lab_bridge_name }}"
-  register: network_bridge_link
+    path: "{{ network_dnsmasq_conf_path }}"
+  register: network_legacy_dns
 
-- name: Create lab bridge
-  ansible.builtin.command:
-    cmd: "ip link add {{ lab_bridge_name }} type bridge"
-  when: not network_bridge_link.stat.exists
-  changed_when: true
+- name: Check for other host dnsmasq configurations before migration
+  ansible.builtin.find:
+    paths: /etc/dnsmasq.d
+    file_type: file
+    excludes: "{{ network_dnsmasq_conf_name }}"
+  register: network_other_dns
+  when: network_legacy_dns.stat.exists
 
-- name: Read lab bridge admin state
+- name: Refuse to disable a shared host resolver
+  ansible.builtin.assert:
+    that: network_other_dns.matched == 0
+    fail_msg: "Other dnsmasq configurations exist; separate the lab resolver before migrating."
+  when: network_legacy_dns.stat.exists
+
+- name: Require stopped raw guests before changing their resolver or bridge
   ansible.builtin.command:
-    cmd: "ip -o link show dev {{ lab_bridge_name }}"
-  register: network_bridge_state
+    argv: [fuser, -s, "{{ vm_images_dir }}/{{ item.name }}.qcow2"]
+  loop: "{{ masters + cxl_workers + dram_workers }}"
+  register: network_legacy_disk_users
+  check_mode: false
   changed_when: false
+  failed_when: network_legacy_disk_users.rc != 1
+  when: network_legacy_dns.stat.exists
 
-- name: Bring lab bridge up
-  ansible.builtin.command:
-    cmd: "ip link set dev {{ lab_bridge_name }} up"
-  when: "',UP' not in network_bridge_state.stdout"
-  changed_when: true
+- name: Stop the former lab-only resolver before libvirt takes its address
+  ansible.builtin.systemd_service:
+    name: "{{ network_dnsmasq_service }}"
+    state: stopped
+    enabled: false
+  when: network_legacy_dns.stat.exists
 
-- name: Read current lab bridge addresses
+- name: Remove only the former lab resolver configuration
+  ansible.builtin.file:
+    path: "{{ network_dnsmasq_conf_path }}"
+    state: absent
+
+- name: Create the libvirt daemon ordering directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/virtqemud.service.d
+    state: directory
+    mode: '0755'
+
+- name: Start libvirt networks before autostart domains
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/virtqemud.service.d/cxl-lab-network.conf
+    content: "[Unit]\nRequires=virtnetworkd.service\nAfter=virtnetworkd.service\n"
+    mode: '0644'
+  register: network_daemon_order
+
+- name: Enable the modular libvirt daemons at boot
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: "{{ network_daemon_order.changed }}"
+  loop: [virtnetworkd.service, virtqemud.service]
+
+- name: Ensure the domain definition workspace exists
+  ansible.builtin.file:
+    path: "{{ vm_run_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Render the persistent lab network
+  ansible.builtin.template:
+    src: libvirt-network.xml.j2
+    dest: "{{ vm_run_dir }}/libvirt-network.xml"
+    mode: '0644'
+  register: network_xml
+
+- name: Check the lab libvirt network
   ansible.builtin.command:
-    cmd: "ip -j -4 addr show dev {{ lab_bridge_name }}"
-  register: network_bridge_addrs_raw
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-info, "{{ libvirt_network_name }}"]
+  register: network_info
   changed_when: false
+  failed_when: false
+  environment: {LC_ALL: C}
 
-- name: Set existing lab bridge addresses fact
-  ansible.builtin.set_fact:
-    network_existing_addrs: >-
-      {{ (network_bridge_addrs_raw.stdout | from_json | first).addr_info
-         | default([]) | map(attribute='local') | list }}
+- name: Refuse to overwrite an unrelated same-name network
+  ansible.builtin.assert:
+    that: "(libvirt_network_name | to_uuid) in network_info.stdout"
+    fail_msg: "Network name is in use with a different UUID; select a different libvirt_network_name."
+  when: network_info.rc == 0
 
-- name: Add missing lab addresses to the bridge
+- name: Define only the lab network
   ansible.builtin.command:
-    cmd: "ip addr replace {{ item }} dev {{ lab_bridge_name }}"
-  loop: "{{ network_bridge_addresses }}"
-  when: (item | regex_replace('/.*', '')) not in network_existing_addrs
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-define, "{{ vm_run_dir }}/libvirt-network.xml"]
+  when: network_xml.changed or network_info.rc != 0
   changed_when: true
 
-- name: Enable IPv4 forwarding (persistent drop-in; teardown removes it)
+- name: Autostart the lab network
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-autostart, "{{ libvirt_network_name }}"]
+  when: not (network_info.stdout is search('Autostart:\\s+yes'))
+  changed_when: true
+
+- name: Inspect a pre-libvirt bridge only when the network is stopped
+  ansible.builtin.command:
+    argv: [ip, -details, -json, address, show, dev, "{{ lab_bridge_name }}"]
+  register: network_existing_bridge
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  when: not (network_info.stdout is search('Active:\s+yes'))
+
+- name: Require evidence before replacing a legacy bridge
+  ansible.builtin.assert:
+    that:
+      - network_legacy_dns.stat.exists
+      - (network_existing_bridge.stdout | from_json)[0].linkinfo.info_kind == 'bridge'
+      - lab_gateway_ip in ((network_existing_bridge.stdout | from_json)[0].addr_info | selectattr('local', 'defined') | map(attribute='local') | list)
+    fail_msg: "The bridge already exists outside the active lab network; refusing to replace it without the former lab DNS configuration and gateway address."
+  when:
+    - network_existing_bridge is not skipped
+    - network_existing_bridge.rc == 0
+
+- name: Remove the verified stopped raw-QEMU lab bridge before adoption
+  ansible.builtin.command:
+    argv: [ip, link, delete, dev, "{{ lab_bridge_name }}"]
+  when:
+    - network_existing_bridge is not skipped
+    - network_existing_bridge.rc == 0
+  changed_when: true
+
+- name: Start the lab network
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-start, "{{ libvirt_network_name }}"]
+  when: not (network_info.stdout is search('Active:\\s+yes'))
+  changed_when: true
+
+- name: Persist IPv4 forwarding
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward
-    value: "1"
+    value: '1'
     state: present
     sysctl_file: "/etc/sysctl.d/{{ network_sysctl_conf_name }}"
     reload: true
 
-- name: Check lab masquerade rule
-  # The single reversible NAT rule. Teardown removes it by this exact spec.
-  ansible.builtin.command:
-    cmd: >-
-      iptables -t nat -C POSTROUTING
-      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
-      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
-  register: network_nat_check
-  changed_when: false
-  failed_when: network_nat_check.rc not in [0, 1]
+- name: Remove the legacy lab-only masquerade rule if present
+  ansible.builtin.shell: |
+    if iptables -t nat -C POSTROUTING -s {{ lab_subnet_cidr | quote }} ! -o {{ lab_bridge_name | quote }} -m comment --comment {{ network_nat_rule_comment | quote }} -j MASQUERADE 2>/dev/null; then
+      iptables -t nat -D POSTROUTING -s {{ lab_subnet_cidr | quote }} ! -o {{ lab_bridge_name | quote }} -m comment --comment {{ network_nat_rule_comment | quote }} -j MASQUERADE
+      echo REMOVED
+    fi
+  register: network_legacy_nat
+  changed_when: "'REMOVED' in network_legacy_nat.stdout"
 
-- name: Add lab masquerade rule (single, reversible)
-  ansible.builtin.command:
-    cmd: >-
-      iptables -t nat -A POSTROUTING
-      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
-      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
-  when: network_nat_check.rc == 1
-  changed_when: true
-
-- name: Add lab host-resolution block to /etc/hosts
+- name: Preserve host-side cluster name resolution
   ansible.builtin.blockinfile:
     path: /etc/hosts
-    marker: "# {mark} cxl-lab"
+    marker: '# {mark} cxl-lab'
     block: "{{ network_hosts_block | join('\n') }}"
 
-- name: Check dnsmasq presence
-  ansible.builtin.command:
-    argv:
-      - rpm
-      - -q
-      - dnsmasq
-  register: network_dnsmasq_query
-  changed_when: false
-  failed_when: false
-
-- name: Install dnsmasq (host-native lab resolver)
-  # Ignition fetches config.merge sources before applying storage, so
-  # worker stubs need api-int resolvable at initramfs fetch time with only
-  # the NM keyfile resolver — hence a resolver on the gateway.
-  # rpm-ostree hosts are covered by host_prep's package layering (dnsmasq
-  # is in host_packages); ansible.builtin.package cannot be used there —
-  # its atomic backend was removed from community.general 13.x — so this
-  # task only runs when dnsmasq is genuinely absent (regular dnf hosts).
-  ansible.builtin.package:
-    name: dnsmasq
-    state: present
-  when: network_dnsmasq_query.rc != 0
-
-# --- upstream resolver selection -----------------------------------------
-# The taxonomy may pin upstream_dns_servers; an empty list means
-# auto-detect from the lab host, so the lab works on hosts whose networks
-# block public DNS. Detection prefers real nameservers from resolv.conf,
-# then systemd-resolved's upstreams, then the local resolver stub — never
-# an address inside the lab subnet (self-forwarding loop).
-
-- name: Set pinned upstream resolvers
-  when: upstream_dns_servers | length > 0
-  ansible.builtin.set_fact:
-    network_upstream_dns: "{{ upstream_dns_servers }}"
-
-- name: Auto-detect upstream resolvers from the lab host
-  when: upstream_dns_servers | length == 0
-  block:
-
-    - name: Read the host resolver configuration
-      ansible.builtin.command:
-        cmd: "cat {{ network_dns_resolv_conf_path }}"
-      register: network_dns_resolv_raw
-      changed_when: false
-
-    - name: Set host nameservers fact
-      ansible.builtin.set_fact:
-        network_dns_resolv_nameservers: >-
-          {{ network_dns_resolv_raw.stdout_lines
-             | select('match', '^\s*nameserver\s+\S+') | list
-             | map('regex_replace', '^\s*nameserver\s+', '') | map('trim') | list }}
-
-    - name: Set upstream candidates fact (resolv.conf minus loopbacks, the lab subnet, and blocklisted split-horizon resolvers)
-      ansible.builtin.set_fact:
-        network_dns_candidates: >-
-          {{ network_dns_resolv_nameservers
-             | reject('in', network_dns_loopback_addresses)
-             | reject('in', upstream_dns_blocklist | default([]))
-             | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
-             | unique | list }}
-
-    - name: Set local resolver stub fact
-      ansible.builtin.set_fact:
-        network_dns_stub_list: >-
-          {{ network_dns_resolv_nameservers
-             | select('in', network_dns_loopback_addresses) | list }}
-
-    - name: Read systemd-resolved upstreams
-      when: network_dns_candidates | length == 0
-      ansible.builtin.command:
-        cmd: resolvectl dns
-      register: network_dns_resolved_raw
-      changed_when: false
-      failed_when: false
-
-    - name: Set detected upstream resolvers fact
-      ansible.builtin.set_fact:
-        network_upstream_dns: "{{ network_dns_candidates }}"
-
-    - name: Fall back to systemd-resolved upstreams
-      when: network_upstream_dns | length == 0
-      ansible.builtin.set_fact:
-        network_upstream_dns: >-
-          {{ (network_dns_resolved_raw.stdout | default(''))
-             | regex_findall(network_dns_ipv4_pattern)
-             | reject('in', upstream_dns_blocklist | default([]))
-             | reject('search', '^' ~ (lab_subnet_prefix | regex_escape) ~ '\.')
-             | unique | list }}
-
-    - name: Fall back to the host's local resolver stub
-      when:
-        - network_upstream_dns | length == 0
-        - network_dns_stub_list | length > 0
-      ansible.builtin.set_fact:
-        network_upstream_dns: "{{ [network_dns_stub_list[0]] }}"
-
-    - name: Assert upstream resolvers were determined
-      ansible.builtin.assert:
-        that:
-          - network_upstream_dns | length > 0
-        fail_msg: >-
-          upstream_dns_servers is empty and no upstream resolvers could be
-          auto-detected from the lab host (resolv.conf nameservers,
-          systemd-resolved upstreams, local stub). Pin upstream_dns_servers
-          in the network taxonomy.
-
-- name: Render lab resolver config (dnsmasq on the bridge gateway)
-  ansible.builtin.template:
-    src: dnsmasq-lab.conf.j2
-    dest: "{{ network_dnsmasq_conf_path }}"
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Restart lab resolver
-
-- name: Enable and start the lab resolver
-  ansible.builtin.service:
-    name: "{{ network_dnsmasq_service }}"
-    state: started
-    enabled: true
-
-- name: Check firewalld state
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --state
-  register: network_firewalld_state
-  changed_when: false
-  failed_when: false
-
-- name: Permit the lab subnet to reach the host resolver (firewalld trusted source, runtime)
-  # Guests reach the gateway's dnsmasq (DNS + DHCP) and later the MCS/API.
-  # firewalld's default zone rejects bridge-originated INPUT traffic —
-  # the failure surfaces inside guests as "no route to host" toward the
-  # gateway, while every host-side check stays green (the egress probe
-  # only exercises FORWARD). Trusting the lab subnet source mirrors the
-  # trusted-CNI-interface pattern k3s and libvirt use on Fedora hosts.
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --zone=trusted
-      - --add-source={{ lab_subnet_cidr }}
-  register: network_firewalld_trust_runtime
-  changed_when:
-    - network_firewalld_state.stdout == 'running'
-    - "'ALREADY_' not in network_firewalld_trust_runtime.stderr"
-  when: network_firewalld_state.stdout == 'running'
-
-- name: Trust the lab bridge itself (firewalld, runtime)
-  # Source-based trust alone is not enough: initramfs DHCP broadcasts
-  # arrive with source 0.0.0.0 (pre-lease), which no subnet source ever
-  # matches — firewalld silently eats the DISCOVERs and worker ignition
-  # stalls at "lookup api-int ... connection refused" for hours. Trusting
-  # the bridge interface covers all bridge-ingress traffic regardless of
-  # source address (the same pattern libvirt's virbr0 uses).
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --zone=trusted
-      - --add-interface={{ lab_bridge_name }}
-  register: network_firewalld_trust_if_runtime
-  changed_when:
-    - network_firewalld_state.stdout == 'running'
-    - "'ALREADY_' not in network_firewalld_trust_if_runtime.stderr"
-  when: network_firewalld_state.stdout == 'running'
-
-- name: Trust the lab bridge itself (firewalld, permanent)
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --zone=trusted
-      - --add-interface={{ lab_bridge_name }}
-      - --permanent
-  register: network_firewalld_trust_if_permanent
-  changed_when:
-    - network_firewalld_state.stdout == 'running'
-    - "'ALREADY_' not in network_firewalld_trust_if_permanent.stderr"
-  when: network_firewalld_state.stdout == 'running'
-
-- name: Permit the lab subnet to reach the host resolver (firewalld trusted source, permanent)
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --zone=trusted
-      - --add-source={{ lab_subnet_cidr }}
-      - --permanent
-  register: network_firewalld_trust_permanent
-  changed_when:
-    - network_firewalld_state.stdout == 'running'
-    - "'ALREADY_' not in network_firewalld_trust_permanent.stderr"
-  when: network_firewalld_state.stdout == 'running'
-
-- name: Apply resolver config changes before verification
-  # The restart handler defers to end-of-play; a changed config must be live
-  # before the asserts below query the resolver (a re-run with config drift
-  # would otherwise verify the stale process and fail).
-  ansible.builtin.meta: flush_handlers
-
-# --- verification (post-apply asserts: bridge state, gateway address,
-# --- forwarding, masquerade rule, egress path via tap-emulating probe) ---
-
-- name: Render lab egress probe script
+- name: Render the isolated lab egress probe
   ansible.builtin.template:
     src: network-egress-probe.sh.j2
     dest: "{{ network_probe_script_path }}"
     owner: "{{ lab_workspace_identity.uid }}"
     group: "{{ lab_workspace_identity.gid }}"
-    mode: "0750"
+    mode: '0750'
 
-- name: Run lab egress probe (veth + netns emulating a VM tap)
+- name: Verify bridge DNS and NAT from an isolated namespace
   ansible.builtin.command:
-    cmd: "{{ network_probe_script_path }}"
-  register: network_verify_egress
+    argv: [bash, "{{ network_probe_script_path }}"]
+  register: network_egress
   changed_when: false
 
-- name: Read lab bridge state for verification
+- name: Resolve the cluster through libvirt DNS
   ansible.builtin.command:
-    cmd: "ip -o link show dev {{ lab_bridge_name }}"
-  register: network_verify_link
+    argv: [dig, +short, "api-int.{{ lab_domain }}", "@{{ lab_gateway_ip }}"]
+  register: network_cluster_dns
   changed_when: false
 
-- name: Read lab bridge addresses for verification
-  ansible.builtin.command:
-    cmd: "ip -j -4 addr show dev {{ lab_bridge_name }}"
-  register: network_verify_addrs
-  changed_when: false
-
-- name: Read IPv4 forwarding state for verification
-  ansible.builtin.slurp:
-    src: /proc/sys/net/ipv4/ip_forward
-  register: network_verify_forward
-
-- name: Read FORWARD chain policy for verification
-  ansible.builtin.command:
-    cmd: iptables -S FORWARD
-  register: network_verify_forward_policy
-  changed_when: false
-
-- name: Verify lab masquerade rule present
-  ansible.builtin.command:
-    cmd: >-
-      iptables -t nat -C POSTROUTING
-      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
-      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
-  register: network_verify_nat
-  changed_when: false
-  failed_when: network_verify_nat.rc != 0
-
-- name: Read lab hosts block for verification
-  ansible.builtin.slurp:
-    src: /etc/hosts
-  register: network_verify_hosts
-
-- name: Read lab resolver service state for verification
-  ansible.builtin.command:
-    argv:
-      - systemctl
-      - is-active
-      - "{{ network_dnsmasq_service }}"
-  register: network_verify_dns_service
-  changed_when: false
-
-- name: Resolve a cluster record via the lab resolver
-  ansible.builtin.command:
-    argv:
-      - dig
-      - +short
-      - "api-int.{{ lab_domain }}"
-      - "@{{ lab_gateway_ip }}"
-  register: network_verify_dns_cluster
-  changed_when: false
-
-- name: Resolve an internet record via the lab resolver
-  # Forwarding proof: the resolver must answer non-lab names too.
-  ansible.builtin.command:
-    argv:
-      - dig
-      - +short
-      - "{{ network_smoke_test_host }}"
-      - "@{{ lab_gateway_ip }}"
-  register: network_verify_dns_forward
-  changed_when: false
-
-- name: Assert lab network state
+- name: Verify the network
   ansible.builtin.assert:
     that:
-      - "'UP' in network_verify_link.stdout"
-      - network_bridge_addresses | map('regex_replace', '/.*', '')
-        | difference((network_verify_addrs.stdout | from_json | first).addr_info
-          | default([]) | map(attribute='local') | list) | length == 0
-      - network_verify_forward.content | b64decode | trim == '1'
-      - "'-P FORWARD ACCEPT' in network_verify_forward_policy.stdout"
-      - network_verify_nat.rc == 0
-      - "'EGRESS_OK' in network_verify_egress.stdout"
-      # every hosts-block line must be present in /etc/hosts
-      - network_hosts_block
-        | select('in', network_verify_hosts.content | b64decode)
-        | list | length == network_hosts_block | length
-      # lab resolver: running, serving cluster records, forwarding upstream
-      - network_verify_dns_service.stdout | trim == 'active'
-      - network_verify_dns_cluster.stdout | trim == master_ip
-      - network_verify_dns_forward.stdout | trim | length > 0
-    fail_msg: >-
-      Lab network verification failed — bridge {{ network_verify_link.stdout }},
-      addresses {{ network_verify_addrs.stdout }},
-      ip_forward {{ network_verify_forward.content | b64decode | trim }},
-      FORWARD policy {{ network_verify_forward_policy.stdout }},
-      masquerade rc {{ network_verify_nat.rc }},
-      egress {{ network_verify_egress.stdout | default('') }},
-      hosts content {{ network_verify_hosts.content | b64decode | default('') }},
-      resolver service {{ network_verify_dns_service.stdout | default('') }},
-      cluster lookup {{ network_verify_dns_cluster.stdout | default('') }},
-      forwarded lookup {{ network_verify_dns_forward.stdout | default('') }}.
-
-- name: Lab network summary
-  ansible.builtin.debug:
-    msg: >-
-      Lab network OK — bridge {{ lab_bridge_name }} up with gateway
-      {{ lab_gateway_ip }}, ip_forward persisted, single reversible
-      masquerade rule for {{ lab_subnet_cidr }} present, egress probe
-      (tap emulation) passed, hosts block
-      ({{ network_hosts_block | length }} entries) applied, lab resolver
-      active on {{ lab_gateway_ip }} (cluster + forwarded lookups
-      verified; DHCP reservations for {{ (masters + cxl_workers + dram_workers) | length }}
-      nodes).
+      - "'EGRESS_OK' in network_egress.stdout"
+      - network_cluster_dns.stdout | trim == master_ip

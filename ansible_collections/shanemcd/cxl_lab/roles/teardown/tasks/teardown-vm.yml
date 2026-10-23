@@ -1,6 +1,6 @@
 ---
-# Per-VM leftover removal (included with loop_var: node): tap, overlay,
-# run script, logs, pidfile, and monitor socket. All idempotent — absent
+# Per-VM removal (included with loop_var: node): persistent domain,
+# known runtime media, original workspace disk, and compatibility paths. All idempotent — absent
 # resources are skipped. The guest shutdown itself happens at fleet level
 # in tasks/main.yml (parallel poweroff + one poller + --stop fallback).
 # The master additionally loses its prepared boot-ISO copy (the blank
@@ -10,33 +10,64 @@
 # children do NOT inherit the include task's tags, so without this a
 # `--tags vms` partial run would silently skip the per-VM cleanup.
 
-- name: Detach the VM tap from the lab bridge
-  # tuntap del fails EBUSY while the tap is still enslaved; detach first.
+- name: Require a reachable libvirt service before removing VM files
   tags: vms
   ansible.builtin.command:
-    argv:
-      - ip
-      - link
-      - set
-      - dev
-      - "{{ vm_tap_prefix }}{{ node.name }}"
-      - nomaster
-  failed_when: false
+    argv: [virsh, -c, "{{ libvirt_uri }}", list, --all, --name]
+  check_mode: false
   changed_when: false
 
-- name: Remove the VM tap
+- name: Check the lab domain before undefining it
   tags: vms
   ansible.builtin.command:
-    argv:
-      - ip
-      - tuntap
-      - del
-      - mode
-      - tap
-      - dev
-      - "{{ vm_tap_prefix }}{{ node.name }}"
-  failed_when: false
+    argv: [virsh, -c, "{{ libvirt_uri }}", domuuid, "{{ node.name }}"]
+  register: teardown_domain_uuid
+  check_mode: false
   changed_when: false
+  failed_when: false
+
+- name: Refuse to undefine an unrelated domain
+  tags: vms
+  ansible.builtin.assert:
+    that: teardown_domain_uuid.stdout | trim == (node.name | to_uuid)
+  when: teardown_domain_uuid.rc == 0
+
+- name: Read the domain state independently of compatibility scripts
+  tags: vms
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", domstate, "{{ node.name }}"]
+  register: teardown_domain_state
+  environment: {LC_ALL: C}
+  check_mode: false
+  changed_when: false
+  when: teardown_domain_uuid.rc == 0
+
+- name: Refuse to remove runtime files of a live domain
+  tags: vms
+  ansible.builtin.assert:
+    that: teardown_domain_state.stdout | trim in ['shut off', 'crashed']
+  when:
+    - teardown_domain_uuid.rc == 0
+    - not ansible_check_mode
+
+- name: Undefine only the lab domain (never remove storage implicitly)
+  tags: vms
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", undefine, "{{ node.name }}"]
+  when: teardown_domain_uuid.rc == 0
+  changed_when: true
+
+- name: Remove the domain runtime files
+  tags: vms
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ libvirt_runtime_dir }}/{{ node.name }}.qcow2"
+    - "{{ libvirt_runtime_dir }}/{{ node.name }}.ign"
+    - "/var/log/libvirt/qemu/{{ node.name }}.serial.log"
+    - "{{ vm_run_dir }}/{{ node.name }}.xml"
+    - "{{ vm_run_dir }}/{{ node.name }}.lifecycle.lock"
 
 - name: Remove the VM disk
   tags: vms
@@ -65,5 +96,6 @@
   loop:
     - "{{ vm_logs_dir }}/{{ node.name }}.serial.log"
     - "{{ vm_logs_dir }}/{{ node.name }}.qemu-stderr.log"
+    - "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"
     - "{{ vm_run_dir }}/{{ node.name }}.pid"
     - "{{ vm_run_dir }}/{{ node.name }}.monitor.sock"

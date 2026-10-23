@@ -1,0 +1,29 @@
+---
+# Keep the custom emulator usable under sVirt, without disabling SELinux.
+# Use /opt spelling; SELinux's /var/opt equivalency handles rpm-ostree.
+- name: Read local SELinux file-context rules
+  ansible.builtin.command: semanage fcontext -l -C
+  register: vms_local_fcontexts
+  changed_when: false
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - qemu_binary_path.startswith(qemu_install_prefix ~ '/')
+
+- name: Label the custom QEMU installation for libvirt
+  ansible.builtin.command:
+    argv: [semanage, fcontext, -a, -t, "{{ item.type }}", "{{ item.path }}"]
+  loop:
+    - {path: "{{ qemu_install_prefix }}(/.*)?", type: usr_t}
+    - {path: "{{ qemu_install_prefix }}/bin/qemu-system-.*", type: qemu_exec_t}
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - qemu_binary_path.startswith(qemu_install_prefix ~ '/')
+    - item.path not in vms_local_fcontexts.stdout
+
+- name: Restore the custom QEMU installation labels
+  ansible.builtin.command:
+    argv: [restorecon, -RF, "{{ qemu_install_prefix }}"]
+  changed_when: false
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - qemu_binary_path.startswith(qemu_install_prefix ~ '/')

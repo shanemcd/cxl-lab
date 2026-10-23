@@ -7,12 +7,10 @@
 # dry-runs the whole playbook. The QEMU host PREFIX is never removed
 # (the exists-guard makes a same-version rebuild a no-op).
 #
-# NOTE (documented behavior): the network layer deletes the lab bridge
-# while the VM taps may still exist; the run scripts re-enslave taps at
-# VM start, so a network-only teardown with running VMs requires
-# restarting them afterwards (or a full teardown, which removes the VMs
-# first). For a rebuild after any teardown of the vms layer or deeper,
-# regenerate ignition within a fresh 12 h window.
+# The libvirt network layer refuses attached guest ports: remove the VM
+# layer first. Shared libvirt services and unrelated resources are retained.
+# For a rebuild after the VM layer or deeper, regenerate ignition within
+# a fresh 12 h window.
 
 - name: Stat the kubeconfig
   ansible.builtin.stat:
@@ -293,6 +291,15 @@
     label: "{{ node.name }}"
   tags: vms
 
+- name: Remove shared lab runtime media
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ libvirt_runtime_dir }}/base.qcow2"
+    - "{{ libvirt_runtime_dir }}/{{ vms_master_iso_name }}"
+  tags: vms
+
 - name: Remove the ignition staging directory
   ansible.builtin.file:
     path: "{{ vm_ignition_dir }}"
@@ -300,6 +307,59 @@
   tags: vms
 
 # --- Layer: network ----------------------------------------------------------
+
+- name: Require a reachable libvirt network service before cleanup
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-list, --all, --name]
+  check_mode: false
+  changed_when: false
+  tags: network
+
+- name: Inspect the lab libvirt network
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-info, "{{ libvirt_network_name }}"]
+  register: teardown_network_info
+  check_mode: false
+  environment: {LC_ALL: C}
+  changed_when: false
+  failed_when: false
+  tags: network
+
+- name: Refuse to remove an unrelated same-name network
+  ansible.builtin.assert:
+    that: "(libvirt_network_name | to_uuid) in teardown_network_info.stdout"
+  when: teardown_network_info.rc == 0
+  tags: network
+
+- name: Inspect remaining network attachments
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-port-list, "{{ libvirt_network_name }}", --uuid]
+  register: teardown_network_ports
+  check_mode: false
+  changed_when: false
+  when: teardown_network_info.stdout is search('Active:\s+yes')
+  tags: network
+
+- name: Require stopped domains before network-only teardown
+  ansible.builtin.assert:
+    that: teardown_network_ports.stdout | default('') | trim == ''
+    fail_msg: "Stop the attached lab domains before removing their network."
+  when: not ansible_check_mode
+  tags: network
+
+- name: Stop only the lab libvirt network
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-destroy, "{{ libvirt_network_name }}"]
+  when: teardown_network_info.stdout is search('Active:\s+yes')
+  changed_when: true
+  tags: network
+
+- name: Undefine only the lab libvirt network
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", net-undefine, "{{ libvirt_network_name }}"]
+  when: teardown_network_info.rc == 0
+  changed_when: true
+  tags: network
 
 - name: Remove the lab bridge from the firewalld trusted zone (runtime)
   # Mirror of the network role's interface trust (DHCP-broadcast ingress).
@@ -348,14 +408,6 @@
   failed_when: false
   tags: network
 
-- name: Stop and disable the lab resolver
-  ansible.builtin.service:
-    name: "{{ network_dnsmasq_service }}"
-    state: stopped
-    enabled: false
-  failed_when: false
-  tags: network
-
 - name: Remove the lab resolver config
   ansible.builtin.file:
     path: "{{ network_dnsmasq_conf_path }}"
@@ -383,18 +435,6 @@
   ansible.builtin.file:
     path: "/etc/sysctl.d/{{ network_sysctl_conf_name }}"
     state: absent
-  tags: network
-
-- name: Remove the lab bridge
-  ansible.builtin.command:
-    argv:
-      - ip
-      - link
-      - del
-      - dev
-      - "{{ lab_bridge_name }}"
-  failed_when: false
-  changed_when: false
   tags: network
 
 # --- Layer: images -----------------------------------------------------------

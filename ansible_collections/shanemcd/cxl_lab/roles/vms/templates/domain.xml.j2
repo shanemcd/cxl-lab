@@ -1,0 +1,63 @@
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>{# hardcode-ok: fixed libvirt XML namespace, not a configurable endpoint #}
+  <name>{{ node.name }}</name>
+  <uuid>{{ node.name | to_uuid }}</uuid>
+  <description>Managed by shanemcd.cxl_lab; preserve disks when undefining.</description>
+  <memory unit='bytes'>{{ node.ram | human_to_bytes }}</memory>
+  <currentMemory unit='bytes'>{{ node.ram | human_to_bytes }}</currentMemory>
+  <vcpu placement='static'>{{ node.vcpu }}</vcpu>
+  <os>
+    <type arch='x86_64' machine='q35'>hvm</type>
+  </os>
+{% if not (libvirt_probe | default(false) | bool) %}
+  <sysinfo type='fwcfg'><entry name='opt/com.coreos/config' file='{{ libvirt_runtime_dir }}/{{ node.name }}.ign'/></sysinfo>
+{% endif %}
+  <features><acpi/><apic/></features>
+  <cpu mode='host-passthrough' check='none'>
+{% if node.kind == 'worker-cxl' %}
+    <numa><cell id='0' cpus='0-{{ node.vcpu | int - 1 }}' memory='{{ node.ram | human_to_bytes }}' unit='bytes'/></numa>
+{% endif %}
+  </cpu>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <emulator>{{ qemu_binary_path }}</emulator>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='{{ libvirt_runtime_dir }}/{{ node.name }}.qcow2'/>
+      <target dev='vda' bus='virtio'/><boot order='1'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+    </disk>
+{% if node.kind == 'master' %}
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/><source file='{{ libvirt_runtime_dir }}/{{ vms_master_iso_name }}'/>
+      <target dev='sda' bus='sata'/><readonly/><boot order='2'/>
+    </disk>
+{% endif %}
+{% if not (libvirt_probe | default(false) | bool) %}
+    <interface type='network'>
+      <mac address='{{ mac_base }}:{{ node.mac_suffix }}'/>
+      <source network='{{ libvirt_network_name }}'/><model type='virtio'/>
+      <driver name='vhost'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </interface>
+{% endif %}
+    <serial type='pty'><log file='/var/log/libvirt/qemu/{{ node.name }}.serial.log' append='on'/><target port='0'/></serial>
+    <video><model type='none'/></video>
+    <memballoon model='none'/>
+  </devices>
+  <qemu:commandline>
+{% if node.kind == 'worker-cxl' %}
+    <!-- libvirt owns ordinary PCI/RAM; passthrough adds the CXL-only graph.
+         Node 1 is memoryless until the guest commits the Type-3 region. -->
+    <qemu:arg value='-machine'/><qemu:arg value='cxl=on,cxl-fmw.0.targets.0={{ vms_cxl_pxb_id }},cxl-fmw.0.size={{ node.vmem_size }},cxl-fmw.0.interleave-granularity={{ vmem_interleave_granularity }}'/>
+    <qemu:arg value='-numa'/><qemu:arg value='node,nodeid=1'/>
+    <qemu:arg value='-object'/><qemu:arg value='memory-backend-ram,id=vmem0,share=on,size={{ node.vmem_size }}'/>
+    <qemu:arg value='-device'/><qemu:arg value='pxb-cxl,bus=pcie.0,addr=0x08,id={{ vms_cxl_pxb_id }},bus_nr={{ node.cxl_bus_nr }},numa_node=1'/>
+    <qemu:arg value='-device'/><qemu:arg value='cxl-rp,id={{ vms_cxl_root_port_id }},bus={{ vms_cxl_pxb_id }}'/>
+    <qemu:arg value='-device'/><qemu:arg value='cxl-type3,bus={{ vms_cxl_root_port_id }},volatile-memdev=vmem0,id={{ vms_cxl_type3_id }}'/>
+{% endif %}
+  </qemu:commandline>
+</domain>

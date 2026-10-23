@@ -1,0 +1,99 @@
+---
+- name: Create the private libvirt runtime directory
+  ansible.builtin.file:
+    path: "{{ libvirt_runtime_dir }}"
+    state: directory
+    owner: qemu
+    group: qemu
+    mode: '0700'
+
+- name: Stage the offline disk migration helper
+  ansible.builtin.copy:
+    src: stage-libvirt-disk.py
+    dest: "{{ vm_scripts_dir }}/stage-libvirt-disk.py"
+    mode: '0750'
+
+- name: Seed the shared worker backing image
+  ansible.builtin.command:
+    argv: [python3, "{{ vm_scripts_dir }}/stage-libvirt-disk.py", "{{ prebaked_node_image_path }}", "{{ libvirt_runtime_dir }}/base.qcow2"]
+  register: vms_libvirt_base
+  changed_when: "'SEEDED' in vms_libvirt_base.stdout"
+  when: node.kind != 'master'
+
+- name: Seed a private disk without modifying the original
+  ansible.builtin.command:
+    argv: "{{ ['python3', vm_scripts_dir ~ '/stage-libvirt-disk.py', vm_images_dir ~ '/' ~ node.name ~ '.qcow2', libvirt_runtime_dir ~ '/' ~ node.name ~ '.qcow2'] + (['--backing', libvirt_runtime_dir ~ '/base.qcow2', '--expected-backing', prebaked_node_image_path] if node.kind != 'master' else []) }}"
+  register: vms_libvirt_disk
+  changed_when: "'SEEDED' in vms_libvirt_disk.stdout"
+
+- name: Stage private firmware configuration for libvirt
+  ansible.builtin.copy:
+    src: "{{ vm_ignition_dir }}/{{ node.name }}.ign"
+    dest: "{{ libvirt_runtime_dir }}/{{ node.name }}.ign"
+    remote_src: true
+    owner: qemu
+    group: qemu
+    mode: '0600'
+  diff: false
+  no_log: true
+
+- name: Stage the master's prepared boot ISO
+  ansible.builtin.copy:
+    src: "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
+    dest: "{{ libvirt_runtime_dir }}/{{ vms_master_iso_name }}"
+    remote_src: true
+    force: false
+    mode: '0644'
+  when: node.kind == 'master'
+
+- name: Render the persistent domain definition
+  ansible.builtin.template:
+    src: domain.xml.j2
+    dest: "{{ vm_run_dir }}/{{ node.name }}.xml"
+    mode: '0644'
+  register: vms_domain_xml
+
+- name: Check whether this domain is defined
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", dominfo, "{{ node.name }}"]
+  register: vms_domain_info
+  changed_when: false
+  failed_when: false
+  environment: {LC_ALL: C}
+
+- name: Refuse to overwrite an unrelated same-name domain
+  ansible.builtin.assert:
+    that: "(node.name | to_uuid) in vms_domain_info.stdout"
+    fail_msg: "Domain name is already in use with a different UUID; choose a different lab node name."
+  when: vms_domain_info.rc == 0
+
+- name: Define the lab domain
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", define, --validate, "{{ vm_run_dir }}/{{ node.name }}.xml"]
+  changed_when: true
+  when: vms_domain_xml.changed or vms_domain_info.rc != 0
+
+- name: Enable domain autostart
+  ansible.builtin.command:
+    argv: [virsh, -c, "{{ libvirt_uri }}", autostart, "{{ node.name }}"]
+  changed_when: true
+  when: not (vms_domain_info.stdout is search('Autostart:\s+enable'))
+
+- name: Preserve the serial log before replacing its old path
+  ansible.builtin.command:
+    argv: [cp, --no-clobber, "{{ vm_logs_dir }}/{{ node.name }}.serial.log", "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"]
+    creates: "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"
+  when: vms_domain_info.rc != 0
+  # A fresh installation has no previous serial log.
+  register: vms_legacy_serial
+  failed_when: false
+
+- name: Retain read-only compatibility paths for existing operational checks
+  ansible.builtin.file:
+    src: "{{ item.source }}"
+    dest: "{{ item.target }}"
+    state: link
+    force: true
+  loop:
+    - {source: "/run/libvirt/qemu/{{ node.name }}.pid", target: "{{ vm_run_dir }}/{{ node.name }}.pid"}
+    - {source: "/var/log/libvirt/qemu/{{ node.name }}.serial.log", target: "{{ vm_logs_dir }}/{{ node.name }}.serial.log"}

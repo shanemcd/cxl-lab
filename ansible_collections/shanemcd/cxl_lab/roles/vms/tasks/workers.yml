@@ -63,7 +63,13 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: Parse-validate worker command lines
+- name: Stage and define persistent workers
+  ansible.builtin.include_tasks: libvirt-node.yml
+  loop: "{{ vms_worker_nodes }}"
+  loop_control:
+    loop_var: node
+
+- name: Parse-validate worker domains
   # --validate replays the command line paused (-S) under timeout(1) —
   # rc 124 means the graph parsed and the process stayed alive. The
   # overlays exist by now (created above), so the validation opens real
@@ -91,17 +97,6 @@
   loop: "{{ vms_worker_validate.results }}"
   loop_control:
     label: "{{ item.item.name }}"
-
-- name: Stage the reboot-hang watchdog client
-  # Standalone file because the HMP client's python cannot live inside
-  # the wait task's shell block scalar: a heredoc's column-0 terminator
-  # would break out of the scalar (and an indented one is never
-  # recognized by bash), while an inline multi-line quoted script
-  # trips ansible-lint's argument splitter.
-  ansible.builtin.copy:
-    src: reboot-watchdog.py
-    dest: "{{ vm_run_dir }}/reboot-watchdog.py"
-    mode: "0750"
 
 - name: Wait for the master's install-to-disk reboot
   # Gate for starting the workers: their first-boot ignition merges from the
@@ -141,13 +136,12 @@
         # quote inside a comment reads as unterminated to the
         # ansible-lint argument splitter.)
         serial='{{ vm_logs_dir }}/{{ masters[0].name }}.serial.log'
-        monsock='{{ vm_run_dir }}/{{ masters[0].name }}.monitor.sock'
-        if [ -f "$serial" ] && [ -S "$monsock" ] \
+        if [ -f "$serial" ] \
            && [ "$(find "$serial" -mmin +2 | wc -l)" -eq 1 ] \
            && tail -n 1 "$serial" | grep -q 'reboot: Restarting system'; then
           # NOTE: the HMP reset client is staged by the copy task
           # above (see the comment there for why it is a file).
-          python3 '{{ vm_run_dir }}/reboot-watchdog.py' "$monsock" >&2 || true
+          virsh -c {{ libvirt_uri | quote }} reset {{ masters[0].name | quote }} >&2 || true
         fi
         echo "master not installed yet (sysroot: ${rootdev:-unreachable})" >&2
         exit 1
@@ -196,14 +190,22 @@
     label: "{{ item.item.name }}"
 
 - name: Wait for guest kernel boot evidence in serial logs
-  # ONE poller over the whole fleet (never serial per-VM waits): the
-  # kernel banner in each node's serial log proves all four guests booted.
+  # Installed masters may not retain console=ttyS0 after BiP. Accept a
+  # live SSH kernel check too; do not rely on an old live-ISO log banner.
   ansible.builtin.shell: |
     set -o pipefail
     marked=0
-    for node in {{ vms_nodes | map(attribute='name') | map('quote') | join(' ') }}; do
-      if [ -f "{{ vm_logs_dir }}/${node}.serial.log" ] \
-         && grep -q "{{ vms_boot_marker }}" "{{ vm_logs_dir }}/${node}.serial.log"; then
+    for pair in {{ vms_nodes | map(attribute='name')
+                     | zip(vms_nodes | map(attribute='ip_suffix'))
+                     | map('join', ':') | map('quote') | join(' ') }}; do
+      node=${pair%:*}
+      suffix=${pair##*:}
+      if { [ -f "{{ vm_logs_dir }}/${node}.serial.log" ] \
+           && grep -q "{{ vms_boot_marker }}" "{{ vm_logs_dir }}/${node}.serial.log"; } \
+         || ssh -i {{ install_ssh_key_path | quote }} \
+             -o BatchMode=yes -o ConnectTimeout=3 \
+             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+             "core@{{ lab_subnet_prefix }}.${suffix}" uname -s 2>/dev/null | grep -qx Linux; then
         marked=$((marked + 1))
       fi
     done
@@ -232,10 +234,9 @@
 - name: VM fleet summary
   ansible.builtin.debug:
     msg: >-
-      VM fleet OK — {{ vms_nodes | length }} nodes running on host QEMU
-      (master {{ masters[0].name }}: live ISO + blank install target,
-      BiP; {{ vms_worker_nodes | length }} workers on pre-baked BIB disk
-      overlays);
+      VM fleet OK — {{ vms_nodes | length }} persistent libvirt domains
+      (master {{ masters[0].name }}; {{ vms_worker_nodes | length }} workers
+      on private runtime copies of pre-baked BIB disk overlays);
       CXL Type-3 graph on {{ cxl_workers | length }} workers (no host-node
-      binding); all serial logs show kernel boot;
+      binding); serial banners or live SSH prove guest kernel boot;
       {{ vms_boot_evidence.stdout | trim }}.

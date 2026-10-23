@@ -85,6 +85,11 @@ qemu_distro_binary_path: "/usr/bin/qemu-system-x86_64"
 # role; lives in the scripts dir and dies with the vms teardown layer.
 qemu_source_stamp_name: "qemu-binary-path"
 
+# libvirt owns its runtime disks outside the user's artifact workspace.
+# Original workspace images are retained as offline migration sources.
+libvirt_uri: "qemu:///system"
+libvirt_runtime_dir: "/var/lib/libvirt/images/cxl-lab"
+
 # Install-flow state stamps (idempotency guards that must survive re-runs).
 
 # Verification evidence: 0700 dir, 0600 report — the verify role writes the

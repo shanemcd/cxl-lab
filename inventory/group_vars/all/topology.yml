@@ -134,14 +134,8 @@ ignition_fresh_window_hours: 12
 # per-node assertions. Guest RAM is placed by the kernel's default
 # first-touch policy.
 
-# Run-script interface (host QEMU processes): the --validate parse check
-# pause, and the tap prefix (Linux ifnames cap at 15 chars — the vms role
-# asserts t-<name> fits).
-vms_validate_timeout: 10
-vm_tap_prefix: "t-"
-# --stop force window: SIGTERM to the pidfile QEMU pid, then SIGKILL after this
-# many seconds (used when a wedged guest ignores ssh poweroff; always
-# pidfile-targeted, never pkill).
+# Run-script compatibility interface: libvirt shuts down the guest and
+# destroys only that domain if it remains up after this many seconds.
 vm_stop_wait_seconds: 30
 
 # The CXL worker pool: node label + MachineConfigPool name + the

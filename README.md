@@ -18,8 +18,9 @@ After the pipeline runs you have, all idempotent and re-runnable:
 
 - an OpenShift single-node cluster (schedulable master) + the worker fleet
   (one CXL + one DRAM worker by default), all Ready with operators Available;
-- every VM as **host-native QEMU** under per-node run scripts (pidfile,
-  `--status`/`--stop`/`--validate`), the CXL workers carrying the full emulated
+- every VM as a persistent **libvirt domain** (`qemu:///system`) with autostart;
+  per-node run scripts delegate `--status`/`--stop`/`--validate` to libvirt,
+  with the CXL workers carrying the full emulated
   Type-3 graph (`pxb-cxl` → `cxl-rp` → `cxl-type3` + fixed-memory-window, guest
   NUMA node 1 — deliberately without `host-nodes` binding);
 - CXL workers booted into a layered OS image carrying the `cxltest` kernel, with
@@ -54,9 +55,15 @@ After the pipeline runs you have, all idempotent and re-runnable:
   (Fedora's `qemu-system-x86-core` qualifies) — with this machine config
   Fedora 44's QEMU 10.2.2 stalled guest<->host frame flow, so pinned
   remains the default.
-- **Network**: a private persistent bridge (`ocpcxlbr0`, 192.168.124.0/24) with
-  the host as gateway, one reversible tagged MASQUERADE rule for egress, and a
-  host-native dnsmasq serving DNS records + per-MAC DHCP reservations. The
+- **Lifecycle**: libvirt owns QEMU processes, monitor connections, PID files,
+  disks, and automatic restart after guest reboots. The pinned QEMU remains
+  the emulator; native domain XML describes the usual devices and a small
+  `qemu:commandline` extension supplies the unsupported CXL graph. Runtime
+  disks and ignition are private system-owned copies in
+  `/var/lib/libvirt/images/cxl-lab`; originals in the workspace are not live disks.
+- **Network**: a persistent libvirt NAT network (`cxl-lab`) creates the private
+  bridge (`ocpcxlbr0`, 192.168.124.0/24). Libvirt owns NAT and its dedicated
+  dnsmasq, serving DNS records, wildcard ingress, and per-MAC DHCP reservations. The
   resolver is load-bearing: ignition fetches each worker's config merge
   **before** applying storage/files, so the initramfs must resolve `api-int`
   via DHCP before the node's static keyfile exists.
@@ -159,24 +166,60 @@ sudo rm -rf -- "$fixture"
 | Playbook | Invocation | What it does |
 |---|---|---|
 | `site` | `shanemcd.cxl_lab.site` | Runs the numbered stages in order, 01→11, then verify (see `site.yml`). The stages overlap by design: the master installs and converges while the layered image builds. |
-| `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity; RHSM check (RHEL-gated); ensures packages incl. dnsmasq. |
+| `01_host_prep` | `shanemcd.cxl_lab.01_host_prep` | Asserts OS family (RedHat), SELinux (conditional), SNO capacity; RHSM check (RHEL-gated); ensures packages incl. libvirt QEMU/network drivers and disk-use checks. |
 | `02_artifacts` | `shanemcd.cxl_lab.02_artifacts` | Downloads + SHA-verifies installer/oc/RHCOS live ISO and the kernel SRPM (entitled CDN route); launches the stock QEMU build into `/opt/qemu-<version>` (exists-guard: never rebuilt, never torn down) fire-and-forget — the master stage collects it. |
-| `03_network` | `shanemcd.cxl_lab.03_network` | Persistent bridge + gateway address, `ip_forward` sysctl drop-in, host `/etc/hosts` block, one tagged MASQUERADE rule, host-native dnsmasq (DNS + DHCP reservations), egress probe (veth+netns → TCP to quay.io). |
+| `03_network` | `shanemcd.cxl_lab.03_network` | Persistent autostart libvirt NAT network (bridge, DNS, wildcard ingress, DHCP reservations), ordered modular libvirt services, `ip_forward`, host `/etc/hosts`, egress probe (veth+netns → TCP to quay.io). |
 | `04_ignition` | `shanemcd.cxl_lab.04_ignition` | install-config (1 control plane / 0 compute, `bootstrapInPlace`) → manifests → custom node MCs → install-time worker-cxl manifests (pool, layered osImageURL) → `single-node-ignition-config`; per-node merge (NM keyfile, hosts, hostname, MCS pool stub + region-commit snippet) → 0700/0600 staged ignition (12 h freshness window). |
-| `05_master` | `shanemcd.cxl_lab.05_master` | Collects the in-flight QEMU build (fresh-host path); per-node run scripts (in-role assert of the CXL graph shape); master = kargs-patched live-ISO copy + blank virtio target + fw_cfg merged ignition; starts the master and holds until its install-to-disk reboot. Runs before the layered image — the master needs only ignition + network, so its install and convergence overlap the kernel/image builds. |
+| `05_master` | `shanemcd.cxl_lab.05_master` | Collects the in-flight QEMU build (fresh-host path); persistent domain XML, private runtime disk copies, libvirt-backed run scripts; master = kargs-patched live-ISO copy + blank virtio target + fw_cfg merged ignition; starts the master and holds until its install-to-disk reboot. Runs before the layered image — the master needs only ignition + network, so its install and convergence overlap the kernel/image builds. |
 | `06_os_image` | `shanemcd.cxl_lab.06_os_image` | cxltest kernel RPMs (multi-stage Containerfile kernel-builder stage in the RHEL 10 GA image, from the SHA-verified SRPM; cached in the artifacts dir — built only when missing) + layered OS image (pinned machine-os-content base + SHA-verified cxltest RPMs), bootc lint, and the BIB node disk the workers boot. |
-| `07_workers` | `shanemcd.cxl_lab.07_workers` | Worker qcow2 overlays over the pre-baked BIB disk; one fleet-parallel start command; kernel-boot evidence in the serial logs; holds until the installed master's Machine Config Server answers (the workers ride ignition's own retry loop against it from their first boot). |
+| `07_workers` | `shanemcd.cxl_lab.07_workers` | Worker qcow2 overlays over the pre-baked BIB disk; persistent worker domains and one fleet-parallel start command; kernel-boot evidence from serial or SSH; holds until the installed master's Machine Config Server answers (the workers ride ignition's own retry loop against it from their first boot). |
 | `08_install` | `shanemcd.cxl_lab.08_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
 | `09_region_commit` | `shanemcd.cxl_lab.09_region_commit` | Labels the CXL workers into the install-time worker-cxl pool; verifies the outcome — layered image + cxltest kernel booted, region-commit service active, region committed (the service itself ships via the workers' first-boot ignition). |
 | `10_storage` | `shanemcd.cxl_lab.10_storage` | The lab StorageClass (`lab-nfs`): host kernel nfsd exports the assets tree to the lab subnet; the in-cluster `nfs-subdir-external-provisioner` (with the OCP 5.x hostmount SCC grants it needs) dynamically provisions per-PVC subdirectories. LVM Storage is absent from the reachable catalogs and the in-catalog alternatives are Ceph-family — outside the lab host's RAM budget. |
 | `11_observability` | `shanemcd.cxl_lab.11_observability` | Cluster Observability Operator (Red Hat build of Perses) from `redhat-operators`; monitoring UIPlugin (console Observe → Dashboards); Perses persisting on the `lab-nfs` StorageClass; Thanos Querier datasource (per-user RBAC via the console plugin, TLS-anchored on the service CA); CXL memory-tier recording rules (`openshift:node:memory:tier:*`) + the cluster-overview and infra-cxl-glance dashboards. |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
+| `migrate_libvirt` | `shanemcd.cxl_lab.migrate_libvirt` | Adopts stopped raw-QEMU lab disks into private runtime copies and persistent domains without reinstalling. See migration below. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
 | `ops.status` | `shanemcd.cxl_lab.ops.status` | Read-only summary: nodes, clusterversion, VM `--status`, network/resolver, region commit, layered image. |
 | `ops.restart_cxl_worker` | `shanemcd.cxl_lab.ops.restart_cxl_worker` | Cold-restart one CXL worker: drain → poweroff → relaunch → Ready → uncordon → region-commit assert. Run with `-e target_worker=worker-cxl-0`. |
 
 Every phase guards itself for idempotent re-runs; a clean re-run of `site`
 reports `changed=0`. Mid-install re-runs resume cleanly.
+
+## Adopting an existing raw-QEMU lab
+
+New installs use libvirt automatically. For a lab created by the older raw-QEMU
+backend, stop all of its VMs using the **old** run scripts before updating the
+checkout. Do not stop unrelated VMs or reboot the host just to migrate.
+Install the new host prerequisites with `01_host_prep` if libvirt is missing,
+then run from the repository root:
+
+```sh
+ansible-playbook shanemcd.cxl_lab.migrate_libvirt
+ansible-playbook shanemcd.cxl_lab.verify
+sudo virsh -c qemu:///system list --all
+sudo virsh -c qemu:///system net-info cxl-lab
+sudo virsh -c qemu:///system dominfo worker-cxl-0
+```
+
+Names above are inventory defaults. Migration refuses opened source disks.
+It copies the existing master disk, worker backing image, and worker overlays
+using reflinks where available, rebases **only the copied overlays**, and starts
+persistent domains with the existing MACs and addresses. It does not reinstall
+OpenShift or regenerate ignition. Existing runtime disks are authoritative and
+are never overwritten on subsequent runs. The original workspace disks remain
+an offline pre-migration snapshot, not a continuously updated backup; do not
+start the old backend alongside libvirt or expect those originals to contain
+later cluster writes.
+
+Libvirt owns the active copies in `libvirt_runtime_dir`, outside workspace
+ownership repair. Serial and compatibility PID paths in the workspace are
+symlinks to libvirt's files; reading serial logs may require sudo. The network
+and domains have autostart enabled; `virtnetworkd.service` is ordered before
+`virtqemud.service`. Validate an actual host reboot separately during a suitable
+maintenance window. Changing an active network's XML updates its persistent
+configuration only: stop its lab domains before restarting that network to
+activate changed DHCP/DNS settings.
 
 ## Teardown
 
@@ -195,17 +238,22 @@ ansible-playbook shanemcd.cxl_lab.teardown --check         # dry run (safe:
 
 - The vms layer shuts guests down **fleet-parallel** (one poweroff command, one
   fleet poller, `--stop` fallback); the QEMU host prefix is never removed, so a
-  same-version rebuild skips the QEMU build entirely.
+  same-version rebuild skips the QEMU build entirely. It undefines only the
+  inventory domains and removes their known runtime files; it never asks
+  libvirt to recursively remove storage.
 - The storage layer removes the `lab-storage` namespace (provisioner,
   StorageClass) when the cluster answers, then the host side: exports drop-in,
   nfs-server service, export tree. Cluster-side COO/Perses objects live and die
   with the VMs (no host state), so observability has no teardown layer of its
   own.
 - Removing the `mco` layer lets the MCO roll CXL workers back to the release
-  base image (not waited on); a network-only teardown with running VMs requires
-  restarting them (taps re-enslave at VM start); a rebuild after the `vms` layer
-  or deeper must regenerate ignition within a fresh 12 h window (automatic).
-- The full teardown → `site` rebuild path works from a bare host.
+  base image (not waited on). Network teardown refuses attached libvirt ports:
+  remove the VM layer first. Only the lab network's matching UUID may be removed.
+- A rebuild after the VM layer or deeper regenerates ignition within a fresh
+  12 h window. Existing installed domains can restart without regenerating ignition.
+- Shared libvirt packages/services and their network-before-domain service
+  ordering remain installed, as does the QEMU prefix. Unrelated domains,
+  networks, and storage are not teardown targets.
 
 ## Variable reference
 
@@ -220,7 +268,7 @@ self-chosen values):
 | File | Key contents |
 |---|---|
 | `inventory/group_vars/all/secrets.yml` | **Paths only** to the pull secret (0600) and the install SSH keypair; kubeconfig location. Tasks touching them are `no_log`. |
-| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, bridge name, gateway IP (also the dnsmasq listener), dnsmasq conf/service + DHCP free-range suffixes, NAT rule comment, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
+| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, libvirt network/bridge name, gateway IP, DHCP free-range suffixes, legacy resolver/NAT cleanup names, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
 | `inventory/group_vars/all/topology.yml` | Worker counts (`cxl_worker_count`/`dram_worker_count`, one each by default) and the node specs they generate, `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
 
 ### Scaling the fleet
@@ -242,8 +290,13 @@ address space reserved for DHCP.
 
 ## Development model
 
-There is no molecule and no test harness — the automation is developed by
-running it against the disposable lab host:
+Unit tests cover domain XML, safe runtime-disk staging, and workspace ownership:
+
+```sh
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+They supplement integration runs against the disposable lab host:
 
 1. Run the playbook on the lab host.
 2. Observe the failure.
@@ -269,15 +322,18 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
 
 - QEMU-emulated CXL only — physical CXL passthrough args are never emitted; the
   CXL graph shape (pxb-cxl/cxl-type3/fmw, CPU-less guest node, no `host-nodes`
-  binding) is asserted in-role.
+  binding) is covered by XML tests and live guest verification.
 - Host NUMA placement is not gated or pinned — first-touch placement.
 - Secrets are path-referenced only, `no_log` on tasks that touch them, 0700/0600.
-- Ignition must be fresh (12 h window); VM starts refuse stale ignition.
-- Process management via pidfiles and exact pids — never `pkill -f`.
+- Fresh installs use the ignition freshness checks (12 h window); restarting
+  an installed domain does not invalidate its original ignition.
+- Lifecycle commands address libvirt domains with deterministic UUID checks;
+  compatibility PID paths point at libvirt's PID files — never `pkill -f`.
 - Guest root operations via `ssh core@… 'sudo bash -s'` with the install keypair.
 - Host-OS agnostic within the RedHat family (`os_family` assert, SELinux-conditional).
-- New disposable cluster only; teardown reverses every host change it makes
-  except the QEMU prefix.
+- New disposable installs and explicit stopped-disk adoption are supported.
+  Domain/network name collisions with different UUIDs are rejected. Shared
+  libvirt services and the QEMU prefix are retained by teardown.
 
 ## Known gotchas (encoded in the roles)
 

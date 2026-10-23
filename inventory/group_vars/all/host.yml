@@ -26,6 +26,10 @@ host_packages:
   - openssh-clients
   - bind-utils
   - dnsmasq
+  - libvirt-client
+  - libvirt-daemon-driver-qemu
+  - libvirt-daemon-driver-network
+  - psmisc
 
 # Python library required on the host by kubernetes.core modules.
 python_kubernetes_package: "kubernetes"

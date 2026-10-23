@@ -1,0 +1,34 @@
+<network xmlns:dnsmasq='http://libvirt.org/schemas/network/dnsmasq/1.0'>{# hardcode-ok: fixed libvirt XML namespace, not a configurable endpoint #}
+  <name>{{ libvirt_network_name }}</name>
+  <uuid>{{ libvirt_network_name | to_uuid }}</uuid>
+  <forward mode='nat'/>
+  <bridge name='{{ lab_bridge_name }}' zone='trusted' stp='on' delay='0'/>
+  <domain name='{{ lab_domain }}' localOnly='yes'/>
+  <dns>
+{% for server in network_upstream_dns %}
+    <forwarder addr='{{ server }}'/>
+{% endfor %}
+{% for line in network_hosts_block %}
+{% set parts = line.split() %}
+    <host ip='{{ parts[0] }}'>
+{% for hostname in parts[1:] %}
+      <hostname>{{ hostname }}</hostname>
+{% endfor %}
+    </host>
+{% endfor %}
+{% for node in masters + cxl_workers + dram_workers %}
+    <host ip='{{ lab_subnet_prefix }}.{{ node.ip_suffix }}'><hostname>{{ node.name }}.{{ lab_domain }}</hostname></host>
+{% endfor %}
+  </dns>
+  <ip address='{{ lab_gateway_ip }}' netmask='{{ lab_subnet_netmask }}'>
+    <dhcp>
+      <range start='{{ lab_subnet_prefix }}.{{ network_dhcp_range_start_suffix }}' end='{{ lab_subnet_prefix }}.{{ network_dhcp_range_end_suffix }}'/>
+{% for node in masters + cxl_workers + dram_workers %}
+      <host mac='{{ mac_base }}:{{ node.mac_suffix }}' name='{{ node.name }}' ip='{{ lab_subnet_prefix }}.{{ node.ip_suffix }}'/>
+{% endfor %}
+    </dhcp>
+  </ip>
+  <dnsmasq:options>
+    <dnsmasq:option value='address=/.apps.{{ lab_domain }}/{{ master_ip }}'/>
+  </dnsmasq:options>
+</network>
