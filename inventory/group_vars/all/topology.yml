@@ -158,6 +158,14 @@ region_commit_region_name: "region0"
 # (shared by install_config, verify, and teardown).
 worker_cxl_osimage_mc_name: "50-cxltest-os-image"
 
+# Install-time MachineConfig object name + oneshot unit name for the NUMA
+# demotion knob (shared by install_config and verify — role defaults never
+# cross roles). The sysfs knob /sys/kernel/mm/numa/demotion_enabled defaults
+# to false on the cxltest kernel; without it the kernel never demotes and
+# pgdemote_* stay flat at 0.
+worker_cxl_demotion_mc_name: "51-cxl-numa-demotion"
+worker_cxl_demotion_unit_name: "cxl-numa-demotion.service"
+
 # Guest CXL NUMA node (SRAT shape): the QEMU graphs give every CXL worker a
 # CPU-less guest node that carries the CXL kmem (pxb-cxl numa_node + the
 # empty -numa node); verify asserts dax0.0/target_node and the node's

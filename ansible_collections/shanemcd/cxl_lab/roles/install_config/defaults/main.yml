@@ -33,6 +33,7 @@ install_config_hosts_mc_name_prefix: "99-cxl-lab-node"
 # taxonomy (worker-cxl pool identity).
 install_config_worker_cxl_mcp_manifest_name: "99-cxl-worker-cxl-mcp.yaml"
 install_config_osimageurl_manifest_name: "{{ worker_cxl_osimage_mc_name }}.yaml"
+install_config_demotion_mc_manifest_name: "{{ worker_cxl_demotion_mc_name }}.yaml"
 
 # Per-node ignition assembly helpers (staged in the lab scripts dir).
 install_config_merge_script_path: "{{ vm_scripts_dir }}/ignition-node-merge.py"

@@ -88,6 +88,41 @@
   register: verify_kernel
   changed_when: false
 
+- name: Read the NUMA demotion knob on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "cat /sys/kernel/mm/numa/demotion_enabled"
+  register: verify_demotion
+  changed_when: false
+
+- name: Read the demotion unit state on {{ worker.name }}
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - "-i"
+      - "{{ install_ssh_key_path }}"
+      - "-o"
+      - "StrictHostKeyChecking=no"
+      - "-o"
+      - "UserKnownHostsFile=/dev/null"
+      - "-o"
+      - "ConnectTimeout=10"
+      - "core@{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+      - "systemctl is-active {{ worker_cxl_demotion_unit_name }}"
+  register: verify_demotion_unit
+  failed_when: false
+  changed_when: false
+
 - name: Read the region commit service state on {{ worker.name }}
   ansible.builtin.command:
     argv:
@@ -166,6 +201,8 @@
         | list | length == 1
       - verify_kernel.stdout | trim == kernel_rpm_release
       - verify_service.rc == 0
+      - verify_demotion.stdout | trim == 'true'
+      - verify_demotion_unit.rc == 0
       - verify_signature.stdout | trim | int >= 1
       - not (verify_bounded_touch | bool)
         or ('TOUCH_MD5_OK=yes' in verify_touch.stdout

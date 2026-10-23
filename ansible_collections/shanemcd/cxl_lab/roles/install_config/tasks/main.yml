@@ -234,6 +234,15 @@
             dest: "{{ install_dir }}/openshift/{{ install_config_osimageurl_manifest_name }}"
             mode: "0600"
 
+        - name: Render the NUMA demotion MachineConfig manifest
+          # The demotion knob is sysfs (not a sysctl) and defaults to false
+          # on the cxltest kernel; a oneshot unit shipped through the pool's
+          # rendered config persists it across reboots and MCO re-renders.
+          ansible.builtin.template:
+            src: worker-cxl-demotion-machineconfig.yaml.j2
+            dest: "{{ install_dir }}/openshift/{{ install_config_demotion_mc_manifest_name }}"
+            mode: "0600"
+
     - name: Create the single-node (bootstrap-in-place) ignition config
       # Nightly profiles: opt the installer out of the sigstore signing
       # requirement for release images (nightly mirrors are unsigned —

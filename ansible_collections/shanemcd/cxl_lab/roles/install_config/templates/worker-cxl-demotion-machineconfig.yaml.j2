@@ -1,0 +1,36 @@
+{#
+  Install-time NUMA demotion MachineConfig for the worker-cxl role.
+
+  Kernel page demotion (kswapd/direct reclaim moving cold anon pages to
+  slower tiers — the emulated CXL node) is gated by the sysfs knob
+  /sys/kernel/mm/numa/demotion_enabled, which defaults to false on the
+  cxltest kernel. It is runtime-writable but not a sysctl, so the only
+  MCO-manageable way to persist it is a oneshot service that writes the
+  knob on every boot. Observed live: with the knob off, node1 fills only
+  via fallback allocation and pgdemote_* stay flat at 0; with it on,
+  direct-reclaim demotion moves ~GBs onto the CXL tier.
+#}
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: {{ worker_cxl_role_label }}
+  name: {{ worker_cxl_demotion_mc_name }}
+spec:
+  config:
+    ignition:
+      version: {{ install_config_mc_ignition_version }}
+    systemd:
+      units:
+        - name: {{ worker_cxl_demotion_unit_name }}
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Enable kernel NUMA demotion to the CXL memory tier
+            After=multi-user.target
+            [Service]
+            Type=oneshot
+            ExecStart=/bin/sh -c 'echo true > /sys/kernel/mm/numa/demotion_enabled'
+            RemainAfterExit=yes
+            [Install]
+            WantedBy=multi-user.target
