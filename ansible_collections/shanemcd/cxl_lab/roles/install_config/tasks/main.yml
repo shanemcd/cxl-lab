@@ -121,13 +121,22 @@
     mode: "0700"
   when: install_config_ignition_stale | bool
 
-- name: Probe the live MCS with the worker stub trust
-  # The stub's age alone says nothing: a warm, already-installed lab can
-  # scale out as long as the stub CA bundle still validates the MCS
-  # serving certificate (an HTTP response of any code proves serving
-  # and chain trust). Failure here falls through to the assert below.
+- name: Pick a merged worker ignition to probe
+  # The raw installer stub carries no CA (the per-node merge injects it),
+  # so the probe targets an existing merged node ignition — exactly what
+  # a new node boots. Any existing worker ignition serves.
+  ansible.builtin.set_fact:
+    install_config_probe_ignition: >-
+      {{ vm_ignition_dir }}/{{ (cxl_workers + dram_workers)
+          | map(attribute='name') | list | first }}.ign
+
+- name: Probe the live MCS with the merged worker ignition trust
+  # A warm, already-installed lab can scale out as long as an existing
+  # merged worker ignition still validates the MCS serving certificate
+  # (an HTTP response of any code proves serving and chain trust).
+  # Failure here falls through to the assert below.
   ansible.builtin.command:
-    argv: [python3, "{{ install_dir }}/mcs-trust-probe.py", "{{ install_dir }}/{{ install_config_worker_name }}"]
+    argv: [python3, "{{ install_dir }}/mcs-trust-probe.py", "{{ install_config_probe_ignition }}"]
   register: install_config_mcs_probe
   failed_when: false
   changed_when: false
