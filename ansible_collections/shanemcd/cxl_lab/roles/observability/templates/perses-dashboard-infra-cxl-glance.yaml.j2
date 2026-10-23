@@ -202,7 +202,40 @@ spec:
                   kind: PrometheusTimeSeriesQuery
                   spec:
                     query: sum by (vm, tier) (openshift:vm:memory:tier:bytes)
-                    seriesNameFormat: '{{ "{{vm}} · tier {{tier}}" }}'
+                    seriesNameFormat: '{{ "tier {{tier}} · {{vm}}" }}'
+      CxlVMCxlResidency:
+        kind: Panel
+        spec:
+          display:
+            name: VM residency on CXL tier
+            description: >-
+              Anonymous memory per VirtualMachineInstance resident on the
+              CXL tier only (virt-launcher cgroup NUMA accounting, tier 1).
+              Separate panel/scale from the stacked DRAM+CXL chart so even
+              MiB-scale CXL residency is readable next to GiB of DRAM.
+              Answers: how much of each guest actually sits on CXL right now?
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: bytes
+                min: 0
+                show: true
+              visual:
+                areaOpacity: 0.25
+                display: line
+                lineWidth: 1.5  # hardcode-ok: chart line weight, presentation only
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum by (vm) (openshift:vm:memory:tier:bytes{tier="1"})
+                    seriesNameFormat: '{{ "{{vm}} on CXL" }}'
       CxlTierFree:
         kind: Panel
         spec:
@@ -292,5 +325,11 @@ spec:
               height: 8
               content:
                 $ref: '#/spec/panels/CxlTierFree'
+            - x: 0
+              "y": 24
+              width: 24
+              height: 8
+              content:
+                $ref: '#/spec/panels/CxlVMCxlResidency'
     duration: 1h
     refreshInterval: 15s
