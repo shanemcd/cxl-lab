@@ -78,3 +78,6 @@ network_hosts_block:
   - "{{ master_ip }} api.{{ lab_domain }} api-int.{{ lab_domain }}"
   - "{{ master_ip }} console-openshift-console.apps.{{ lab_domain }} oauth-openshift.apps.{{ lab_domain }}"
   - "{{ master_ip }} canary-openshift-ingress-canary.apps.{{ lab_domain }}"
+  # Registry default route — needed to push PoC images from the host once the
+  # internal registry is switched to Managed with defaultRoute: true.
+  - "{{ master_ip }} default-route-openshift-image-registry.apps.{{ lab_domain }}"
