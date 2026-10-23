@@ -11,9 +11,12 @@ host_prep_required_devices:
 # Headroom margins for the capacity asserts. Disk headroom bounds the
 # nominal overlay sum (guest disks are sparse qcow2 — actual host usage
 # grows only as guests write), so it needs to cover pivot/container writes
-# and monitoring growth, not the full nominal sizes.
-host_prep_mem_headroom_gib: 16
-host_prep_cpu_headroom: 8
+# and monitoring growth, not the full nominal sizes. CPU headroom is low
+# because lab workers are mostly idle and QEMU vCPUs are ordinary host
+# threads, freely scheduled; memory headroom bounds the committed guest
+# RAM + CXL regions (default 2-CXL fleet: 88 GiB committed).
+host_prep_mem_headroom_gib: 12
+host_prep_cpu_headroom: 4
 host_prep_disk_headroom_gib: 30
 
 # Workspace directories ensured by this role (secrets dirs 0700).
