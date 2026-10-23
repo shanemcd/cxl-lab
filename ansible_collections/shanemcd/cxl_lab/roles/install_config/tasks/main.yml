@@ -104,15 +104,51 @@
       {{ ((ansible_date_time.epoch | int - install_config_bip_mtime)
           / 3600) | round(1) }}
 
-- name: Assert existing ignition is inside the fresh window
+- name: Set ignition staleness fact
+  # A stale-but-healthy lab is a scale-out candidate, not a broken
+  # install: what actually matters is whether the worker stub still
+  # trusts the live Machine Config Server, probed next.
+  ansible.builtin.set_fact:
+    install_config_ignition_stale: >-
+      {{ install_config_ignition_complete | bool
+         and (install_config_ignition_age_hours | float
+              > ignition_fresh_window_hours | int) }}
+
+- name: Render the MCS trust probe
+  ansible.builtin.template:
+    src: mcs-trust-probe.py.j2
+    dest: "{{ install_dir }}/mcs-trust-probe.py"
+    mode: "0700"
+  when: install_config_ignition_stale | bool
+
+- name: Probe the live MCS with the worker stub trust
+  # The stub's age alone says nothing: a warm, already-installed lab can
+  # scale out as long as the stub CA bundle still validates the MCS
+  # serving certificate (an HTTP response of any code proves serving
+  # and chain trust). Failure here falls through to the assert below.
+  ansible.builtin.command:
+    argv: [python3, "{{ install_dir }}/mcs-trust-probe.py", "{{ install_dir }}/{{ install_config_worker_name }}"]
+  register: install_config_mcs_probe
+  failed_when: false
+  changed_when: false
+  when: install_config_ignition_stale | bool
+
+- name: Assert existing ignition is usable
+  # Fresh ignition is always fine. Stale ignition is fine only when the
+  # live MCS still answers with the stub's trust (warm scale-out);
+  # otherwise the stub cannot serve new nodes and the install must be
+  # regenerated from scratch.
   ansible.builtin.assert:
     that:
-      - install_config_ignition_age_hours | float <= ignition_fresh_window_hours | int
+      - >-
+        (not install_config_ignition_stale | bool)
+        or (install_config_mcs_probe.rc | default(1)) == 0
     fail_msg: >-
-      Ignition under {{ install_dir }} is {{ install_config_ignition_age_hours }}h
-      old — beyond the {{ ignition_fresh_window_hours }}h MCS certificate window.
+      Ignition under {{ install_dir }} is
+      {{ install_config_ignition_age_hours }}h old and the installed
+      cluster's MCS does not answer with the worker stub's trust
+      ({{ install_config_mcs_probe.stdout | default('probe not run') | trim }}).
       Run the teardown playbook, then re-run to generate fresh ignition
-
   when: install_config_ignition_complete | bool
 
 - name: Guard against partial or consumed install state

@@ -146,6 +146,25 @@
   when: not (network_info.stdout is search('Active:\\s+yes'))
   changed_when: true
 
+- name: Render the live network reconciler
+  # net-define only applies to stopped networks; additive changes (a new
+  # fleet node on a warm scale-out) must reach the running embedded
+  # dnsmasq through net-update without a network restart.
+  ansible.builtin.template:
+    src: net-reconcile.py.j2
+    dest: "{{ vm_run_dir }}/net-reconcile.py"
+    mode: "0755"
+
+- name: Reconcile live DHCP and DNS entries on the active network
+  # Idempotent: exits 0 with 0 additions when the live network already
+  # matches the rendered XML. Skips itself when the network is not
+  # active (define/start above own that case).
+  ansible.builtin.command:
+    argv: [python3, "{{ vm_run_dir }}/net-reconcile.py", "{{ vm_run_dir }}/libvirt-network.xml", "{{ libvirt_uri }}", "{{ libvirt_network_name }}"]
+  register: network_reconcile
+  changed_when: "'added 0 entries' not in network_reconcile.stdout"
+  failed_when: network_reconcile.rc != 0 or 'NET-RECONCILE-FAIL' in network_reconcile.stdout
+
 - name: Persist IPv4 forwarding
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward

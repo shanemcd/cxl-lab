@@ -16,7 +16,7 @@
 mac_base: "52:54:00:0c:0c"
 
 # Fleet size. The default lab is one CXL worker + one DRAM worker.
-cxl_worker_count: 1
+cxl_worker_count: 2
 dram_worker_count: 1
 
 # Per-node specs — lab-tuned UP from the OpenShift-documented minimums

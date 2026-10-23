@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Managed by shanemcd.cxl_lab.install_config — do not edit.
+Probe whether the worker ignition stub still trusts the installed
+cluster's live Machine Config Server. A warm lab (already-installed
+cluster) can scale out as long as the stub's CA bundle still validates
+the MCS serving certificate — the stub's age alone says nothing about
+that. Exits 0 when the MCS answers over TLS anchored on the stub's own
+CA (an HTTP response of any code proves both serving and trust), 1 with
+a diagnostic otherwise.
+"""
+import json
+import socket
+import ssl
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+WORKER_IGN = sys.argv[1]
+MASTER_IP = "{{ master_ip }}"
+
+try:
+    cfg = json.load(open(WORKER_IGN))
+except Exception as exc:  # noqa: BLE001
+    print(f"MCS-PROBE-FAIL: cannot read {WORKER_IGN}: {exc}")
+    sys.exit(1)
+
+ign = cfg.get("ignition", {})
+appends = ign.get("config", {}).get("append", [])
+source = appends[0].get("source", "") if appends else ""
+ca_pems = []
+for ca in ign.get("security", {}).get("tls", {}).get("certificateAuthorities", []):
+    ca_src = ca.get("source", "")
+    if ca_src.startswith("data:"):
+        ca_pems.append(urllib.parse.unquote(ca_src.split(",", 1)[1]))
+
+if not source.startswith("https://"):  # hardcode-ok: protocol scheme check, not a configurable endpoint
+    print(f"MCS-PROBE-FAIL: worker stub has no https append source: {source!r}")
+    sys.exit(1)
+
+
+def attempt(url, verify_hostname):
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    if ca_pems:
+        ctx.load_verify_locations(cadata="\n".join(ca_pems))
+    else:
+        ctx.load_default_certs()
+    if not verify_hostname:
+        ctx.check_hostname = False
+    with urllib.request.urlopen(url, timeout=10, context=ctx) as resp:
+        return resp.status
+    # Any HTTPStatus return (even 4xx) proves serving + chain trust.
+
+
+try:
+    code = attempt(source, True)
+except urllib.error.HTTPError as exc:
+    code = exc.code
+except (socket.gaierror, urllib.error.URLError) as exc:
+    # The controller may not resolve the api-int name; retry against the
+    # master IP directly. Chain validation (the thing that matters for
+    # certificate rotation) still anchors on the stub CA; only hostname
+    # matching is relaxed for the fallback transport.
+    reason = getattr(exc, "reason", exc)
+    if not isinstance(reason, (socket.gaierror, ConnectionError, OSError)):
+        print(f"MCS-PROBE-FAIL: {exc}")
+        sys.exit(1)
+    parts = urllib.parse.urlparse(source)
+    fallback = urllib.parse.urlunparse(parts._replace(netloc=f"{MASTER_IP}:{parts.port or 443}"))
+    try:
+        code = attempt(fallback, False)
+    except urllib.error.HTTPError as exc2:
+        code = exc2.code
+    except Exception as exc2:  # noqa: BLE001
+        print(f"MCS-PROBE-FAIL: {exc2} (fallback {fallback})")
+        sys.exit(1)
+except Exception as exc:  # noqa: BLE001
+    print(f"MCS-PROBE-FAIL: {exc}")
+    sys.exit(1)
+
+print(f"MCS-PROBE-OK: HTTP {code} from {source} with stub CA trust")

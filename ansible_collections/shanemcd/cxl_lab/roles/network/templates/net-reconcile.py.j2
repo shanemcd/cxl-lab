@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Managed by shanemcd.cxl_lab.network — do not edit.
+Reconcile live DHCP and DNS host entries on an ACTIVE libvirt network.
+net-define only applies to stopped networks; additive changes (a new
+fleet node on a warm scale-out) reach the running embedded dnsmasq
+through `virsh net-update --live --config`, which persists the entry
+AND applies it without restarting the network (no guest-visible blip).
+Compares the rendered network XML against the live dump and adds any
+missing ip-dhcp-host and dns-host entries. Only additive: entries are
+never modified or removed here (that stays a define-time concern for
+stopped networks / teardown).
+"""
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+RENDERED_XML, URI, NET = sys.argv[1], sys.argv[2], sys.argv[3]
+
+
+def virsh(*args, check=True):
+    return subprocess.run(
+        ["virsh", "-c", URI, *args],
+        capture_output=True, text=True, check=check,
+    )
+
+
+def host_entries(xml_text):
+    """Return ({mac: dhcp host XML}, {ip: dns host XML}) from network XML."""
+    dhcp, dns = {}, {}
+    root = ET.fromstring(xml_text)
+    for host in root.iter("host"):
+        mac = host.get("mac")
+        if mac:  # inside <dhcp>: <host mac=... name=... ip=.../>
+            dhcp[mac.lower()] = host
+        elif host.get("ip"):  # inside <dns>: <host ip=...><hostname>..</hostname></host>
+            dns[host.get("ip")] = host
+    return dhcp, dns
+
+
+def element_xml(elem):
+    """Serialize an element without namespace noise for net-update."""
+    parts = [f"<{elem.tag}"]
+    for key, value in elem.attrib.items():
+        parts.append(f" {key}='{value}'")
+    children = list(elem)
+    if not children:
+        return "".join(parts) + "/>"
+    body = "".join(ET.tostring(c, encoding="unicode") for c in children)
+    return "".join(parts) + ">" + body + f"</{elem.tag}>"
+
+
+info = virsh("net-info", NET, check=False)
+if info.returncode != 0 or "Active:          yes" not in f"{info.stdout}\n":
+    print("NET-RECONCILE-SKIPPED: network not active")
+    sys.exit(0)
+
+dump = virsh("net-dumpxml", NET, check=False)
+if dump.returncode != 0:
+    print(f"NET-RECONCILE-FAIL: net-dumpxml: {dump.stderr.strip()}")
+    sys.exit(1)
+
+want_dhcp, want_dns = host_entries(open(RENDERED_XML).read())
+have_dhcp, have_dns = host_entries(dump.stdout)
+
+added = 0
+for mac, elem in want_dhcp.items():
+    if mac in have_dhcp:
+        continue
+    res = virsh("net-update", NET, "add", "ip-dhcp-host",
+                "--xml", element_xml(elem), "--live", "--config", check=False)
+    if res.returncode != 0:
+        print(f"NET-RECONCILE-FAIL: dhcp {mac}: {res.stderr.strip()}")
+        sys.exit(1)
+    added += 1
+
+for ip, elem in want_dns.items():
+    if ip in have_dns:
+        continue
+    res = virsh("net-update", NET, "add", "dns-host",
+                "--xml", element_xml(elem), "--live", "--config", check=False)
+    if res.returncode != 0:
+        print(f"NET-RECONCILE-FAIL: dns {ip}: {res.stderr.strip()}")
+        sys.exit(1)
+    added += 1
+
+print(f"NET-RECONCILE-OK: added {added} entries (dhcp missing "
+      f"{len(want_dhcp) - len([m for m in want_dhcp if m in have_dhcp])}, "
+      f"dns missing {len(want_dns) - len([i for i in want_dns if i in have_dns])})")
