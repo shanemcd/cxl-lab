@@ -8,5 +8,18 @@
   # the Red Hat build of Perses), the lab's Thanos Querier datasource,
   # the CXL memory-tier recording rules, and the lab's dashboards.
   # Perses persists on the lab StorageClass from 10_storage.
-  roles:
-    - role: shanemcd.cxl_lab.observability
+  pre_tasks:
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
+  tasks:
+    - name: Run stage with user-owned workspace artifacts
+      block:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.observability
+      always:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile

@@ -162,8 +162,8 @@
   ansible.builtin.copy:
     src: "{{ rhcos_live_iso_path }}"
     dest: "{{ vm_images_dir }}/{{ vms_master_iso_name }}"
-    owner: root
-    group: root
+    owner: "{{ lab_workspace_identity.uid }}"
+    group: "{{ lab_workspace_identity.gid }}"
     mode: "0644"
     force: false
 

@@ -316,8 +316,8 @@
   ansible.builtin.template:
     src: network-egress-probe.sh.j2
     dest: "{{ network_probe_script_path }}"
-    owner: root
-    group: root
+    owner: "{{ lab_workspace_identity.uid }}"
+    group: "{{ lab_workspace_identity.gid }}"
     mode: "0750"
 
 - name: Run lab egress probe (veth + netns emulating a VM tap)

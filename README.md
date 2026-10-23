@@ -122,6 +122,38 @@ Playbooks are invoked **by name from the repository root** — the repo-root
 `ansible.cfg` sets `collections_path = .` so the bundled collection resolves
 without installation. Always run from the repo root.
 
+## Workspace ownership and existing installations
+
+Run Ansible as your normal account; the playbooks escalate for host changes. The workspace account is resolved on the managed host before escalation, using its actual UID, primary GID, and passwd home directory—not the basename of a path or root's gathered facts. When deliberately provisioning another account, set `lab_user` explicitly. A direct root invocation without `SUDO_USER` uses root unless `lab_user` is specified.
+
+Generated tools, installer output, auth files, SSH keys, ignition, reports, caches, and VM assets belong to that account. Each provisioning stage reconciles existing artifacts before and after its work, including ordinary task failures, so outputs of rootful installers and containers do not remain inaccessible. Installer and controller-kubeconfig directories remain private (`0700`), with data files `0600` and executables `0700`. The established `~/.config/cxl-lab/kubeconfig` copy remains available for compatibility; the original installer kubeconfig is also directly accessible.
+
+To repair an existing installation without running provisioning or restarting VMs:
+
+```sh
+cd cxl-lab
+ansible-playbook shanemcd.cxl_lab.repair_ownership --check
+ansible-playbook shanemcd.cxl_lab.repair_ownership
+
+# With the default workspace paths, no sudo is needed to use the CLI or key:
+export KUBECONFIG="$HOME/ocp-install-cxl/auth/kubeconfig"
+"$HOME/ocp-install-cxl/bin/oc" whoami
+```
+
+The repair only changes metadata on existing workspace entries; it does not read credentials, contact the cluster, or create missing workspaces. NFS exports and PVC data are excluded, as are symlinks, multiply-linked files, and nested filesystem mounts. System configuration and the installed `/opt/qemu-*` tree remain root-owned; VM management and rootful container builds still require escalation. Run repair when no other provisioning/build job is active. A builder launched within the pipeline is excluded until its collection completes. Forced termination of Ansible can bypass cleanup; rerun the repair afterward.
+
+All repaired roots must be strictly beneath `lab_user_home`, without symlinked path components. If customizing workspace locations, choose that base and the workspace paths accordingly; repair refuses the base itself or paths outside it rather than recursively changing a home or system directory.
+
+Local regression checks (the integration test requires sudo and uses disposable fixtures):
+
+```sh
+cd cxl-lab
+python3 -m unittest discover -s tests -v
+fixture=$(mktemp -d /tmp/cxl-ownership-test-XXXXXX)
+ansible-playbook -i localhost, -c local tests/workspace-ownership.yml -e workspace_test_home="$fixture"
+sudo rm -rf -- "$fixture"
+```
+
 ## Playbooks
 
 | Playbook | Invocation | What it does |

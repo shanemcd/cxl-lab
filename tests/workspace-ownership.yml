@@ -1,0 +1,86 @@
+---
+# Run with an explicitly supplied temporary workspace_test_home, never the lab.
+- name: Exercise ownership repair and failure cleanup on disposable fixtures
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    lab_user_home: "{{ workspace_test_home }}"
+    install_dir: "{{ workspace_test_home }}/install"
+    vm_assets_dir: "{{ workspace_test_home }}/assets"
+    artifacts_local_cache_dir: "{{ workspace_test_home }}/cache"
+    kubeconfig_path: "{{ install_dir }}/auth/kubeconfig"
+    kubeconfig_controller_path: "{{ workspace_test_home }}/controller/kubeconfig"
+    vm_ignition_dir: "{{ vm_assets_dir }}/ignition"
+    qemu_build_dir: "{{ vm_assets_dir }}/artifacts/qemu-build"
+    storage_export_dir: "{{ vm_assets_dir }}/nfs"
+  pre_tasks:
+    - name: Require an isolated test home
+      ansible.builtin.assert:
+        that:
+          - workspace_test_home is defined
+          - workspace_test_home is match('^/tmp/cxl-ownership-test-[a-zA-Z0-9]+$')
+          - lab_user_home == workspace_test_home
+          - install_dir == workspace_test_home ~ '/install'
+          - vm_assets_dir == workspace_test_home ~ '/assets'
+          - artifacts_local_cache_dir == workspace_test_home ~ '/cache'
+          - kubeconfig_controller_path == workspace_test_home ~ '/controller/kubeconfig'
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
+  tasks:
+    - name: Exercise a failing root-owned artifact producer
+      block:
+        - name: Create a root-owned private directory
+          ansible.builtin.file:
+            path: "{{ install_dir }}/auth"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+        - name: Create a disposable credential stand-in
+          ansible.builtin.copy:
+            dest: "{{ kubeconfig_path }}"
+            content: "ownership fixture, not a credential\n"
+            owner: root
+            group: root
+            mode: "0644"
+        - name: Simulate a producer failure
+          ansible.builtin.fail:
+            msg: Intentional fixture failure
+      rescue:
+        - name: Record the expected failure
+          ansible.builtin.set_fact:
+            workspace_fixture_failed: true
+      always:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile
+
+    - name: Read the resulting metadata only
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: workspace_fixture_stat
+
+    - name: Check real UID/GID and secret permissions
+      ansible.builtin.assert:
+        that:
+          - workspace_fixture_failed
+          - workspace_fixture_stat.stat.uid == lab_workspace_identity.uid | int
+          - workspace_fixture_stat.stat.gid == lab_workspace_identity.gid | int
+          - workspace_fixture_stat.stat.mode == '0600'
+
+    - name: Verify a second repair is unchanged
+      shanemcd.cxl_lab.workspace_ownership:
+        home: "{{ lab_user_home }}"
+        uid: "{{ lab_workspace_identity.uid }}"
+        gid: "{{ lab_workspace_identity.gid }}"
+        roots: ["{{ install_dir }}"]
+        private_roots: ["{{ install_dir }}"]
+      register: workspace_fixture_again
+      failed_when: workspace_fixture_again.changed
+
+    - name: Check fixture access without root
+      become: false
+      ansible.builtin.command:
+        argv: [test, -r, "{{ kubeconfig_path }}"]
+      changed_when: false

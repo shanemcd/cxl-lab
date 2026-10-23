@@ -3,5 +3,18 @@
   hosts: all
   become: true
   gather_facts: true
-  roles:
-    - role: shanemcd.cxl_lab.install_config
+  pre_tasks:
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
+  tasks:
+    - name: Run stage with user-owned workspace artifacts
+      block:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.install_config
+      always:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile

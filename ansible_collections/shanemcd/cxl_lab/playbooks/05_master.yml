@@ -4,18 +4,25 @@
   become: true
   gather_facts: false
   pre_tasks:
-    # Collect a QEMU build launched by the artifacts play (fresh-host path):
-    # wait for the builder container, install the staged tree, validate the
-    # binary — before the vms role resolves the QEMU the fleet will run on.
-    # A no-op when nothing is in flight (warm path — the artifacts play
-    # already validated the installed binary).
-    - name: Collect the in-flight QEMU build, if any
-      ansible.builtin.include_role:
-        name: shanemcd.cxl_lab.qemu_builder
-        tasks_from: collect
-      when: qemu_builder_build_in_flight | default(false)
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
   tasks:
-    - name: Run the vms master phase
-      ansible.builtin.include_role:
-        name: shanemcd.cxl_lab.vms
-        tasks_from: master
+    - name: Run master stage with user-owned workspace artifacts
+      block:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile
+        # Rootful builder outputs are collected before final ownership repair.
+        - name: Collect the in-flight QEMU build, if any
+          ansible.builtin.include_role:
+            name: shanemcd.cxl_lab.qemu_builder
+            tasks_from: collect
+          when: qemu_builder_build_in_flight | default(false)
+        - name: Run the vms master phase
+          ansible.builtin.include_role:
+            name: shanemcd.cxl_lab.vms
+            tasks_from: master
+      always:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile

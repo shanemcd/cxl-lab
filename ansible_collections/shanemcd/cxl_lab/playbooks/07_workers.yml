@@ -3,8 +3,20 @@
   hosts: all
   become: true
   gather_facts: false
+  pre_tasks:
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
   tasks:
-    - name: Run the vms workers phase
-      ansible.builtin.include_role:
-        name: shanemcd.cxl_lab.vms
-        tasks_from: workers
+    - name: Run worker stage with user-owned workspace artifacts
+      block:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile
+        - name: Run the vms workers phase
+          ansible.builtin.include_role:
+            name: shanemcd.cxl_lab.vms
+            tasks_from: workers
+      always:
+        - ansible.builtin.import_role:
+            name: shanemcd.cxl_lab.workspace
+            tasks_from: reconcile

@@ -1,7 +1,9 @@
 ---
-# The invoking user's home — all lab paths are rooted here so the pipeline
-# runs as any user (playbooks escalate with become: true where needed).
-lab_user_home: "{{ lookup('env', 'HOME') }}"
+# Resolve the managed-host account before privileged tasks run. Override
+# lab_user when deliberately provisioning another account's workspace.
+# Do not infer account/group names from a home-directory basename.
+lab_user: ""
+lab_user_home: "{{ lab_workspace_identity.home }}"
 
 # Workspace layout. install_dir holds secrets: 0700 dir / 0600 files,
 # enforced by the roles that write there. Everything mutable lives under

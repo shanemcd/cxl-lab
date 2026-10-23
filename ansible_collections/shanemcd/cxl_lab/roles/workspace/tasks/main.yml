@@ -1,0 +1,27 @@
+---
+# Resolve identity on the managed host without escalation, not from HOME's
+# basename or from root's gathered facts. lab_user is an optional override.
+- name: Resolve the lab workspace owner
+  become: false
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -c
+      - |
+        import json, os, pwd
+        name = __import__('sys').argv[1]
+        if not name:
+            name = os.environ.get('SUDO_USER', '') if os.getuid() == 0 else ''
+        account = pwd.getpwnam(name) if name else pwd.getpwuid(os.getuid())
+        print(json.dumps(dict(name=account.pw_name, uid=account.pw_uid,
+                              gid=account.pw_gid, home=account.pw_dir)))
+      - "{{ lab_user | default('') }}"
+  register: workspace_owner_result
+  changed_when: false
+  check_mode: false
+  tags: [always]
+
+- name: Remember the workspace account
+  ansible.builtin.set_fact:
+    lab_workspace_identity: "{{ workspace_owner_result.stdout | from_json }}"
+  tags: [always]

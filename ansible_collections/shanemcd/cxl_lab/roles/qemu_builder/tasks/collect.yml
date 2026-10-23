@@ -62,6 +62,15 @@
       - "{{ qemu_install_prefix | dirname }}"
   changed_when: true
 
+- name: Keep the installed host QEMU prefix root-owned
+  when: qemu_builder_build_in_flight | default(false)
+  ansible.builtin.file:
+    path: "{{ qemu_install_prefix }}"
+    state: directory
+    recurse: true
+    owner: root
+    group: root
+
 - name: Restore SELinux contexts on the host prefix
   when:
     - qemu_builder_build_in_flight | default(false)
@@ -129,3 +138,7 @@
       devices verified.
       Set qemu_source: distro on hosts whose distribution QEMU carries CXL
       (Fedora: qemu-system-x86-core) to skip this build entirely.
+
+- name: Mark QEMU build collection complete
+  ansible.builtin.set_fact:
+    qemu_builder_build_in_flight: false

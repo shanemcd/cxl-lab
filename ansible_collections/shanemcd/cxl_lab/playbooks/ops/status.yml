@@ -3,5 +3,8 @@
   hosts: all
   become: true
   gather_facts: false
+  pre_tasks:
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.workspace
   roles:
     - role: shanemcd.cxl_lab.ops_status
