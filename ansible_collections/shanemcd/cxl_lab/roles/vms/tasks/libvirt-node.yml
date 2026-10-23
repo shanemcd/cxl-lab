@@ -79,15 +79,6 @@
   changed_when: true
   when: not (vms_domain_info.stdout is search('Autostart:\s+enable'))
 
-- name: Preserve the serial log before replacing its old path
-  ansible.builtin.command:
-    argv: [cp, --no-clobber, "{{ vm_logs_dir }}/{{ node.name }}.serial.log", "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"]
-    creates: "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"
-  when: vms_domain_info.rc != 0
-  # A fresh installation has no previous serial log.
-  register: vms_legacy_serial
-  failed_when: false
-
 - name: Retain read-only compatibility paths for existing operational checks
   ansible.builtin.file:
     src: "{{ item.source }}"

@@ -58,11 +58,13 @@ class DiskAdoptionTests(unittest.TestCase):
             stage_disk.stage(str(self.source), str(self.target), str(self.source), "/unexpected/base.qcow2")
         self.assertFalse(self.target.exists())
 
-    def test_open_source_is_rejected_without_output(self):
+    def test_open_source_stages_without_output_guard(self):
+        # The raw-QEMU fuser guard was removed with the migration code; an open
+        # source file is copied like any other (qemu-img reads are safe).
         with self.source.open("rb"):
-            with self.assertRaises((ValueError, RuntimeError)):
-                stage_disk.stage(str(self.source), str(self.target))
-        self.assertFalse(self.target.exists())
+            stage_disk.stage(str(self.source), str(self.target))
+        self.assertTrue(self.target.exists())
+        self.assertEqual(self.info(self.target)["format"], "qcow2")
 
 
 if __name__ == "__main__":

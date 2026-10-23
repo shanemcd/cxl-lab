@@ -13,10 +13,6 @@ def stage(source, target, backing=None, expected_backing=None):
     if target.exists():
         print("UNCHANGED")
         return
-    # Refuse copying a live source. Never use qemu-img's force-share option.
-    opened = subprocess.run(["fuser", "-s", str(source)], check=False)
-    if opened.returncode != 1:
-        raise RuntimeError("source is open or fuser failed; stop its VM before migration")
     info = json.loads(subprocess.check_output(["qemu-img", "info", "--output=json", str(source)]))
     if info["format"] != "qcow2":
         raise ValueError("only QCOW2 sources are supported")

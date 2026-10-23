@@ -178,48 +178,12 @@ sudo rm -rf -- "$fixture"
 | `10_storage` | `shanemcd.cxl_lab.10_storage` | The lab StorageClass (`lab-nfs`): host kernel nfsd exports the assets tree to the lab subnet; the in-cluster `nfs-subdir-external-provisioner` (with the OCP 5.x hostmount SCC grants it needs) dynamically provisions per-PVC subdirectories. LVM Storage is absent from the reachable catalogs and the in-catalog alternatives are Ceph-family — outside the lab host's RAM budget. |
 | `11_observability` | `shanemcd.cxl_lab.11_observability` | Cluster Observability Operator (Red Hat build of Perses) from `redhat-operators`; monitoring UIPlugin (console Observe → Dashboards); Perses persisting on the `lab-nfs` StorageClass; Thanos Querier datasource (per-user RBAC via the console plugin, TLS-anchored on the service CA); CXL memory-tier recording rules (`openshift:node:memory:tier:*`) + cluster-overview, infra-cxl-glance and VM Explorer dashboards. |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
-| `migrate_libvirt` | `shanemcd.cxl_lab.migrate_libvirt` | Adopts stopped raw-QEMU lab disks into private runtime copies and persistent domains without reinstalling. See migration below. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
 | `ops.status` | `shanemcd.cxl_lab.ops.status` | Read-only summary: nodes, clusterversion, VM `--status`, network/resolver, region commit, layered image. |
 | `ops.restart_cxl_worker` | `shanemcd.cxl_lab.ops.restart_cxl_worker` | Cold-restart one CXL worker: drain → poweroff → relaunch → Ready → uncordon → region-commit assert. Run with `-e target_worker=worker-cxl-0`. |
 
 Every phase guards itself for idempotent re-runs; a clean re-run of `site`
 reports `changed=0`. Mid-install re-runs resume cleanly.
-
-## Adopting an existing raw-QEMU lab
-
-New installs use libvirt automatically. For a lab created by the older raw-QEMU
-backend, stop all of its VMs using the **old** run scripts before updating the
-checkout. Do not stop unrelated VMs or reboot the host just to migrate.
-Install the new host prerequisites with `01_host_prep` if libvirt is missing,
-then run from the repository root:
-
-```sh
-ansible-playbook shanemcd.cxl_lab.migrate_libvirt
-ansible-playbook shanemcd.cxl_lab.verify
-sudo virsh -c qemu:///system list --all
-sudo virsh -c qemu:///system net-info cxl-lab
-sudo virsh -c qemu:///system dominfo worker-cxl-0
-```
-
-Names above are inventory defaults. Migration refuses opened source disks.
-It copies the existing master disk, worker backing image, and worker overlays
-using reflinks where available, rebases **only the copied overlays**, and starts
-persistent domains with the existing MACs and addresses. It does not reinstall
-OpenShift or regenerate ignition. Existing runtime disks are authoritative and
-are never overwritten on subsequent runs. The original workspace disks remain
-an offline pre-migration snapshot, not a continuously updated backup; do not
-start the old backend alongside libvirt or expect those originals to contain
-later cluster writes.
-
-Libvirt owns the active copies in `libvirt_runtime_dir`, outside workspace
-ownership repair. Serial and compatibility PID paths in the workspace are
-symlinks to libvirt's files; reading serial logs may require sudo. The network
-and domains have autostart enabled; `virtnetworkd.service` is ordered before
-`virtqemud.service`. Validate an actual host reboot separately during a suitable
-maintenance window. Changing an active network's XML updates its persistent
-configuration only: stop its lab domains before restarting that network to
-activate changed DHCP/DNS settings.
 
 ## Teardown
 
@@ -268,7 +232,7 @@ self-chosen values):
 | File | Key contents |
 |---|---|
 | `inventory/group_vars/all/secrets.yml` | **Paths only** to the pull secret (0600) and the install SSH keypair; kubeconfig location. Tasks touching them are `no_log`. |
-| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, libvirt network/bridge name, gateway IP, DHCP free-range suffixes, legacy resolver/NAT cleanup names, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
+| `inventory/group_vars/all/network.yml` | Lab subnet prefix/CIDR, libvirt network/bridge name, gateway IP, DHCP free-range suffixes, upstream resolvers (empty = auto-detect from the host: resolv.conf, systemd-resolved, local stub), host-resolution block (API/API-int/ingress names on the master IP). |
 | `inventory/group_vars/all/topology.yml` | Worker counts (`cxl_worker_count`/`dram_worker_count`, one each by default) and the node specs they generate, `bip_installation_disk`, VM lifecycle waits, MCP/label/MC names, guest CXL NUMA node, ignition freshness window. |
 
 ### Scaling the fleet

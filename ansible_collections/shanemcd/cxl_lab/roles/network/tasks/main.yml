@@ -11,47 +11,6 @@
 - name: Select upstream DNS servers
   ansible.builtin.include_tasks: upstream-dns.yml
 
-- name: Check for the former lab-only dnsmasq configuration
-  ansible.builtin.stat:
-    path: "{{ network_dnsmasq_conf_path }}"
-  register: network_legacy_dns
-
-- name: Check for other host dnsmasq configurations before migration
-  ansible.builtin.find:
-    paths: /etc/dnsmasq.d
-    file_type: file
-    excludes: "{{ network_dnsmasq_conf_name }}"
-  register: network_other_dns
-  when: network_legacy_dns.stat.exists
-
-- name: Refuse to disable a shared host resolver
-  ansible.builtin.assert:
-    that: network_other_dns.matched == 0
-    fail_msg: "Other dnsmasq configurations exist; separate the lab resolver before migrating."
-  when: network_legacy_dns.stat.exists
-
-- name: Require stopped raw guests before changing their resolver or bridge
-  ansible.builtin.command:
-    argv: [fuser, -s, "{{ vm_images_dir }}/{{ item.name }}.qcow2"]
-  loop: "{{ masters + cxl_workers + dram_workers }}"
-  register: network_legacy_disk_users
-  check_mode: false
-  changed_when: false
-  failed_when: network_legacy_disk_users.rc != 1
-  when: network_legacy_dns.stat.exists
-
-- name: Stop the former lab-only resolver before libvirt takes its address
-  ansible.builtin.systemd_service:
-    name: "{{ network_dnsmasq_service }}"
-    state: stopped
-    enabled: false
-  when: network_legacy_dns.stat.exists
-
-- name: Remove only the former lab resolver configuration
-  ansible.builtin.file:
-    path: "{{ network_dnsmasq_conf_path }}"
-    state: absent
-
 - name: Create the libvirt daemon ordering directory
   ansible.builtin.file:
     path: /etc/systemd/system/virtqemud.service.d
@@ -121,24 +80,14 @@
   failed_when: false
   when: not (network_info.stdout is search('Active:\s+yes'))
 
-- name: Require evidence before replacing a legacy bridge
+- name: Refuse to replace a bridge the lab does not own
   ansible.builtin.assert:
     that:
-      - network_legacy_dns.stat.exists
-      - (network_existing_bridge.stdout | from_json)[0].linkinfo.info_kind == 'bridge'
-      - lab_gateway_ip in ((network_existing_bridge.stdout | from_json)[0].addr_info | selectattr('local', 'defined') | map(attribute='local') | list)
-    fail_msg: "The bridge already exists outside the active lab network; refusing to replace it without the former lab DNS configuration and gateway address."
+      - network_existing_bridge.rc != 0 or ((network_existing_bridge.stdout | from_json)[0].linkinfo.info_kind != 'bridge')
+    fail_msg: "A bridge named {{ lab_bridge_name }} already exists outside the lab network; remove it or rename the lab bridge."
   when:
     - network_existing_bridge is not skipped
     - network_existing_bridge.rc == 0
-
-- name: Remove the verified stopped raw-QEMU lab bridge before adoption
-  ansible.builtin.command:
-    argv: [ip, link, delete, dev, "{{ lab_bridge_name }}"]
-  when:
-    - network_existing_bridge is not skipped
-    - network_existing_bridge.rc == 0
-  changed_when: true
 
 - name: Start the lab network
   ansible.builtin.command:
@@ -172,15 +121,6 @@
     state: present
     sysctl_file: "/etc/sysctl.d/{{ network_sysctl_conf_name }}"
     reload: true
-
-- name: Remove the legacy lab-only masquerade rule if present
-  ansible.builtin.shell: |
-    if iptables -t nat -C POSTROUTING -s {{ lab_subnet_cidr | quote }} ! -o {{ lab_bridge_name | quote }} -m comment --comment {{ network_nat_rule_comment | quote }} -j MASQUERADE 2>/dev/null; then
-      iptables -t nat -D POSTROUTING -s {{ lab_subnet_cidr | quote }} ! -o {{ lab_bridge_name | quote }} -m comment --comment {{ network_nat_rule_comment | quote }} -j MASQUERADE
-      echo REMOVED
-    fi
-  register: network_legacy_nat
-  changed_when: "'REMOVED' in network_legacy_nat.stdout"
 
 - name: Preserve host-side cluster name resolution
   ansible.builtin.blockinfile:

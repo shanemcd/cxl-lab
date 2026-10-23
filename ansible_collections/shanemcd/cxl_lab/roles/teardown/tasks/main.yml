@@ -408,22 +408,6 @@
   failed_when: false
   tags: network
 
-- name: Remove the lab resolver config
-  ansible.builtin.file:
-    path: "{{ network_dnsmasq_conf_path }}"
-    state: absent
-  tags: network
-
-- name: Remove the lab masquerade rule (exact spec)
-  ansible.builtin.command:
-    cmd: >-
-      iptables -t nat -D POSTROUTING
-      -s {{ lab_subnet_cidr }} ! -o {{ lab_bridge_name }}
-      -m comment --comment {{ network_nat_rule_comment }} -j MASQUERADE
-  failed_when: false
-  changed_when: false
-  tags: network
-
 - name: Remove the lab host-resolution block from /etc/hosts
   ansible.builtin.blockinfile:
     path: /etc/hosts

@@ -60,13 +60,6 @@ service_network_cidr: "172.30.0.0/16"
 # defaults never cross roles). Teardown reverses exactly these. The bridge
 # carries only the gateway address (no DNS or VIP addresses).
 network_sysctl_conf_name: "99-cxl-lab.conf"
-# Legacy raw-QEMU resolver/NAT names, retained only for scoped migration
-# and teardown cleanup. New networks use libvirt's own dnsmasq and NAT.
-network_nat_rule_comment: "cxl-lab-nat"
-network_dnsmasq_conf_name: "99-cxl-lab.conf"
-network_dnsmasq_conf_path: "/etc/dnsmasq.d/{{ network_dnsmasq_conf_name }}"
-network_dnsmasq_service: "dnsmasq"
-
 # DHCP free-range suffixes (reservations pin the nodes; unknown clients
 # only get addresses from this narrow, collision-asserted segment).
 network_dhcp_range_start_suffix: 200

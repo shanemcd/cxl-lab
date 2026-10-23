@@ -96,6 +96,5 @@
   loop:
     - "{{ vm_logs_dir }}/{{ node.name }}.serial.log"
     - "{{ vm_logs_dir }}/{{ node.name }}.qemu-stderr.log"
-    - "{{ vm_logs_dir }}/{{ node.name }}.raw-qemu.serial.log"
     - "{{ vm_run_dir }}/{{ node.name }}.pid"
     - "{{ vm_run_dir }}/{{ node.name }}.monitor.sock"
