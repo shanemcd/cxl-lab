@@ -68,6 +68,8 @@
       name: openshift-cluster-overview
     - kind: PersesDashboard
       name: infra-cxl-glance
+    - kind: PersesDashboard
+      name: vm-explorer
   loop_control:
     label: "{{ item.kind }}/{{ item.name }}"
   changed_when: false

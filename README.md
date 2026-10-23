@@ -176,7 +176,7 @@ sudo rm -rf -- "$fixture"
 | `08_install` | `shanemcd.cxl_lab.08_install` | Heals the 4.22.16 machine-os-puller SA pivot race; CSR approvals; IngressController pinned to the master; operator settle; final asserts (4/4 Ready, clusterversion, routers on master, master osImageURL == pin). |
 | `09_region_commit` | `shanemcd.cxl_lab.09_region_commit` | Labels the CXL workers into the install-time worker-cxl pool; verifies the outcome — layered image + cxltest kernel booted, region-commit service active, region committed (the service itself ships via the workers' first-boot ignition). |
 | `10_storage` | `shanemcd.cxl_lab.10_storage` | The lab StorageClass (`lab-nfs`): host kernel nfsd exports the assets tree to the lab subnet; the in-cluster `nfs-subdir-external-provisioner` (with the OCP 5.x hostmount SCC grants it needs) dynamically provisions per-PVC subdirectories. LVM Storage is absent from the reachable catalogs and the in-catalog alternatives are Ceph-family — outside the lab host's RAM budget. |
-| `11_observability` | `shanemcd.cxl_lab.11_observability` | Cluster Observability Operator (Red Hat build of Perses) from `redhat-operators`; monitoring UIPlugin (console Observe → Dashboards); Perses persisting on the `lab-nfs` StorageClass; Thanos Querier datasource (per-user RBAC via the console plugin, TLS-anchored on the service CA); CXL memory-tier recording rules (`openshift:node:memory:tier:*`) + the cluster-overview and infra-cxl-glance dashboards. |
+| `11_observability` | `shanemcd.cxl_lab.11_observability` | Cluster Observability Operator (Red Hat build of Perses) from `redhat-operators`; monitoring UIPlugin (console Observe → Dashboards); Perses persisting on the `lab-nfs` StorageClass; Thanos Querier datasource (per-user RBAC via the console plugin, TLS-anchored on the service CA); CXL memory-tier recording rules (`openshift:node:memory:tier:*`) + cluster-overview, infra-cxl-glance and VM Explorer dashboards. |
 | `verify` | `shanemcd.cxl_lab.verify` | Full checklist per CXL worker (guest), host QEMU liveness + type-3 device count, cluster state; writes the deterministic 0600 evidence report. |
 | `migrate_libvirt` | `shanemcd.cxl_lab.migrate_libvirt` | Adopts stopped raw-QEMU lab disks into private runtime copies and persistent domains without reinstalling. See migration below. |
 | `teardown` | `shanemcd.cxl_lab.teardown` | Per-layer tagged reverse teardown — see below. **Not in site.** |
@@ -397,3 +397,24 @@ ansible-playbook shanemcd.cxl_lab.site --syntax-check   # each playbook
   memory-tiering work that consumes this lab, not this repo) onto the
   `openshift:*:memory:tier:*` vocabulary; without it they evaluate to empty
   series, harmlessly.
+
+### Filtering dashboards at cluster scale
+
+Under **Observe → Dashboards**, the lab owns three dashboards in the observability content namespace (default `perses-dev`):
+
+- **Virtualization / VM Explorer**: cascading **OCP node → VM namespace → VM** selectors and a **VM chart limit** of 5, 10 (default), 20 or 50. All charts use the same VM/node pairs, ranked by configured guest RAM at the end of the selected time range. Memory, CPU, network and storage therefore describe the same selection. Select a specific VM to inspect it regardless of its rank. Metrics must be exposed by KubeVirt; missing data is unknown, not zero.
+- **Infrastructure / CXL / Glance**: the same selectors; node capacity and tiering charts follow the node selection, while VM placement charts also follow namespace and VM. VM placement ranks the largest anonymous-memory consumers; the separate CXL chart ranks CXL consumers. Both keep their selected set fixed across the range. Legends include namespace, VM and node, so same-name VMs and migration copies remain distinct. Anonymous memory includes QEMU overhead and excludes explicit HugeTLB guest memory. The placement chart uses unstacked lines so DRAM cannot obscure CXL.
+- **OpenShift Cluster Overview**: an OCP-node selector scopes CPU, memory and top-pod charts. API availability remains explicitly cluster-wide.
+
+The dropdowns default to all nodes/namespaces/VMs. Clear a downstream selection to **All** when changing a parent scope if the previously selected VM is not present there. The VM limit caps returned VM/node pairs, not the cost of scanning all matching series; select a node and namespace first on large clusters. Migration can show one VM on two nodes, and guest-reported use, QEMU residency and tier residency are different measurements.
+
+CNV/HCO and other operators own their own dashboards. The lab does not patch those resources or reconcile the older consumer dashboard set over them. The standalone VM Explorer provides a durable node-scoped view without fighting operator reconciliation.
+
+To update only lab-owned dashboard content, the datasource and CXL rules, without reinstalling operators or changing workloads:
+
+```sh
+cd cxl-lab
+ansible-playbook shanemcd.cxl_lab.11_observability --tags observability_content
+```
+
+Template regression tests are included in `python -m unittest discover -s tests -p 'test_*.py'` (use the project's virtual environment). They cover declared variables, cascading selectors, consistent bounded VM selection, VM/node/namespace identity, overview label matching and layout references.

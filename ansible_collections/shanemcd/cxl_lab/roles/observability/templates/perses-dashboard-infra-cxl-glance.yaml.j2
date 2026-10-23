@@ -21,6 +21,61 @@ spec:
   config:
     display:
       name: Infrastructure / CXL / Glance
+    variables:
+      - kind: ListVariable
+        spec:
+          name: node
+          display: {name: OCP node}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: node
+              matchers: ['node_memory_tier_memtotal_bytes']
+      - kind: ListVariable
+        spec:
+          name: namespace
+          display: {name: VM namespace}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: namespace
+              matchers: ['openshift:vm:memory:tier:bytes{node=~"$node"}']
+      - kind: ListVariable
+        spec:
+          name: vm
+          display: {name: VM}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: vm
+              matchers: ['openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace"}']
+      - kind: ListVariable
+        spec:
+          name: limit
+          display: {name: VM chart limit}
+          allowAllValue: false
+          allowMultiple: false
+          defaultValue: '10'
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - {label: '5', value: '5'}
+                - {label: '10', value: '10'}
+                - {label: '20', value: '20'}
+                - {label: '50', value: '50'}
     panels:
       CxlTierUsed:
         kind: Panel
@@ -28,11 +83,10 @@ spec:
           display:
             name: Node memory used, by tier
             description: >-
-              Physical memory used per node, split by tier: tier 0 is
-              CPU-attached DRAM (~100ns), tier 1 is the emulated CXL
-              Type-3 region exposed as CPU-less NUMA node 1 (~200ns).
-              Answers: how is each node's memory structured across
-              tiers, and how full is each tier?
+              Used memory on the selected nodes: tier 0 is CPU-attached
+              DRAM; tier 1 is the emulated CXL region. Emulation does not
+              reproduce physical CXL latency. Node panels respond only
+              to OCP node; VM namespace and VM filter the VM panels.
           plugin:
             kind: TimeSeriesChart
             spec:
@@ -56,7 +110,7 @@ spec:
                   spec:
                     query: >-
                       sum by (node, tier) (
-                        openshift:node:memory:tier:bytes{scope="node", utilized="true"}
+                        openshift:node:memory:tier:bytes{scope="node", utilized="true", node=~"$node"}
                       )
                     seriesNameFormat: '{{ "{{node}} · tier {{tier}}" }}'
       CxlTierUtilization:
@@ -94,7 +148,7 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: openshift:node:memory:tier:utilization:ratio
+                    query: openshift:node:memory:tier:utilization:ratio{node=~"$node"}
                     seriesNameFormat: '{{ "{{node}} · tier {{tier}}" }}'
       CxlWorkloadsByTier:
         kind: Panel
@@ -130,7 +184,7 @@ spec:
                   spec:
                     query: >-
                       sum by (tier) (
-                        openshift:node:memory:tier:bytes{scope="workloads", utilized="true"}
+                        openshift:node:memory:tier:bytes{scope="workloads", utilized="true", node=~"$node"}
                       )
                     seriesNameFormat: '{{ "tier {{tier}}" }}'
       CxlTieringTraffic:
@@ -160,14 +214,14 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: sum (openshift:node:memory:tier:demote:rate)
+                    query: sum (openshift:node:memory:tier:demote:rate{node=~"$node"})
                     seriesNameFormat: demote
             - kind: TimeSeriesQuery
               spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: sum (openshift:node:memory:tier:promote:rate)
+                    query: sum (openshift:node:memory:tier:promote:rate{node=~"$node"})
                     seriesNameFormat: promote
       CxlVMPlacement:
         kind: Panel
@@ -175,11 +229,13 @@ spec:
           display:
             name: VM memory placement by tier
             description: >-
-              Anonymous memory per VirtualMachineInstance split by tier
-              (per-cgroup NUMA accounting of virt-launcher pods). Stacked
-              series per VM show the DRAM/CXL split of each guest's
-              resident memory. Answers: which VMs have memory on the CXL
-              tier?
+              Anonymous resident memory in VM launcher cgroups, including
+              QEMU overhead, not configured guest RAM. Explicit HugeTLB
+              guest RAM is excluded. Node, namespace and VM selectors
+              apply. The largest N VM/node pairs at the range end are
+              held fixed across the chart, with both tiers preserved.
+              Migration may show the same VM on two nodes. Lines are
+              unstacked so a large DRAM series cannot hide CXL.
           plugin:
             kind: TimeSeriesChart
             spec:
@@ -191,29 +247,34 @@ spec:
                 min: 0
                 show: true
               visual:
-                areaOpacity: 1
+                areaOpacity: 0
                 display: line
-                lineWidth: 0.25  # hardcode-ok: chart line weight, presentation only
-                stack: all
+                lineWidth: 1.5  # hardcode-ok: chart line weight, presentation only
           queries:
             - kind: TimeSeriesQuery
               spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: sum by (vm, tier) (openshift:vm:memory:tier:bytes)
-                    seriesNameFormat: '{{ "tier {{tier}} · {{vm}}" }}'
+                    query: >-
+                      sum by (node, namespace, vm, tier) (
+                        openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace", vm=~"$vm"}
+                      ) and on (node, namespace, vm)
+                      topk($limit, sum by (node, namespace, vm) (
+                        openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace", vm=~"$vm"} @ end()
+                      ))
+                    seriesNameFormat: '{{ "{{namespace}}/{{vm}} · {{node}} · tier {{tier}}" }}'
       CxlVMCxlResidency:
         kind: Panel
         spec:
           display:
             name: VM residency on CXL tier
             description: >-
-              Anonymous memory per VirtualMachineInstance resident on the
-              CXL tier only (virt-launcher cgroup NUMA accounting, tier 1).
-              Separate panel/scale from the stacked DRAM+CXL chart so even
-              MiB-scale CXL residency is readable next to GiB of DRAM.
-              Answers: how much of each guest actually sits on CXL right now?
+              Launcher-cgroup anonymous memory on CXL (tier 1), including
+              QEMU overhead, excluding explicit HugeTLB memory. Shows the
+              top N VM/node pairs by CXL residency at the range end, after
+              applying node, namespace and VM filters. Its separate scale
+              keeps MiB of CXL visible alongside GiB of DRAM.
           plugin:
             kind: TimeSeriesChart
             spec:
@@ -234,8 +295,14 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: sum by (vm) (openshift:vm:memory:tier:bytes{tier="1"})
-                    seriesNameFormat: '{{ "{{vm}} on CXL" }}'
+                    query: >-
+                      sum by (node, namespace, vm) (
+                        openshift:vm:memory:tier:bytes{tier="1", node=~"$node", namespace=~"$namespace", vm=~"$vm"}
+                      ) and on (node, namespace, vm)
+                      topk($limit, sum by (node, namespace, vm) (
+                        openshift:vm:memory:tier:bytes{tier="1", node=~"$node", namespace=~"$namespace", vm=~"$vm"} @ end()
+                      ))
+                    seriesNameFormat: '{{ "{{namespace}}/{{vm}} · {{node}} on CXL" }}'
       CxlTierFree:
         kind: Panel
         spec:
@@ -269,7 +336,7 @@ spec:
                   kind: PrometheusTimeSeriesQuery
                   spec:
                     query: >-
-                      openshift:node:memory:tier:bytes{tier="1", scope="node",
+                      openshift:node:memory:tier:bytes{tier="1", scope="node", node=~"$node",
                       utilized="true"}
                     seriesNameFormat: '{{ "{{node}} used" }}'
             - kind: TimeSeriesQuery
@@ -278,7 +345,7 @@ spec:
                   kind: PrometheusTimeSeriesQuery
                   spec:
                     query: >-
-                      openshift:node:memory:tier:bytes{tier="1", scope="node",
+                      openshift:node:memory:tier:bytes{tier="1", scope="node", node=~"$node",
                       utilized="false"}
                     seriesNameFormat: '{{ "{{node}} free" }}'
     layouts:

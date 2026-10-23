@@ -167,6 +167,7 @@
       {{ observability_perses_storage_class }}.
 
 - name: Create the observability content namespace
+  tags: [observability_content]
   # The cluster-monitoring label opts the namespace's PrometheusRules
   # into the cluster prometheus' rule selector.
   kubernetes.core.k8s:
@@ -181,6 +182,7 @@
           openshift.io/cluster-monitoring: "true"
 
 - name: Apply the Perses content
+  tags: [observability_content]
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_controller_path }}"
@@ -189,14 +191,17 @@
     - "{{ lookup('template', 'perses-datasource.yaml.j2') | from_yaml }}"
     - "{{ lookup('template', 'perses-dashboard-cluster-overview.yaml.j2') | from_yaml }}"
     - "{{ lookup('template', 'perses-dashboard-infra-cxl-glance.yaml.j2') | from_yaml }}"
+    - "{{ lookup('template', 'perses-dashboard-vm-explorer.yaml.j2') | from_yaml }}"
 
 - name: Apply the CXL memory-tier recording rules
+  tags: [observability_content]
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_controller_path }}"
     definition: "{{ lookup('template', 'cxl-memory-tiers.yaml.j2') | from_yaml }}"
 
 - name: Wait for the Perses content CRs
+  tags: [observability_content]
   kubernetes.core.k8s_info:
     kubeconfig: "{{ kubeconfig_controller_path }}"
     api_version: perses.dev/v1alpha2
@@ -221,3 +226,5 @@
       name: openshift-cluster-overview
     - kind: PersesDashboard
       name: infra-cxl-glance
+    - kind: PersesDashboard
+      name: vm-explorer

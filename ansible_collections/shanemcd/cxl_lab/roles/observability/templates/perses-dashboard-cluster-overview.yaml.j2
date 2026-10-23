@@ -16,6 +16,20 @@ spec:
   config:
     display:
       name: OpenShift Cluster Overview
+    variables:
+      - kind: ListVariable
+        spec:
+          name: node
+          display: {name: OCP node}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: node
+              matchers: ['kube_node_info']
     duration: 1h
     refreshInterval: 30s
     panels:
@@ -23,7 +37,7 @@ spec:
         kind: Panel
         spec:
           display:
-            name: API Servers Up
+            name: API Servers Up (cluster-wide)
           plugin:
             kind: StatChart
             spec:
@@ -39,7 +53,7 @@ spec:
         kind: Panel
         spec:
           display:
-            name: Cluster CPU Usage (cores)
+            name: Selected Nodes — CPU Usage (cores)
           plugin:
             kind: TimeSeriesChart
             spec: {}
@@ -49,7 +63,7 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: sum(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (instance)
+                    query: sum(rate(node_cpu_seconds_total{mode!="idle", instance=~"$node"}[5m])) by (instance)
       node-mem:
         kind: Panel
         spec:
@@ -64,7 +78,7 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: node_memory_MemAvailable_bytes
+                    query: node_memory_MemAvailable_bytes{instance=~"$node"}
       pod-mem:
         kind: Panel
         spec:
@@ -79,7 +93,13 @@ spec:
                 plugin:
                   kind: PrometheusTimeSeriesQuery
                   spec:
-                    query: topk(5, sum by (namespace,pod) (container_memory_working_set_bytes{namespace!=""}))
+                    query: >-
+                      sum by (node, namespace, pod) (
+                        container_memory_working_set_bytes{namespace!="", container!="", container!="POD", node=~"$node"}
+                      ) and on (node, namespace, pod)
+                      topk(5, sum by (node, namespace, pod) (
+                        container_memory_working_set_bytes{namespace!="", container!="", container!="POD", node=~"$node"} @ end()
+                      ))
     layouts:
       - kind: Grid
         spec:

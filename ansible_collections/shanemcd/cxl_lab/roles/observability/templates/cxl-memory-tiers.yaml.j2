@@ -106,12 +106,14 @@ spec:
             unit: bytes/s
           expr: 4096 * sum by (node) (rate(node_memory_tier_pgpromote_total{mode="success"}[5m]))
         # --- per-VM placement by tier ---
+        # Keep placement and identity: VM names are namespace-local and a
+        # migrating VM can have launchers on two nodes at once.
         - record: openshift:vm:memory:tier:bytes
           labels:
             tier: "0"
             unit: bytes
           expr: |
-            sum by (vm) (
+            sum by (node, namespace, vm) (
               label_replace(
                 node_memory_tier_workload_anon_bytes{workload_kind="VirtualMachineInstance", rank="0"},
                 "vm", "$1", "workload", "(.*)"
@@ -122,7 +124,7 @@ spec:
             tier: "1"
             unit: bytes
           expr: |
-            sum by (vm) (
+            sum by (node, namespace, vm) (
               label_replace(
                 node_memory_tier_workload_anon_bytes{workload_kind="VirtualMachineInstance", rank!="0"},
                 "vm", "$1", "workload", "(.*)"

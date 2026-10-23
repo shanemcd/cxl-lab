@@ -1,0 +1,145 @@
+# Lab-owned alternative to operator-managed CNV dashboards. Never patch
+# HCO-owned resources: upgrades would reconcile those changes away.
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: vm-explorer
+  namespace: {{ observability_namespace }}
+spec:
+  instanceSelector:
+    matchLabels:
+{% for key, value in observability_perses_instance_label.items() %}
+      {{ key }}: {{ value }}
+{% endfor %}
+  config:
+    display:
+      name: Virtualization / VM Explorer
+    variables:
+      - kind: ListVariable
+        spec:
+          name: node
+          display: {name: OCP node}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: node
+              matchers: ['kube_node_info']
+      - kind: ListVariable
+        spec:
+          name: namespace
+          display: {name: VM namespace}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: namespace
+              matchers: ['kubevirt_vmi_memory_domain_bytes{node=~"$node"}']
+      - kind: ListVariable
+        spec:
+          name: vm
+          display: {name: VM}
+          allowAllValue: true
+          allowMultiple: false
+          customAllValue: '.*'
+          defaultValue: '$__all'
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: name
+              matchers: ['kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace"}']
+      - kind: ListVariable
+        spec:
+          name: limit
+          display: {name: VM chart limit}
+          allowAllValue: false
+          allowMultiple: false
+          defaultValue: '10'
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - {label: '5', value: '5'}
+                - {label: '10', value: '10'}
+                - {label: '20', value: '20'}
+                - {label: '50', value: '50'}
+{% set scope = 'node=~"$node", namespace=~"$namespace", name=~"$vm"' %}
+{% set selection = 'topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{' ~ scope ~ '} @ end()))' %}
+{% set panels = [
+  {'key': 'GuestMemory', 'title': 'Guest memory — used and configured', 'unit': 'bytes',
+   'description': 'Guest-reported used memory and configured guest memory, not physical DRAM/CXL residency. All charts use the same top N VM/node pairs ranked by configured RAM at the end of the range. Select a VM to inspect it regardless of its rank. Missing data is unknown, not zero.',
+   'metrics': [('kubevirt_vmi_memory_used_bytes', 'used'), ('kubevirt_vmi_memory_domain_bytes', 'configured')]},
+  {'key': 'ResidentMemory', 'title': 'QEMU resident memory', 'unit': 'bytes',
+   'description': 'Host-resident QEMU memory reported by KubeVirt, not the guest working set and not a breakdown by memory tier. Use Infrastructure / CXL / Glance for anonymous DRAM/CXL residency. Explicit HugeTLB accounting is separate.',
+   'metrics': [('kubevirt_vmi_memory_resident_bytes', 'resident')]},
+  {'key': 'CPU', 'title': 'VM vCPU usage (cores)', 'unit': 'decimal',
+   'description': 'Rate of vCPU time summed across vCPUs. One means one full CPU core. Uses the same VM selection as the memory charts, not an independent CPU top N.',
+   'metrics': [('rate(kubevirt_vmi_vcpu_seconds_total', 'cores')]},
+  {'key': 'Network', 'title': 'VM network throughput (bytes/s)', 'unit': 'bytes/sec',
+   'description': 'Receive and transmit rates summed across VM interfaces. Both directions are positive, unstacked lines.',
+   'metrics': [('rate(kubevirt_vmi_network_receive_bytes_total', 'receive'), ('rate(kubevirt_vmi_network_transmit_bytes_total', 'transmit')]},
+  {'key': 'Storage', 'title': 'VM storage throughput (bytes/s)', 'unit': 'bytes/sec',
+   'description': 'Read and write rates summed across VM disks. Missing metrics can mean the device does not expose that statistic.',
+   'metrics': [('rate(kubevirt_vmi_storage_read_traffic_bytes_total', 'read'), ('rate(kubevirt_vmi_storage_write_traffic_bytes_total', 'write')]}
+] %}
+    panels:
+{% for panel in panels %}
+      {{ panel.key }}:
+        kind: Panel
+        spec:
+          display:
+            name: {{ panel.title }}
+            description: {{ panel.description }}
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+              yAxis:
+                format:
+                  unit: {{ panel.unit }}
+                min: 0
+                show: true
+              visual:
+                display: line
+                areaOpacity: 0
+                lineWidth: 1.5  # hardcode-ok: chart presentation, not lab configuration
+          queries:
+{% for metric, label in panel.metrics %}
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >-
+                      sum by (node, namespace, name) (
+                        {{ metric }}{ {{ scope }} }{% if metric.startswith('rate(') %}[5m]){% endif %}
+
+                      ) and on (node, namespace, name) {{ selection }}
+                    seriesNameFormat: '{{ "{{namespace}}/{{name}} · {{node}}" }} · {{ label }}'
+{% endfor %}
+{% endfor %}
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: Selected VMs — node, namespace and VM filters apply to every chart
+            collapse:
+              open: true
+          items:
+{% for panel in panels %}
+            - x: {{ 12 * (loop.index0 % 2) }}
+              "y": {{ 8 * (loop.index0 // 2) }}
+              width: {{ 24 if loop.last else 12 }}
+              height: 8
+              content:
+                $ref: '#/spec/panels/{{ panel.key }}'
+{% endfor %}
+    duration: 1h
+    refreshInterval: 30s
