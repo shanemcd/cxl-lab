@@ -18,12 +18,7 @@ cluster_install_operator_delay_seconds: 30
 # write files, then validate — which reconciles any drift the boot-time
 # unit left. The validation-only trap only fires when rendered ==
 # last-applied but disk differs, which the MC eliminates by construction.
-cluster_install_nightly_policy_mc_prefix: "99-cxl-lab-nightly-policy"
 cluster_install_nightly_policy_ignition_version: "3.2.0"
-cluster_install_nightly_policy_mc_roles:
-  - master
-  - worker
-  - "{{ worker_cxl_role_label }}"
 cluster_install_nightly_policy_dict:
   default:
     - type: insecureAcceptAnything

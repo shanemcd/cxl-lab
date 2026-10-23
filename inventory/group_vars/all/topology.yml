@@ -151,6 +151,12 @@ region_commit_region_name: "region0"
 # Install-time MachineConfig object name for the layered osImageURL
 # (shared by install_config, verify, and teardown).
 worker_cxl_osimage_mc_name: "50-cxltest-os-image"
+# nightly container-policy MCs: applied by cluster_install, removed by teardown — shared taxonomy
+cluster_install_nightly_policy_mc_prefix: "99-cxl-lab-nightly-policy"
+cluster_install_nightly_policy_mc_roles:
+  - master
+  - worker
+  - "{{ worker_cxl_role_label }}"
 
 # Install-time MachineConfig object name + oneshot unit name for the NUMA
 # demotion knob (shared by install_config and verify — role defaults never
