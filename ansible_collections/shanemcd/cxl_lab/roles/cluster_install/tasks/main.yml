@@ -196,6 +196,31 @@
   loop_control:
     loop_var: mc_role
 
+- name: Render the nightly-policy on-disk repair script
+  when: ocp_artifact_profile == 'nightly'
+  ansible.builtin.template:
+    src: repair-nightly-policy.sh.j2
+    dest: "{{ cluster_install_nightly_policy_repair_script_path }}"
+    mode: "0755"
+
+- name: Repair on-disk container policy where the MCD validation is wedged
+  # The 99-* MCs above only help once the MCD ACCEPTS an update. A worker
+  # that booted with a pre-99 render fails on-disk validation on every sync
+  # (boot-time relax unit vs payload policy) and aborts before the update
+  # path — Degraded forever (observed live on fresh installs: "content
+  # mismatch for file /etc/containers/policy.json", sync retries climbing,
+  # update never applied). Writing the CURRENT rendered bytes to the node
+  # lets validation pass; the MCD then rolls to the newer render, whose
+  # policy is the relaxed one. Idempotent: converged nodes match and are
+  # left untouched.
+  when: ocp_artifact_profile == 'nightly'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ cluster_install_nightly_policy_repair_script_path }}"
+  register: cluster_install_policy_repair
+  changed_when: "'changed=1' in cluster_install_policy_repair.stdout"
+
 - name: Wait for cluster operators to settle
   # One poller over the whole operator table (fleet-parallel discipline):
   # green when every operator reports Available=True and Degraded=False.

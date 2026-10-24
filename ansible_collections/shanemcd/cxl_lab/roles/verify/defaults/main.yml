@@ -37,3 +37,5 @@ verify_mcp_expected_names: "{{ verify_builtin_mcp_names + [worker_cxl_mcp_name] 
 # Available — a freshly converged minimum-spec cluster can flap briefly.
 verify_cluster_settle_retries: 40
 verify_cluster_settle_delay_seconds: 15
+verify_mcp_wait_retries: 20
+verify_mcp_wait_delay_seconds: 30

@@ -7,6 +7,7 @@
 cluster_install_csr_timeout_minutes: 20
 cluster_install_csr_poll_seconds: 30
 cluster_install_csr_script_path: "{{ vm_scripts_dir }}/approve-csrs.sh"
+cluster_install_nightly_policy_repair_script_path: "{{ vm_scripts_dir }}/repair-nightly-policy.sh"
 
 # Operator settle wait (monitoring rolls out slowly on a fresh cluster).
 cluster_install_operator_retries: 60

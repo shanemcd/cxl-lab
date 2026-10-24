@@ -55,6 +55,30 @@
   register: verify_clusterversion
   changed_when: false
 
+- name: Wait for every machine config pool to report Updated
+  # Pool convergence can trail the operator settle gate: rolling updates
+  # are normal (not Degraded) operation, so machine-config reports
+  # Available while nodes still apply their renders. Observed live: the
+  # assert read the pools ~90s before the Updated conditions flipped
+  # after a nightly-policy repair unwedged the MCDs. Poll until every
+  # expected pool reports Updated=True instead of reading once.
+  vars:
+    verify_mcp_wait_args: >-
+      {{ ['get', 'mcp'] + verify_mcp_expected_names
+         + ['-o', 'jsonpath={range .items[*]}{.metadata.name}{" "}'
+            ~ '{.status.conditions[?(@.type=="Updated")].status}{"\n"}{end}'] }}
+  ansible.builtin.command:
+    argv: "{{ [install_bin_dir ~ '/oc'] + verify_mcp_wait_args }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: verify_mcp_wait
+  until: >-
+    verify_mcp_wait.stdout_lines | select('search', ' True$') | list | length
+    == verify_mcp_expected_names | length
+  retries: "{{ verify_mcp_wait_retries }}"
+  delay: "{{ verify_mcp_wait_delay_seconds }}"
+  changed_when: false
+
 - name: Read the machine config pool states
   vars:
     # verify_mcp_expected_names is role-scoped (see verify defaults).

@@ -1,0 +1,3423 @@
+
+PLAY [Host preparation (assert and ensure)] ************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert RedHat OS family] ********************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Record SELinux status] **********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the generated node topology is sane] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Build the lab node list for the capacity assert] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Set the per-node RAM specs for the committed-RAM measure] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Measure guest RAM already committed by running lab VMs] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Compute guest resource requirements] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert memory capacity] *********************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Assert CPU capacity] ************************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure workspace directories] ***************
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-install-cxl/verification', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/artifacts', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/node-images', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/images', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/ignition', 'mode': '0700'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/logs', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/scripts', 'mode': '0755'})
+ok: [lab-server] => (item={'path': '/var/home/shanemcd/ocp-cxl/run', 'mode': '0755'})
+
+TASK [shanemcd.cxl_lab.host_prep : Stat the base pull secret] ******************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the base pull secret exists] *********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat the CI pull secret] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert the CI pull secret exists] ***********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Render the merged install pull secret] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert nightly profiles have a CI secret configured] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read free space at vm_assets_dir] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Read current lab disk usage at vm_assets_dir] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Set disk budget GiB (free + existing lab usage)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert disk capacity at vm_assets_dir] ******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat required devices] **********************
+ok: [lab-server] => (item=/dev/kvm)
+ok: [lab-server] => (item=/dev/vhost-net)
+ok: [lab-server] => (item=/dev/net/tun)
+
+TASK [shanemcd.cxl_lab.host_prep : Assert required devices exist as character devices] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge link] ***********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Stat lab bridge identity (present only on bridge devices)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert lab bridge name is free or already a bridge] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read host IPv4 addresses as JSON] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert lab subnet addresses only exist on the lab bridge] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Read NTP synchronization state] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Assert NTP is synchronized] *****************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.host_prep : Check RHSM registration (assert-only; no credentials needed when registered)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure RHSM registration with activation key] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure RHSM registration with credentials] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Detect rpm-ostree (atomic) host] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Query which required host packages are already installed] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Compute missing host packages] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure required host packages (dnf host)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Layer missing host packages (rpm-ostree host)] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Ensure the kubernetes Python library for kubernetes.core modules] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.host_prep : Host preparation summary] *******************
+ok: [lab-server] => {
+    "msg": "host prep OK — os=Fedora, selinux=enabled, mem=135G free vs 88G required, vcpu=32 vs 28 required, disk=1099G budget (free + lab usage) vs 330G required."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Lab artifacts (cxltest kernel RPMs, pinned downloads, host QEMU)] ********
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Ensure artifact directories] ****************
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/srpm)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/downloads)
+changed: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/bin)
+
+TASK [shanemcd.cxl_lab.artifacts : Stat local artifact cache seeds] ************
+ok: [lab-server] => (item={'name': 'openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz'})
+ok: [lab-server] => (item={'name': 'openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz'})
+ok: [lab-server] => (item={'name': 'kernel-6.12.0-211.64.1.el10_2.src.rpm', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/srpm/kernel-6.12.0-211.64.1.el10_2.src.rpm'})
+ok: [lab-server] => (item={'name': 'rhcos-10.2.20261015-0-live-iso.x86_64.iso', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/rhcos-10.2.20261015-0-live-iso.x86_64.iso'})
+
+TASK [shanemcd.cxl_lab.artifacts : Seed pinned artifacts from the local cache] ***
+ok: [lab-server] => (item=openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz)
+ok: [lab-server] => (item=openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz)
+skipping: [lab-server] => (item=kernel-6.12.0-211.64.1.el10_2.src.rpm) 
+skipping: [lab-server] => (item=rhcos-10.2.20261015-0-live-iso.x86_64.iso) 
+
+TASK [shanemcd.cxl_lab.artifacts : Stat the nightly client-tool tarballs] ******
+ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d'})
+ok: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841'})
+
+TASK [shanemcd.cxl_lab.artifacts : Compute the nightly client tarballs absent from the artifact dirs] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Wait for the CI artifacts service to serve the nightly client tools] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Download pinned artifacts] ******************
+ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d'})
+ok: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841'})
+ok: [lab-server] => (item={'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'})
+
+TASK [shanemcd.cxl_lab.artifacts : Stat downloaded artifacts] ******************
+ok: [lab-server] => (item={'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d'})
+ok: [lab-server] => (item={'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841'})
+ok: [lab-server] => (item={'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'})
+
+TASK [shanemcd.cxl_lab.artifacts : Assert pinned artifact checksums] ***********
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 459078973, 'inode': 10266762, 'dev': 60, 'nlink': 1, 'atime': 1792798599.6409051, 'mtime': 1792465537.116335, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 896640, 'disk_usage_bytes': 459079680, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d', 'mimetype': 'application/gzip', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "dest": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz",
+            "name": "openshift_install",
+            "sha256": "20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d",
+            "url": "https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz"
+        },
+        "stat": {
+            "atime": 1792798599.6409051,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 896640,
+            "charset": "binary",
+            "checksum": "20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d",
+            "ctime": 1792796192.878922,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 459079680,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10266762,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/gzip",
+            "mode": "0644",
+            "mtime": 1792465537.116335,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 459078973,
+            "uid": 1000,
+            "version": "143932",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "openshift_install sha256 verified (20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d)."
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 40899570, 'inode': 10266766, 'dev': 60, 'nlink': 1, 'atime': 1792798600.1009011, 'mtime': 1792465537.0653355, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 79888, 'disk_usage_bytes': 40902656, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841', 'mimetype': 'application/gzip', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "dest": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz",
+            "name": "openshift_client",
+            "sha256": "aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841",
+            "url": "https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz"
+        },
+        "stat": {
+            "atime": 1792798600.1009011,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 79888,
+            "charset": "binary",
+            "checksum": "aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841",
+            "ctime": 1792796192.878922,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 40902656,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10266766,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/gzip",
+            "mode": "0644",
+            "mtime": 1792465537.0653355,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 40899570,
+            "uid": 1000,
+            "version": "143932",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "openshift_client sha256 verified (aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841)."
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 141815216, 'inode': 10266784, 'dev': 60, 'nlink': 1, 'atime': 1792798602.0938847, 'mtime': 1792796147.7422981, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 276984, 'disk_usage_bytes': 141815808, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016', 'mimetype': 'application/x-xz', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "dest": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz",
+            "name": "qemu_source",
+            "sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+            "url": "https://download.qemu.org/qemu-11.1.2.tar.xz"
+        },
+        "stat": {
+            "atime": 1792798602.0938847,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 276984,
+            "charset": "binary",
+            "checksum": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+            "ctime": 1792796192.878922,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 141815808,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10266784,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-xz",
+            "mode": "0644",
+            "mtime": 1792796147.7422981,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 141815216,
+            "uid": 1000,
+            "version": "143932",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "qemu_source sha256 verified (731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016)."
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Demand pinning for trust-on-first-use artifacts] ***
+skipping: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'openshift_install', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 459078973, 'inode': 10266762, 'dev': 60, 'nlink': 1, 'atime': 1792798599.6409051, 'mtime': 1792465537.116335, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 896640, 'disk_usage_bytes': 459079680, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '20073f95b80878c2d11b969896ce362fdabf654c6823c77b582cf7b7c1540b7d', 'mimetype': 'application/gzip', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) 
+skipping: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'openshift_client', 'url': 'https://openshift-release-artifacts.apps.ci.l2s4.p1.openshiftapps.com/5.1.0-0.nightly-2026-10-18-125305/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'sha256': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 40899570, 'inode': 10266766, 'dev': 60, 'nlink': 1, 'atime': 1792798600.1009011, 'mtime': 1792465537.0653355, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 79888, 'disk_usage_bytes': 40902656, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': 'aba84df14d1778345b5d6e7f0d625f92b57bca01769e24996cc8ad0fca34c841', 'mimetype': 'application/gzip', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) 
+skipping: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': {'name': 'qemu_source', 'url': 'https://download.qemu.org/qemu-11.1.2.tar.xz', 'dest': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'sha256': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'}, 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/downloads/qemu-11.1.2.tar.xz', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 141815216, 'inode': 10266784, 'dev': 60, 'nlink': 1, 'atime': 1792798602.0938847, 'mtime': 1792796147.7422981, 'ctime': 1792796192.878922, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 276984, 'disk_usage_bytes': 141815808, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016', 'mimetype': 'application/x-xz', 'charset': 'binary', 'version': '143932', 'attributes': [], 'attr_flags': ''}}) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Download the mirror checksum manifest (GA profile)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Read mirror-declared client tool checksums] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set mirror-declared checksums fact] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Cross-check pinned client checksums against mirror declarations] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Stat client tools stamp] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Read client tools stamp] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set client tools extraction need fact] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Extract OpenShift client tools] *************
+skipping: [lab-server] => (item=openshift-install-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server] => (item=openshift-client-linux-5.1.0-0.nightly-2026-10-18-125305.tar.gz) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Write client tools stamp] *******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert extracted installer matches the pinned version] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert installer version] *******************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Set the release payload reference from the installer] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the nightly release payload matches the pin] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Read the release payload pullspecs] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the discovered machine OS content reference] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the discovered machine OS reference matches the pin] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Read the shipped kernel NVR from the machine OS image] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the shipped kernel NVR fact] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the pinned SRPM stream prefix] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the shipped kernel shares the pinned SRPM stream] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "osimage kernel kernel-6.12.0-211.66.1.el10_2 shares stream kernel-6.12.0-211 with the pinned SRPM kernel-6.12.0-211.64.1.el10_2."
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Stat the kernel SRPM] ***********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the SRPM acquisition need fact] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Discover the host RHSM entitlement key] *****
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert exactly one entitlement key exists] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the entitlement certificate facts] ******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Stat the RHSM CA file] **********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the RHSM CA file exists] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the RHSM CA fact] ***********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the CDN repo file path fact] ************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Render the CDN source repo file] ************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Render the CDN download script] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Remove stale SRPM downloader container] *****
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Run the SRPM downloader container] **********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Wait for the SRPM download to finish] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the SRPM download succeeded] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Remove the SRPM downloader container] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Stat the kernel SRPM after acquisition] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the kernel SRPM matches the pin] *****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Read RHCOS stream metadata for the lab OS stream (GA profile)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set RHCOS live ISO facts from stream metadata (GA profile)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert stream-declared RHCOS live ISO matches the pin (GA profile)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set RHCOS live ISO facts from the nightly build pin] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Read the release payload metadata (nightly profile)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Set the nightly machine OS facts] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Assert the nightly live ISO build matches the payload machine OS] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "Live ISO build 10.2.20261015-0 matches the payload machine-os."
+}
+
+TASK [shanemcd.cxl_lab.artifacts : Download RHCOS live ISO (declared checksum)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.artifacts : Artifacts summary] **************************
+ok: [lab-server] => {
+    "msg": "artifacts OK (profile nightly, 5.1.0-0.nightly-2026-10-18-125305) — machine OS ref quay.io/openshift-release-dev/ocp-v5.0-art-dev@ sha256:8f0a85b07bb5… (osimage kernel kernel-6.12.0-211.66.1.el10_2), SRPM kernel-6.12.0-211.64.1.el10_2 verified against the pin, client tools extracted to /var/home/shanemcd/ocp-install-cxl/bin, RHCOS live ISO rhcos-10.2.20261015-0-live-iso.x86_64.iso verified (payload machine-os match). The cxltest kernel RPMs are built from the SRPM by the layered image stage (see 06_os_image)."
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Stat the distro QEMU binary] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the distro QEMU device list] ********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Set the resolved QEMU source fact] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the forced distro QEMU is usable] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Point the lab at the distro QEMU binary] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Stamp the resolved binary for later plays and standalone runs] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the distro QEMU version] ************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Distro QEMU summary] *********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Stat the installed pinned QEMU binary (exists-guard)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Remove a stale distro-QEMU stamp on the pinned path] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Ensure the QEMU build workspace] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Stage the SHA-verified QEMU source tarball in the workspace] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Discover the host RHSM entitlement key] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert exactly one entitlement key exists] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Set the entitlement certificate facts] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Stat the RHSM CA file] *******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the RHSM CA file exists] **********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Render the entitled CDN repo file for the builder] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Render the QEMU build script] ************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Remove stale QEMU builder container] *****
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Run the QEMU builder container] **********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Mark the QEMU build as in flight] ********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Validate the installed pinned QEMU] ******
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/qemu_builder/tasks/collect.yml for lab-server
+
+TASK [shanemcd.cxl_lab.qemu_builder : Wait for the QEMU build to finish] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the QEMU build succeeded] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Remove the QEMU builder container] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the staged install tree exists] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the staged QEMU binary exists] ****
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Copy the staged tree to the host prefix] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Keep the installed host QEMU prefix root-owned] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Restore SELinux contexts on the host prefix] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the installed QEMU binary exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert QEMU binary presence] *************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the installed QEMU version] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert the installed QEMU version] *******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Read the installed QEMU device list] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.qemu_builder : Assert CXL device support in the host QEMU] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "Host QEMU 11.1.2 at /opt/qemu-11.1.2/bin/qemu-system-x86_64 with pxb-cxl / cxl-rp / cxl-type3 device support."
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : QEMU builder summary] ********************
+ok: [lab-server] => {
+    "msg": "qemu builder OK — stock upstream 11.1.2 built in the RHEL 10 builder and installed to /opt/qemu-11.1.2 (built this run: False); CXL devices verified. Set qemu_source: distro on hosts whose distribution QEMU carries CXL (Fedora: qemu-system-x86-core) to skip this build entirely."
+}
+
+TASK [shanemcd.cxl_lab.qemu_builder : Mark QEMU build collection complete] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+changed: [lab-server]
+
+PLAY [Lab network (bridge, podman-managed NAT, host resolution)] ***************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Validate network addressing] ******************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.network : Select upstream DNS servers] ******************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/network/tasks/upstream-dns.yml for lab-server
+
+TASK [shanemcd.cxl_lab.network : Set pinned upstream resolvers] ****************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read the host resolver configuration] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set host nameservers fact] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set upstream candidates fact (resolv.conf minus loopbacks, the lab subnet, and blocklisted split-horizon resolvers)] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set local resolver stub fact] *****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Read systemd-resolved upstreams] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Set detected upstream resolvers fact] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Fall back to systemd-resolved upstreams] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Fall back to the host's local resolver stub] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Assert upstream resolvers were determined] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.network : Create the libvirt daemon ordering directory] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Start libvirt networks before autostart domains] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Enable the modular libvirt daemons at boot] ***
+ok: [lab-server] => (item=virtnetworkd.service)
+ok: [lab-server] => (item=virtqemud.service)
+
+TASK [shanemcd.cxl_lab.network : Ensure the domain definition workspace exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Render the persistent lab network] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Check the lab libvirt network] ****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Refuse to overwrite an unrelated same-name network] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.network : Define only the lab network] ******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Autostart the lab network] ********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Inspect a pre-libvirt bridge only when the network is stopped] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Refuse to replace a bridge the lab does not own] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Start the lab network] ************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Render the live network reconciler] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Reconcile live DHCP and DNS entries on the active network] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Persist IPv4 forwarding] **********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Preserve host-side cluster name resolution] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Render the isolated lab egress probe] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Verify bridge DNS and NAT from an isolated namespace] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Resolve the cluster through libvirt DNS] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.network : Verify the network] ***************************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [SNO install config, manifests, and ignition] *****************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stat the install pull secret] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert the install pull secret exists] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Validate install pull secret JSON without exposing contents] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert the install pull secret is valid JSON] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the install directory] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the install ssh key directory] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the VM ignition staging directory] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the VM scripts directory] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Generate the core user ssh keypair for the install config] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stat existing ignition artifacts] ******
+ok: [lab-server] => (item=metadata.json)
+ok: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign)
+ok: [lab-server] => (item=worker.ign)
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition generation state facts] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition age fact] *****************
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/install_config/tasks/main.yml:103:40
+
+101 - name: Set ignition age fact
+102   ansible.builtin.set_fact:
+103     install_config_ignition_age_hours: >-
+                                           ^ column 40
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition staleness fact] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the MCS trust probe] ************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Pick a merged worker ignition to probe] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Probe the live MCS with the merged worker ignition trust] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert existing ignition is usable] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Guard against partial or consumed install state] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the install pull secret (privileged; controller-side lookups cannot read root-owned 0600 files)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the install ssh public key (privileged; same reason)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set install secret facts for the template] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the install config] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Keep the pristine install config copy] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Create manifests] **********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set lab hosts-block base64 facts for the node MachineConfigs] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set SNO master hostname base64 fact] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the custom manifests directory] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the master node MachineConfig] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the worker node MachineConfig] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the worker-cxl MachineConfigPool manifest] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the layered osImageURL MachineConfig manifest] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the NUMA demotion MachineConfig manifest] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Create the single-node (bootstrap-in-place) ignition config] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set ignition artifact permissions] *****
+skipping: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign) 
+skipping: [lab-server] => (item=worker.ign) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Harden the auth directory permissions] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Harden auth file permissions] **********
+skipping: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/auth/kubeconfig) 
+skipping: [lab-server] => (item=/var/home/shanemcd/ocp-install-cxl/auth/kubeadmin-password) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stat the installer kubeconfig] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Ensure the controller kubeconfig directory exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Publish a controller-readable kubeconfig copy] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the install metadata] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set install metadata fact] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Stage the shared hosts snippet for per-node merges] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Render the per-node ignition merge script] ***
+ok: [lab-server]
+
+TASK [Render the region-commit ignition snippet] *******************************
+included: shanemcd.cxl_lab.region_commit for lab-server
+
+TASK [shanemcd.cxl_lab.region_commit : Assert every CXL worker carries the same vmem size] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.region_commit : Set the region commit script fact] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.region_commit : Write the region commit ignition snippet] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Set the node list for per-node ignition assembly] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assemble per-node ignition configs] ****
+ok: [lab-server] => (item=cxl-master-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+ok: [lab-server] => (item=worker-dram-0)
+
+TASK [shanemcd.cxl_lab.install_config : Set per-node ignition permissions] *****
+ok: [lab-server] => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'kind': 'master', 'base': 'bootstrap-in-place-for-live-iso.ign'})
+ok: [lab-server] => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+ok: [lab-server] => (item={'name': 'worker-cxl-1', 'ip_suffix': 22, 'mac_suffix': '16', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 13, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+ok: [lab-server] => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram', 'base': 'worker.ign'})
+
+TASK [shanemcd.cxl_lab.install_config : Stat the generated ignition artifacts] ***
+ok: [lab-server] => (item=bootstrap-in-place-for-live-iso.ign)
+ok: [lab-server] => (item=worker.ign)
+
+TASK [shanemcd.cxl_lab.install_config : Stat the per-node ignition artifacts] ***
+ok: [lab-server] => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'kind': 'master', 'base': 'bootstrap-in-place-for-live-iso.ign'})
+ok: [lab-server] => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+ok: [lab-server] => (item={'name': 'worker-cxl-1', 'ip_suffix': 22, 'mac_suffix': '16', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 13, 'kind': 'worker-cxl', 'base': 'worker.ign'})
+ok: [lab-server] => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram', 'base': 'worker.ign'})
+
+TASK [shanemcd.cxl_lab.install_config : Read the BiP ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the worker stub ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the merged master ignition for content verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Read the merged CXL worker ignition for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Assert ignition generation and content] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Stat generated credentials] ************
+ok: [lab-server] => (item=auth/kubeconfig)
+ok: [lab-server] => (item=auth/kubeadmin-password)
+ok: [lab-server] => (item=install-config.yaml.pristine)
+
+TASK [shanemcd.cxl_lab.install_config : Assert credentials exist with mode 0600] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.install_config : Stat the current BiP ignition for the generation stamp] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Write the ignition generation stamp] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.install_config : Install config summary] ****************
+ok: [lab-server] => {
+    "msg": "ignition OK (BiP) — infraID cxl-lxzgr, age 0.7h (window 12h), generated this run: False; master ignition = merged BiP (install-to-disk → /dev/vda), workers = merged MCS stubs; 4 per-node ignition files staged at 0600 in /var/home/shanemcd/ocp-cxl/ignition for fw_cfg delivery."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Master VM phase — start the master and drive its install] ****************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [Collect the in-flight QEMU build, if any] ********************************
+skipping: [lab-server]
+
+TASK [Run the vms master phase] ************************************************
+included: shanemcd.cxl_lab.vms for lab-server
+
+TASK [shanemcd.cxl_lab.vms : Stat the resolved QEMU binary stamp] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Read the resolved QEMU binary stamp] **************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Point the lab at the resolved distro QEMU binary] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Build the node list] ******************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Set the worker node list fact] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stat per-node ignition configs] *******************
+ok: [lab-server] => (item=cxl-master-0)
+ok: [lab-server] => (item=worker-dram-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.vms : Assert per-node ignition configs exist] ***********
+ok: [lab-server] => (item=cxl-master-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "disk": "150G",
+            "ip_suffix": 11,
+            "kind": "master",
+            "mac_suffix": "0b",
+            "name": "cxl-master-0",
+            "ram": "32G",
+            "vcpu": 16
+        },
+        "stat": {
+            "atime": 1792796232.1755943,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 664,
+            "charset": "us-ascii",
+            "checksum": "13bb7600a5add3717cb4b9392db28111d7d980fe",
+            "ctime": 1792796231.1786027,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 339968,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10267400,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792796225.9429345,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/cxl-master-0.ign",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 338930,
+            "uid": 1000,
+            "version": "143936",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "disk": "60G",
+            "ip_suffix": 21,
+            "kind": "worker-dram",
+            "mac_suffix": "15",
+            "name": "worker-dram-0",
+            "ram": "16G",
+            "vcpu": 4
+        },
+        "stat": {
+            "atime": 1792796232.3715928,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 8,
+            "charset": "us-ascii",
+            "checksum": "5852d103ce75635146896d06ec4bc629e449f3e0",
+            "ctime": 1792796231.1786027,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 4096,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10267412,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792796226.6064467,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/worker-dram-0.ign",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 3997,
+            "uid": 1000,
+            "version": "143936",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "kind": "worker-cxl",
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "stat": {
+            "atime": 1792796232.5645912,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 24,
+            "charset": "us-ascii",
+            "checksum": "689212e746e25c6629cc6b9ab1b5885d9d23d06c",
+            "ctime": 1792796231.1786027,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 12288,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10267404,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792796226.163975,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/worker-cxl-0.ign",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 11377,
+            "uid": 1000,
+            "version": "143936",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "kind": "worker-cxl",
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "stat": {
+            "atime": 1792796232.7755892,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 24,
+            "charset": "us-ascii",
+            "checksum": "2edca53abb86c474a71ae7dbf64164170e67c60f",
+            "ctime": 1792796231.1786027,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 12288,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10267408,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/json",
+            "mode": "0600",
+            "mtime": 1792796226.3840594,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/ignition/worker-cxl-1.ign",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": false,
+            "roth": false,
+            "rusr": true,
+            "size": 11377,
+            "uid": 1000,
+            "version": "143936",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Stat the downloaded RHCOS artifacts] **************
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/artifacts/downloads/rhcos-10.2.20261015-0-live-iso.x86_64.iso)
+
+TASK [shanemcd.cxl_lab.vms : Assert the RHCOS artifacts were downloaded] *******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Ensure VM asset directories] **********************
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/images)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/logs)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/scripts)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/run)
+
+TASK [shanemcd.cxl_lab.vms : Create the master install target disk] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Detect rpm-ostree (atomic) host] ******************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Check coreos-installer presence] ******************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Install coreos-installer (master boot-media preparation, dnf host)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Layer coreos-installer (rpm-ostree host)] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Copy the live ISO as the master's boot medium] ****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Read the master boot-medium kernel args] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Prepare the master boot-medium kernel args] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Render per-node run scripts] **********************
+ok: [lab-server] => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'vcpu': 16, 'ram': '32G', 'disk': '150G', 'kind': 'master'})
+ok: [lab-server] => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram'})
+ok: [lab-server] => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl'})
+ok: [lab-server] => (item={'name': 'worker-cxl-1', 'ip_suffix': 22, 'mac_suffix': '16', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 13, 'kind': 'worker-cxl'})
+
+TASK [shanemcd.cxl_lab.vms : Configure the emulator for sVirt] *****************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-host.yml for lab-server
+
+TASK [shanemcd.cxl_lab.vms : Read local SELinux file-context rules] ************
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-host.yml:9:7
+
+7   changed_when: false
+8   when:
+9     - ansible_selinux.status | default('disabled') == 'enabled'
+        ^ column 7
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Label the custom QEMU installation for libvirt] ***
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-host.yml:19:7
+
+17     - {path: "{{ qemu_install_prefix }}/bin/qemu-system-.*", type: qemu_exec_t}
+18   when:
+19     - ansible_selinux.status | default('disabled') == 'enabled'
+         ^ column 7
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+skipping: [lab-server] => (item={'path': '/opt/qemu-11.1.2(/.*)?', 'type': 'usr_t'}) 
+skipping: [lab-server] => (item={'path': '/opt/qemu-11.1.2/bin/qemu-system-.*', 'type': 'qemu_exec_t'}) 
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Restore the custom QEMU installation labels] ******
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-host.yml:28:7
+
+26   changed_when: false
+27   when:
+28     - ansible_selinux.status | default('disabled') == 'enabled'
+         ^ column 7
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage and define the persistent master] ***********
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-node.yml for lab-server => (item={'name': 'cxl-master-0', 'ip_suffix': 11, 'mac_suffix': '0b', 'vcpu': 16, 'ram': '32G', 'disk': '150G', 'kind': 'master'})
+
+TASK [shanemcd.cxl_lab.vms : Create the private libvirt runtime directory] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the offline disk migration helper] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed the shared worker backing image] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed a private disk without modifying the original] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage private firmware configuration for libvirt] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the master's prepared boot ISO] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Render the persistent domain definition] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Check whether this domain is defined] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Refuse to overwrite an unrelated same-name domain] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Define the lab domain] ****************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Enable domain autostart] **************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Retain read-only compatibility paths for existing operational checks] ***
+ok: [lab-server] => (item={'source': '/run/libvirt/qemu/cxl-master-0.pid', 'target': '/var/home/shanemcd/ocp-cxl/run/cxl-master-0.pid'})
+ok: [lab-server] => (item={'source': '/var/log/libvirt/qemu/cxl-master-0.serial.log', 'target': '/var/home/shanemcd/ocp-cxl/logs/cxl-master-0.serial.log'})
+
+TASK [shanemcd.cxl_lab.vms : Parse-validate the master domain] *****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Assert the master command line parses] ************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Start the master] *********************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Layered OS image] ********************************************************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set the base image reference fact] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set expected kernel RPM file names] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stat expected kernel RPMs] **************
+ok: [lab-server] => (item=kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+
+TASK [shanemcd.cxl_lab.layered_image : Set kernel RPMs presence fact] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stat the kernel SRPM] *******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the kernel SRPM is present and matches the pin] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Discover the host RHSM entitlement key] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert exactly one entitlement key exists] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set the entitlement certificate facts] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stat the RHSM CA file] ******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the RHSM CA file exists] *********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set the RHSM CA fact] *******************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Ensure the kernel-builder build context] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stage the SRPM in the kernel-builder context] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Render the CDN binary repo file] ********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Render the kernel-builder Containerfile] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Build and export the kernel RPMs] *******
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Prune the kernel-build intermediate images] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stat expected kernel RPMs after the build] ***
+ok: [lab-server] => (item=kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+ok: [lab-server] => (item=kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm)
+
+TASK [shanemcd.cxl_lab.layered_image : Assert expected kernel RPMs exist] ******
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': 'kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 1774409, 'inode': 10269735, 'dev': 60, 'nlink': 1, 'atime': 1792798656.3304346, 'mtime': 1792796953.0, 'ctime': 1792797202.8495095, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 3472, 'disk_usage_bytes': 1777664, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '8a8f000bb522bb24ed350b06e5524b3238636484', 'mimetype': 'application/x-rpm', 'charset': 'binary', 'version': '143963', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": "kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+        "stat": {
+            "atime": 1792798656.3304346,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 3472,
+            "charset": "binary",
+            "checksum": "8a8f000bb522bb24ed350b06e5524b3238636484",
+            "ctime": 1792797202.8495095,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 1777664,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10269735,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-rpm",
+            "mode": "0644",
+            "mtime": 1792796953.0,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 1774409,
+            "uid": 1000,
+            "version": "143963",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': 'kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 19985657, 'inode': 10269736, 'dev': 60, 'nlink': 1, 'atime': 1792798656.5614326, 'mtime': 1792796967.0, 'ctime': 1792797202.8495095, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 39040, 'disk_usage_bytes': 19988480, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '9d27499f5b27d1ba59031c280f18a4504af37a84', 'mimetype': 'application/x-rpm', 'charset': 'binary', 'version': '143963', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": "kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+        "stat": {
+            "atime": 1792798656.5614326,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 39040,
+            "charset": "binary",
+            "checksum": "9d27499f5b27d1ba59031c280f18a4504af37a84",
+            "ctime": 1792797202.8495095,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 19988480,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10269736,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-rpm",
+            "mode": "0644",
+            "mtime": 1792796967.0,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 19985657,
+            "uid": 1000,
+            "version": "143963",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': 'kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 43596057, 'inode': 10269744, 'dev': 60, 'nlink': 1, 'atime': 1792798656.7924306, 'mtime': 1792796968.0, 'ctime': 1792797202.8505094, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 85152, 'disk_usage_bytes': 43597824, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '1b49b5ff6cecb9ef23c27788e79da7e894534404', 'mimetype': 'application/x-rpm', 'charset': 'binary', 'version': '143963', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": "kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+        "stat": {
+            "atime": 1792798656.7924306,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 85152,
+            "charset": "binary",
+            "checksum": "1b49b5ff6cecb9ef23c27788e79da7e894534404",
+            "ctime": 1792797202.8505094,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 43597824,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10269744,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-rpm",
+            "mode": "0644",
+            "mtime": 1792796968.0,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 43596057,
+            "uid": 1000,
+            "version": "143963",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': 'kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 31583877, 'inode': 10269745, 'dev': 60, 'nlink': 1, 'atime': 1792798657.0324287, 'mtime': 1792796969.0, 'ctime': 1792797202.8505094, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 61688, 'disk_usage_bytes': 31584256, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '550e8e80fc55f8aaaab3caa686a07db10b6f14a8', 'mimetype': 'application/x-rpm', 'charset': 'binary', 'version': '143963', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": "kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+        "stat": {
+            "atime": 1792798657.0324287,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 61688,
+            "charset": "binary",
+            "checksum": "550e8e80fc55f8aaaab3caa686a07db10b6f14a8",
+            "ctime": 1792797202.8505094,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 31584256,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10269745,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-rpm",
+            "mode": "0644",
+            "mtime": 1792796969.0,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-core-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 31583877,
+            "uid": 1000,
+            "version": "143963",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item={'changed': False, 'failed': False, 'ansible_loop_var': 'item', 'item': 'kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'stat': {'exists': True, 'path': '/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm', 'mode': '0644', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 1000, 'gid': 1000, 'size': 3289737, 'inode': 10269746, 'dev': 60, 'nlink': 1, 'atime': 1792798657.2754266, 'mtime': 1792796955.0, 'ctime': 1792797202.8505094, 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': False, 'rgrp': True, 'xgrp': False, 'woth': False, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False, 'blocks': 6432, 'disk_usage_bytes': 3293184, 'block_size': 4096, 'device_type': 0, 'readable': True, 'writeable': True, 'executable': False, 'pw_name': 'shanemcd', 'gr_name': 'shanemcd', 'checksum': '5f61b27e89767e844bc18cf5bc6d26122a2180ea', 'mimetype': 'application/x-rpm', 'charset': 'binary', 'version': '143963', 'attributes': [], 'attr_flags': ''}}) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "failed": false,
+        "item": "kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+        "stat": {
+            "atime": 1792798657.2754266,
+            "attr_flags": "",
+            "attributes": [],
+            "block_size": 4096,
+            "blocks": 6432,
+            "charset": "binary",
+            "checksum": "5f61b27e89767e844bc18cf5bc6d26122a2180ea",
+            "ctime": 1792797202.8505094,
+            "dev": 60,
+            "device_type": 0,
+            "disk_usage_bytes": 3293184,
+            "executable": false,
+            "exists": true,
+            "gid": 1000,
+            "gr_name": "shanemcd",
+            "inode": 10269746,
+            "isblk": false,
+            "ischr": false,
+            "isdir": false,
+            "isfifo": false,
+            "isgid": false,
+            "islnk": false,
+            "isreg": true,
+            "issock": false,
+            "isuid": false,
+            "mimetype": "application/x-rpm",
+            "mode": "0644",
+            "mtime": 1792796955.0,
+            "nlink": 1,
+            "path": "/var/home/shanemcd/ocp-cxl/artifacts/kernel-rpms/kernel-modules-extra-6.12.0-211.64.1.cxltest.el10.x86_64.rpm",
+            "pw_name": "shanemcd",
+            "readable": true,
+            "rgrp": true,
+            "roth": true,
+            "rusr": true,
+            "size": 3289737,
+            "uid": 1000,
+            "version": "143963",
+            "wgrp": false,
+            "woth": false,
+            "writeable": true,
+            "wusr": true,
+            "xgrp": false,
+            "xoth": false,
+            "xusr": false
+        }
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.layered_image : Extract the kernel-core config for verification] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set kernel-core config path fact] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Read the kernel-core config] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Set kernel-core config lines fact] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the cxltest kernel config in kernel-core] ***
+ok: [lab-server] => (item=CONFIG_CXL_REGION_INVALIDATION_TEST=y) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "CONFIG_CXL_REGION_INVALIDATION_TEST=y",
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=CONFIG_CXL_REGION=y) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "CONFIG_CXL_REGION=y",
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=CONFIG_FORTIFY_SOURCE=y) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "CONFIG_FORTIFY_SOURCE=y",
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=CONFIG_DEBUG_INFO_BTF=y) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "CONFIG_DEBUG_INFO_BTF=y",
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=CONFIG_DEV_DAX_CXL=m) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "CONFIG_DEV_DAX_CXL=m",
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.layered_image : Compute SHA256SUMS for the kernel RPMs] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Write SHA256SUMS (idempotent)] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Verify all built kernel RPMs against SHA256SUMS] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Ensure the image build context] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Render the layered image Containerfile] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Stage the cxltest kernel RPMs in the build context] ***
+changed: [lab-server] => (item=kernel)
+changed: [lab-server] => (item=kernel-core)
+changed: [lab-server] => (item=kernel-modules)
+changed: [lab-server] => (item=kernel-modules-core)
+changed: [lab-server] => (item=kernel-modules-extra)
+
+TASK [shanemcd.cxl_lab.layered_image : Check whether the layered image already exists] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Build the bootc layered image] **********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Remove any stale bootc lint container] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Run the bootc lint container] ***********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Run bootc container lint] ***************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert bootc container lint passes] *****
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Remove the bootc lint container] ********
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the layered image exists] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert layered image presence] **********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.layered_image : Stat the BIB disk and the patch stamp] ***
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/node-images/qcow2/disk.qcow2)
+ok: [lab-server] => (item=/var/home/shanemcd/ocp-cxl/node-images/patched.stamp)
+
+TASK [shanemcd.cxl_lab.layered_image : Set the BIB disk path fact] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Run bootc-image-builder] ****************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Patch the BIB disk for first-boot ignition] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the BIB disk exists] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.layered_image : Assert the BIB disk presence] ***********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.layered_image : Pre-baked image summary] ****************
+ok: [lab-server] => {
+    "msg": "pre-baked node image OK — localhost/ocp-cxl-worker-os:cxltest-211.64.1 built from quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:8f0a85b07bb5… (lint passed, initramfs regenerated post-override), BIB qcow2 at /var/home/shanemcd/ocp-cxl/node-images/qcow2/disk.qcow2 patched for first-boot ignition (generic root kargs stripped, ignition.platform.id=qemu, ignition.firstboot marker armed)."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+changed: [lab-server]
+
+PLAY [Worker VM phase — start the fleet against the converged master] **********
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [Run the vms workers phase] ***********************************************
+included: shanemcd.cxl_lab.vms for lab-server
+
+TASK [shanemcd.cxl_lab.vms : Build the node list] ******************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Set the worker node list fact] ********************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stat the pre-baked node image] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Assert the pre-baked node image exists] ***********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Set the worker overlay backing image] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Create worker disk overlays] **********************
+ok: [lab-server] => (item=worker-dram-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.vms : Stage and define persistent workers] **************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-node.yml for lab-server => (item={'name': 'worker-dram-0', 'ip_suffix': 21, 'mac_suffix': '15', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'kind': 'worker-dram'})
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-node.yml for lab-server => (item={'name': 'worker-cxl-0', 'ip_suffix': 20, 'mac_suffix': '14', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 12, 'kind': 'worker-cxl'})
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/vms/tasks/libvirt-node.yml for lab-server => (item={'name': 'worker-cxl-1', 'ip_suffix': 22, 'mac_suffix': '16', 'vcpu': 4, 'ram': '16G', 'disk': '60G', 'vmem_size': '4G', 'cxl_bus_nr': 13, 'kind': 'worker-cxl'})
+
+TASK [shanemcd.cxl_lab.vms : Create the private libvirt runtime directory] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the offline disk migration helper] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed the shared worker backing image] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed a private disk without modifying the original] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage private firmware configuration for libvirt] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the master's prepared boot ISO] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Render the persistent domain definition] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Check whether this domain is defined] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Refuse to overwrite an unrelated same-name domain] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Define the lab domain] ****************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Enable domain autostart] **************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Retain read-only compatibility paths for existing operational checks] ***
+ok: [lab-server] => (item={'source': '/run/libvirt/qemu/worker-dram-0.pid', 'target': '/var/home/shanemcd/ocp-cxl/run/worker-dram-0.pid'})
+ok: [lab-server] => (item={'source': '/var/log/libvirt/qemu/worker-dram-0.serial.log', 'target': '/var/home/shanemcd/ocp-cxl/logs/worker-dram-0.serial.log'})
+
+TASK [shanemcd.cxl_lab.vms : Create the private libvirt runtime directory] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the offline disk migration helper] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed the shared worker backing image] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed a private disk without modifying the original] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage private firmware configuration for libvirt] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the master's prepared boot ISO] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Render the persistent domain definition] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Check whether this domain is defined] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Refuse to overwrite an unrelated same-name domain] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Define the lab domain] ****************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Enable domain autostart] **************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Retain read-only compatibility paths for existing operational checks] ***
+ok: [lab-server] => (item={'source': '/run/libvirt/qemu/worker-cxl-0.pid', 'target': '/var/home/shanemcd/ocp-cxl/run/worker-cxl-0.pid'})
+ok: [lab-server] => (item={'source': '/var/log/libvirt/qemu/worker-cxl-0.serial.log', 'target': '/var/home/shanemcd/ocp-cxl/logs/worker-cxl-0.serial.log'})
+
+TASK [shanemcd.cxl_lab.vms : Create the private libvirt runtime directory] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the offline disk migration helper] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed the shared worker backing image] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Seed a private disk without modifying the original] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage private firmware configuration for libvirt] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Stage the master's prepared boot ISO] *************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Render the persistent domain definition] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Check whether this domain is defined] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Refuse to overwrite an unrelated same-name domain] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Define the lab domain] ****************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Enable domain autostart] **************************
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Retain read-only compatibility paths for existing operational checks] ***
+ok: [lab-server] => (item={'source': '/run/libvirt/qemu/worker-cxl-1.pid', 'target': '/var/home/shanemcd/ocp-cxl/run/worker-cxl-1.pid'})
+ok: [lab-server] => (item={'source': '/var/log/libvirt/qemu/worker-cxl-1.serial.log', 'target': '/var/home/shanemcd/ocp-cxl/logs/worker-cxl-1.serial.log'})
+
+TASK [shanemcd.cxl_lab.vms : Parse-validate worker domains] ********************
+ok: [lab-server] => (item=worker-dram-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.vms : Assert worker command lines parse] ****************
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-dram-0.sh",
+            "--validate"
+        ],
+        "delta": "0:00:00.022502",
+        "end": "2026-10-23 19:37:56.154129",
+        "failed": false,
+        "failed_when_result": false,
+        "failed_when_suppressed_exception": "(traceback unavailable)",
+        "item": {
+            "disk": "60G",
+            "ip_suffix": 21,
+            "kind": "worker-dram",
+            "mac_suffix": "15",
+            "name": "worker-dram-0",
+            "ram": "16G",
+            "vcpu": 4
+        },
+        "msg": "The command exited with a non-zero return code.",
+        "rc": 124,
+        "start": "2026-10-23 19:37:56.131627",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "",
+        "stdout_lines": []
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-0.sh",
+            "--validate"
+        ],
+        "delta": "0:00:00.023787",
+        "end": "2026-10-23 19:37:56.391894",
+        "failed": false,
+        "failed_when_result": false,
+        "failed_when_suppressed_exception": "(traceback unavailable)",
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "kind": "worker-cxl",
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "The command exited with a non-zero return code.",
+        "rc": 124,
+        "start": "2026-10-23 19:37:56.368107",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "",
+        "stdout_lines": []
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-1.sh",
+            "--validate"
+        ],
+        "delta": "0:00:00.022060",
+        "end": "2026-10-23 19:37:56.625854",
+        "failed": false,
+        "failed_when_result": false,
+        "failed_when_suppressed_exception": "(traceback unavailable)",
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "kind": "worker-cxl",
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "The command exited with a non-zero return code.",
+        "rc": 124,
+        "start": "2026-10-23 19:37:56.603794",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "",
+        "stdout_lines": []
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Wait for the master's install-to-disk reboot] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Start the workers (fleet-parallel)] ***************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Read node statuses] *******************************
+ok: [lab-server] => (item=cxl-master-0)
+ok: [lab-server] => (item=worker-dram-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.vms : Assert all nodes run] *****************************
+ok: [lab-server] => (item=cxl-master-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-cxl-master-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.029777",
+        "end": "2026-10-23 19:37:58.170927",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "disk": "150G",
+            "ip_suffix": 11,
+            "kind": "master",
+            "mac_suffix": "0b",
+            "name": "cxl-master-0",
+            "ram": "32G",
+            "vcpu": 16
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:37:58.141150",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "cxl-master-0: running",
+        "stdout_lines": [
+            "cxl-master-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-dram-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.029769",
+        "end": "2026-10-23 19:37:58.390559",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "disk": "60G",
+            "ip_suffix": 21,
+            "kind": "worker-dram",
+            "mac_suffix": "15",
+            "name": "worker-dram-0",
+            "ram": "16G",
+            "vcpu": 4
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:37:58.360790",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-dram-0: running",
+        "stdout_lines": [
+            "worker-dram-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.027074",
+        "end": "2026-10-23 19:37:58.622529",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "kind": "worker-cxl",
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:37:58.595455",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-cxl-0: running",
+        "stdout_lines": [
+            "worker-cxl-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-1.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.031215",
+        "end": "2026-10-23 19:37:58.851050",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "kind": "worker-cxl",
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:37:58.819835",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-cxl-1: running",
+        "stdout_lines": [
+            "worker-cxl-1: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.vms : Wait for guest kernel boot evidence in serial logs] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : Wait for the installed master's Machine Config Server] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.vms : VM fleet summary] *********************************
+ok: [lab-server] => {
+    "msg": "VM fleet OK — 4 persistent libvirt domains (master cxl-master-0; 3 workers on private runtime copies of pre-baked BIB disk overlays); CXL Type-3 graph on 2 workers (no host-node binding); serial banners or live SSH prove guest kernel boot; booted=4/4."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Drive the BiP install to a converged SNO cluster] ************************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Stat the cluster auth artifacts] ******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Assert the cluster auth artifacts exist] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.cluster_install : Read node statuses] *******************
+ok: [lab-server] => (item=cxl-master-0)
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+ok: [lab-server] => (item=worker-dram-0)
+
+TASK [shanemcd.cxl_lab.cluster_install : Assert all node VMs run] **************
+ok: [lab-server] => (item=cxl-master-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-cxl-master-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.033003",
+        "end": "2026-10-23 19:38:00.728793",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "disk": "150G",
+            "ip_suffix": 11,
+            "mac_suffix": "0b",
+            "name": "cxl-master-0",
+            "ram": "32G",
+            "vcpu": 16
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:00.695790",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "cxl-master-0: running",
+        "stdout_lines": [
+            "cxl-master-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.031670",
+        "end": "2026-10-23 19:38:00.962385",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:00.930715",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-cxl-0: running",
+        "stdout_lines": [
+            "worker-cxl-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-cxl-1.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.030702",
+        "end": "2026-10-23 19:38:01.196485",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:01.165783",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-cxl-1: running",
+        "stdout_lines": [
+            "worker-cxl-1: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-dram-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "bash",
+            "/var/home/shanemcd/ocp-cxl/scripts/run-worker-dram-0.sh",
+            "--status"
+        ],
+        "delta": "0:00:00.031969",
+        "end": "2026-10-23 19:38:01.514061",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "disk": "60G",
+            "ip_suffix": 21,
+            "mac_suffix": "15",
+            "name": "worker-dram-0",
+            "ram": "16G",
+            "vcpu": 4
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:01.482092",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "worker-dram-0: running",
+        "stdout_lines": [
+            "worker-dram-0: running"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.cluster_install : Wait for the installed API server to be ready] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read the machine-os-puller SA registry-secret annotation] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Drop the stale machine-os-puller registry-secret annotation] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Render the CSR approval script] *******
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Approve CSRs until all workers are Ready] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read the scheduler mastersSchedulable setting] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Assert masters stay schedulable (SNO)] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "masters schedulable (True) — SNO OK."
+}
+
+TASK [shanemcd.cxl_lab.cluster_install : Pin the ingress router to the master] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Align the rendered container policy with the boot-time nightly relax] ***
+ok: [lab-server] => (item=master)
+ok: [lab-server] => (item=worker)
+ok: [lab-server] => (item=worker-cxl)
+
+TASK [shanemcd.cxl_lab.cluster_install : Wait for cluster operators to settle] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read cluster node states] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Wait for the pinned ingress router rollout] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read ingress router placement] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read cluster version status] **********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read the master's current MachineConfig] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Read the current MachineConfig osImageURL] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.cluster_install : Assert the installed cluster state] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "Cluster live — 4/4 nodes Ready, operators Available, routers pinned to cxl-master-0."
+}
+
+TASK [shanemcd.cxl_lab.cluster_install : Cluster install summary] **************
+ok: [lab-server] => {
+    "msg": "Cluster install OK — 4/4 nodes Ready (SNO master schedulable), operators Available, clusterversion Available (5.1.0-0.nightly-2026-10-18-125305), router pinned to the master, master osImageURL == pinned machine-os-content; console at https://console-openshift-console.apps.cxl.ocp.lab."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [CXL region commit and kernel verification] *******************************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.region_commit : Label the CXL workers for the worker-cxl pool] ***
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.region_commit : Check the booted OS and kernel on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.region_commit : Assert the layered image and kernel on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "attempts": 1,
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.20",
+            "rpm-ostree status | grep -m1 '^[* ]' ; uname -r ; systemctl is-active cxl-region-commit.service"
+        ],
+        "delta": "0:00:00.318898",
+        "end": "2026-10-23 19:38:11.907818",
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:11.588920",
+        "stderr": "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "* ostree-unverified-registry:localhost/ocp-cxl-worker-os:cxltest-211.64.1\n6.12.0-211.64.1.cxltest.el10.x86_64\nactive",
+        "stdout_lines": [
+            "* ostree-unverified-registry:localhost/ocp-cxl-worker-os:cxltest-211.64.1",
+            "6.12.0-211.64.1.cxltest.el10.x86_64",
+            "active"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "attempts": 1,
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.22",
+            "rpm-ostree status | grep -m1 '^[* ]' ; uname -r ; systemctl is-active cxl-region-commit.service"
+        ],
+        "delta": "0:00:00.337840",
+        "end": "2026-10-23 19:38:12.462374",
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:12.124534",
+        "stderr": "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "* ostree-unverified-registry:localhost/ocp-cxl-worker-os:cxltest-211.64.1\n6.12.0-211.64.1.cxltest.el10.x86_64\nactive",
+        "stdout_lines": [
+            "* ostree-unverified-registry:localhost/ocp-cxl-worker-os:cxltest-211.64.1",
+            "6.12.0-211.64.1.cxltest.el10.x86_64",
+            "active"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.region_commit : Check the region commit service on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.region_commit : Assert the service is active on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "attempts": 1,
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.20",
+            "sudo systemctl is-active cxl-region-commit.service"
+        ],
+        "delta": "0:00:00.151619",
+        "end": "2026-10-23 19:38:12.919294",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:12.767675",
+        "stderr": "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "active",
+        "stdout_lines": [
+            "active"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "attempts": 1,
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.22",
+            "sudo systemctl is-active cxl-region-commit.service"
+        ],
+        "delta": "0:00:01.157217",
+        "end": "2026-10-23 19:38:14.280847",
+        "failed": false,
+        "failed_when_result": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:13.123630",
+        "stderr": "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "active",
+        "stdout_lines": [
+            "active"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.region_commit : Read the region commit state on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0)
+ok: [lab-server] => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.region_commit : Assert the region is committed on every CXL worker] ***
+ok: [lab-server] => (item=worker-cxl-0) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.20",
+            "sudo cat /sys/bus/cxl/devices/region0/commit"
+        ],
+        "delta": "0:00:00.151933",
+        "end": "2026-10-23 19:38:14.711372",
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 12,
+            "disk": "60G",
+            "ip_suffix": 20,
+            "mac_suffix": "14",
+            "name": "worker-cxl-0",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:14.559439",
+        "stderr": "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.20' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "1",
+        "stdout_lines": [
+            "1"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+ok: [lab-server] => (item=worker-cxl-1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "changed_when_result": false,
+        "cmd": [
+            "ssh",
+            "-i",
+            "/var/home/shanemcd/ocp-install-cxl/ssh/core_id_ed25519",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "core@192.168.124.22",
+            "sudo cat /sys/bus/cxl/devices/region0/commit"
+        ],
+        "delta": "0:00:00.154268",
+        "end": "2026-10-23 19:38:15.085417",
+        "failed": false,
+        "item": {
+            "cxl_bus_nr": 13,
+            "disk": "60G",
+            "ip_suffix": 22,
+            "mac_suffix": "16",
+            "name": "worker-cxl-1",
+            "ram": "16G",
+            "vcpu": 4,
+            "vmem_size": "4G"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-23 19:38:14.931149",
+        "stderr": "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts.",
+        "stderr_lines": [
+            "Warning: Permanently added '192.168.124.22' (ED25519) to the list of known hosts."
+        ],
+        "stdout": "1",
+        "stdout_lines": [
+            "1"
+        ]
+    },
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.region_commit : Region commit summary] ******************
+ok: [lab-server] => {
+    "msg": "region commit OK — worker-cxl-0, worker-cxl-1 committed region0 (4G); service cxl-region-commit.service active on every one (shipped via worker ignition)."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Lab storage (host NFS export + in-cluster provisioner)] ******************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Assert the storage taxonomy consistency] ******
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.storage : Detect rpm-ostree (atomic) host] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Check the host NFS server package presence] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Install the host NFS server package (dnf host)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Layer the host NFS server package (rpm-ostree host)] ***
+skipping: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Ensure the NFS export directory] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Render the lab NFS exports drop-in] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Flush the export-table re-read now] ***********
+
+TASK [shanemcd.cxl_lab.storage : Enable and start the host NFS server] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Apply the NFS provisioner manifest] ***********
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Grant the hostmount SCCs to the provisioner service account] ***
+changed: [lab-server] => (item=hostmount-anyuid)
+changed: [lab-server] => (item=hostmount-anyuid-v2)
+
+TASK [shanemcd.cxl_lab.storage : Wait for the provisioner deployment] **********
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.storage : Wait for the provisioner deployment (29 retries left).
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Read the lab StorageClass] ********************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.storage : Assert the lab StorageClass is ours] **********
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "StorageClass lab-nfs present, provisioner cluster.local/nfs-subdir-external-provisioner."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Observability (COO with Perses, CXL memory-tier rules)] ******************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Assert the observability taxonomy consistency] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.observability : Wait for the cluster API] ***************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Apply the COO install stack] ************
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Wait for the COO CSV] *******************
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (59 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (58 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (57 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (56 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (55 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (54 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (53 retries left).
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the COO CSV (52 retries left).
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Apply the monitoring UIPlugin] **********
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Wait for the UIPlugin to become available] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Wait for the COO to create the Perses CR] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Point Perses storage at the lab StorageClass] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Wait for the Perses StatefulSet] ********
+FAILED - RETRYING: [lab-server]: shanemcd.cxl_lab.observability : Wait for the Perses StatefulSet (39 retries left).
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Read the Perses PVC state] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Assert the Perses PVC is bound on the lab StorageClass] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "Perses PVC storage-perses-0 bound on lab-nfs."
+}
+
+TASK [shanemcd.cxl_lab.observability : Create the observability content namespace] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Apply the Perses content] ***************
+changed: [lab-server] => (item={'apiVersion': 'perses.dev/v1alpha2', 'kind': 'PersesDatasource', 'metadata': {'name': 'thanos-querier', 'namespace': 'perses-dev'}, 'spec': {'instanceSelector': {'matchLabels': {'app.kubernetes.io/instance': 'perses-observability-operator'}}, 'client': {'tls': {'enable': True, 'caCert': {'type': 'file', 'certPath': '/ca/service-ca.crt'}}}, 'config': {'default': True, 'display': {'name': 'Thanos Querier'}, 'plugin': {'kind': 'PrometheusDatasource', 'spec': {'proxy': {'kind': 'HTTPProxy', 'spec': {'secret': 'thanos-querier-secret', 'url': 'https://thanos-querier.openshift-monitoring.svc.cluster.local:9091'}}}}}}})
+changed: [lab-server] => (item={'apiVersion': 'perses.dev/v1alpha2', 'kind': 'PersesDashboard', 'metadata': {'name': 'openshift-cluster-overview', 'namespace': 'perses-dev'}, 'spec': {'instanceSelector': {'matchLabels': {'app.kubernetes.io/instance': 'perses-observability-operator'}}, 'config': {'display': {'name': 'OpenShift Cluster Overview'}, 'variables': [{'kind': 'ListVariable', 'spec': {'name': 'node', 'display': {'name': 'OCP node'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'node', 'matchers': ['kube_node_info']}}}}], 'duration': '1h', 'refreshInterval': '30s', 'panels': {'api-up': {'kind': 'Panel', 'spec': {'display': {'name': 'API Servers Up (cluster-wide)'}, 'plugin': {'kind': 'StatChart', 'spec': {'calculation': 'last'}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'up{job=~"apiserver|openshift-apiserver|kube-scheduler|kube-controller-manager"}'}}}}]}}, 'cluster-cpu': {'kind': 'Panel', 'spec': {'display': {'name': 'Selected Nodes — CPU Usage (cores)'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum(rate(node_cpu_seconds_total{mode!="idle", instance=~"$node"}[5m])) by (instance)'}}}}]}}, 'node-mem': {'kind': 'Panel', 'spec': {'display': {'name': 'Node Memory Available'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'node_memory_MemAvailable_bytes{instance=~"$node"}'}}}}]}}, 'pod-mem': {'kind': 'Panel', 'spec': {'display': {'name': 'Top Pods by Memory Working Set'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, pod) (\n  container_memory_working_set_bytes{namespace!="", container!="", container!="POD", node=~"$node"}\n) and on (node, namespace, pod) topk(5, sum by (node, namespace, pod) (\n  container_memory_working_set_bytes{namespace!="", container!="", container!="POD", node=~"$node"} @ end()\n))'}}}}]}}}, 'layouts': [{'kind': 'Grid', 'spec': {'items': [{'x': 0, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/api-up'}}, {'x': 12, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/cluster-cpu'}}, {'x': 0, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/node-mem'}}, {'x': 12, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/pod-mem'}}]}}]}}})
+changed: [lab-server] => (item={'apiVersion': 'perses.dev/v1alpha2', 'kind': 'PersesDashboard', 'metadata': {'name': 'infra-cxl-glance', 'namespace': 'perses-dev'}, 'spec': {'instanceSelector': {'matchLabels': {'app.kubernetes.io/instance': 'perses-observability-operator'}}, 'config': {'display': {'name': 'Infrastructure / CXL / Glance'}, 'variables': [{'kind': 'ListVariable', 'spec': {'name': 'node', 'display': {'name': 'OCP node'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'node', 'matchers': ['node_memory_tier_memtotal_bytes']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'namespace', 'display': {'name': 'VM namespace'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'namespace', 'matchers': ['openshift:vm:memory:tier:bytes{node=~"$node"}']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'vm', 'display': {'name': 'VM'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'vm', 'matchers': ['openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace"}']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'limit', 'display': {'name': 'VM chart limit'}, 'allowAllValue': False, 'allowMultiple': False, 'defaultValue': '10', 'plugin': {'kind': 'StaticListVariable', 'spec': {'values': [{'label': '5', 'value': '5'}, {'label': '10', 'value': '10'}, {'label': '20', 'value': '20'}, {'label': '50', 'value': '50'}]}}}}], 'panels': {'CxlTierUsed': {'kind': 'Panel', 'spec': {'display': {'name': 'Node memory used, by tier', 'description': 'Used memory on the selected nodes: tier 0 is CPU-attached DRAM; tier 1 is the emulated CXL region. Emulation does not reproduce physical CXL latency. Node panels respond only to OCP node; VM namespace and VM filter the VM panels.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'areaOpacity': 1, 'display': 'line', 'lineWidth': 0.25, 'stack': 'all'}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, tier) (\n  openshift:node:memory:tier:bytes{scope="node", utilized="true", node=~"$node"}\n)', 'seriesNameFormat': '{{node}} · tier {{tier}}'}}}}]}}, 'CxlTierUtilization': {'kind': 'Panel', 'spec': {'display': {'name': 'Tier utilization ratio', 'description': 'Used / capacity per tier per node. DRAM tiers run hot by design; the CXL tier should stay low until the tier-descheduler or memory pressure demotes cold pages onto it. Answers: is the CXL tier actually being used, and is DRAM under pressure?'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'decimal'}, 'min': 0, 'max': 1, 'show': True}, 'thresholds': {'steps': [{'value': 0.85}, {'color': '#FF9F1C', 'value': 0.95}, {'color': '#EA4747', 'value': 0.99}]}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'openshift:node:memory:tier:utilization:ratio{node=~"$node"}', 'seriesNameFormat': '{{node}} · tier {{tier}}'}}}}]}}, 'CxlWorkloadsByTier': {'kind': 'Panel', 'spec': {'display': {'name': 'Workload anonymous memory, by tier', 'description': 'Anonymous (working-set) memory attributed to workloads per tier via per-cgroup NUMA accounting. Movement from tier 0 to tier 1 is kernel demotion — what the memory-tiering demo is about. Answers: how much workload memory has been demoted onto CXL?'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'areaOpacity': 1, 'display': 'line', 'lineWidth': 0.25, 'stack': 'all'}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (tier) (\n  openshift:node:memory:tier:bytes{scope="workloads", utilized="true", node=~"$node"}\n)', 'seriesNameFormat': 'tier {{tier}}'}}}}]}}, 'CxlTieringTraffic': {'kind': 'Panel', 'spec': {'display': {'name': 'Tiering traffic — demote into / promote out of CXL', 'description': 'Kernel page demotion (kswapd/khugepaged/direct reclaim moving pages to slower tiers — into CXL) and promotion (hot pages pulled back to DRAM), from per-node vmstat pgdemote/pgpromote counters. Answers: is the tiering machinery moving pages right now?'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum (openshift:node:memory:tier:demote:rate{node=~"$node"})', 'seriesNameFormat': 'demote'}}}}, {'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum (openshift:node:memory:tier:promote:rate{node=~"$node"})', 'seriesNameFormat': 'promote'}}}}]}}, 'CxlVMPlacement': {'kind': 'Panel', 'spec': {'display': {'name': 'VM memory placement by tier', 'description': 'Anonymous resident memory in VM launcher cgroups, including QEMU overhead, not configured guest RAM. Explicit HugeTLB guest RAM is excluded. Node, namespace and VM selectors apply. The largest N VM/node pairs at the range end are held fixed across the chart, with both tiers preserved. Migration may show the same VM on two nodes. Lines are unstacked so a large DRAM series cannot hide CXL.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'areaOpacity': 0, 'display': 'line', 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, vm, tier) (\n  openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace", vm=~"$vm"}\n) and on (node, namespace, vm) topk($limit, sum by (node, namespace, vm) (\n  openshift:vm:memory:tier:bytes{node=~"$node", namespace=~"$namespace", vm=~"$vm"} @ end()\n))', 'seriesNameFormat': '{{namespace}}/{{vm}} · {{node}} · tier {{tier}}'}}}}]}}, 'CxlVMCxlResidency': {'kind': 'Panel', 'spec': {'display': {'name': 'VM residency on CXL tier', 'description': 'Launcher-cgroup anonymous memory on CXL (tier 1), including QEMU overhead, excluding explicit HugeTLB memory. Shows the top N VM/node pairs by CXL residency at the range end, after applying node, namespace and VM filters. Its separate scale keeps MiB of CXL visible alongside GiB of DRAM.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'areaOpacity': 0.25, 'display': 'line', 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, vm) (\n  openshift:vm:memory:tier:bytes{tier="1", node=~"$node", namespace=~"$namespace", vm=~"$vm"}\n) and on (node, namespace, vm) topk($limit, sum by (node, namespace, vm) (\n  openshift:vm:memory:tier:bytes{tier="1", node=~"$node", namespace=~"$namespace", vm=~"$vm"} @ end()\n))', 'seriesNameFormat': '{{namespace}}/{{vm}} · {{node}} on CXL'}}}}]}}, 'CxlTierFree': {'kind': 'Panel', 'spec': {'display': {'name': 'CXL tier — used vs free', 'description': 'The emulated CXL region (System RAM on the CPU-less NUMA node of the CXL worker) as used + free. Total height is the region size; utilization near 0% means nothing has been demoted or placed there yet. Answers: how much of the CXL region is consumed?'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'areaOpacity': 1, 'display': 'line', 'lineWidth': 0.25, 'stack': 'all'}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'openshift:node:memory:tier:bytes{tier="1", scope="node", node=~"$node", utilized="true"}', 'seriesNameFormat': '{{node}} used'}}}}, {'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'openshift:node:memory:tier:bytes{tier="1", scope="node", node=~"$node", utilized="false"}', 'seriesNameFormat': '{{node}} free'}}}}]}}}, 'layouts': [{'kind': 'Grid', 'spec': {'display': {'title': 'At a Glance - CXL Memory Tier', 'collapse': {'open': True}}, 'items': [{'x': 0, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlTierUsed'}}, {'x': 12, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlTierUtilization'}}, {'x': 0, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlWorkloadsByTier'}}, {'x': 12, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlTieringTraffic'}}, {'x': 0, 'y': 16, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlVMPlacement'}}, {'x': 12, 'y': 16, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlTierFree'}}, {'x': 0, 'y': 24, 'width': 24, 'height': 8, 'content': {'$ref': '#/spec/panels/CxlVMCxlResidency'}}]}}], 'duration': '1h', 'refreshInterval': '15s'}}})
+changed: [lab-server] => (item={'apiVersion': 'perses.dev/v1alpha2', 'kind': 'PersesDashboard', 'metadata': {'name': 'vm-explorer', 'namespace': 'perses-dev'}, 'spec': {'instanceSelector': {'matchLabels': {'app.kubernetes.io/instance': 'perses-observability-operator'}}, 'config': {'display': {'name': 'Virtualization / VM Explorer'}, 'variables': [{'kind': 'ListVariable', 'spec': {'name': 'node', 'display': {'name': 'OCP node'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'node', 'matchers': ['kube_node_info']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'namespace', 'display': {'name': 'VM namespace'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'namespace', 'matchers': ['kubevirt_vmi_memory_domain_bytes{node=~"$node"}']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'vm', 'display': {'name': 'VM'}, 'allowAllValue': True, 'allowMultiple': False, 'customAllValue': '.*', 'defaultValue': '$__all', 'plugin': {'kind': 'PrometheusLabelValuesVariable', 'spec': {'labelName': 'name', 'matchers': ['kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace"}']}}}}, {'kind': 'ListVariable', 'spec': {'name': 'limit', 'display': {'name': 'VM chart limit'}, 'allowAllValue': False, 'allowMultiple': False, 'defaultValue': '10', 'plugin': {'kind': 'StaticListVariable', 'spec': {'values': [{'label': '5', 'value': '5'}, {'label': '10', 'value': '10'}, {'label': '20', 'value': '20'}, {'label': '50', 'value': '50'}]}}}}], 'panels': {'GuestMemory': {'kind': 'Panel', 'spec': {'display': {'name': 'Guest memory — used and configured', 'description': 'Guest-reported used memory and configured guest memory, not physical DRAM/CXL residency. All charts use the same top N VM/node pairs ranked by configured RAM at the end of the range. Select a VM to inspect it regardless of its rank. Missing data is unknown, not zero.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'display': 'line', 'areaOpacity': 0, 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  kubevirt_vmi_memory_used_bytes{ node=~"$node", namespace=~"$namespace", name=~"$vm" }\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · used'}}}}, {'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  kubevirt_vmi_memory_domain_bytes{ node=~"$node", namespace=~"$namespace", name=~"$vm" }\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · configured'}}}}]}}, 'ResidentMemory': {'kind': 'Panel', 'spec': {'display': {'name': 'QEMU resident memory', 'description': 'Host-resident QEMU memory reported by KubeVirt, not the guest working set and not a breakdown by memory tier. Use Infrastructure / CXL / Glance for anonymous DRAM/CXL residency. Explicit HugeTLB accounting is separate.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes'}, 'min': 0, 'show': True}, 'visual': {'display': 'line', 'areaOpacity': 0, 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  kubevirt_vmi_memory_resident_bytes{ node=~"$node", namespace=~"$namespace", name=~"$vm" }\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · resident'}}}}]}}, 'CPU': {'kind': 'Panel', 'spec': {'display': {'name': 'VM vCPU usage (cores)', 'description': 'Rate of vCPU time summed across vCPUs. One means one full CPU core. Uses the same VM selection as the memory charts, not an independent CPU top N.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'decimal'}, 'min': 0, 'show': True}, 'visual': {'display': 'line', 'areaOpacity': 0, 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  rate(kubevirt_vmi_vcpu_seconds_total{ node=~"$node", namespace=~"$namespace", name=~"$vm" }[5m])\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · cores'}}}}]}}, 'Network': {'kind': 'Panel', 'spec': {'display': {'name': 'VM network throughput (bytes/s)', 'description': 'Receive and transmit rates summed across VM interfaces. Both directions are positive, unstacked lines.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes/sec'}, 'min': 0, 'show': True}, 'visual': {'display': 'line', 'areaOpacity': 0, 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  rate(kubevirt_vmi_network_receive_bytes_total{ node=~"$node", namespace=~"$namespace", name=~"$vm" }[5m])\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · receive'}}}}, {'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  rate(kubevirt_vmi_network_transmit_bytes_total{ node=~"$node", namespace=~"$namespace", name=~"$vm" }[5m])\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · transmit'}}}}]}}, 'Storage': {'kind': 'Panel', 'spec': {'display': {'name': 'VM storage throughput (bytes/s)', 'description': 'Read and write rates summed across VM disks. Missing metrics can mean the device does not expose that statistic.'}, 'plugin': {'kind': 'TimeSeriesChart', 'spec': {'legend': {'position': 'bottom'}, 'yAxis': {'format': {'unit': 'bytes/sec'}, 'min': 0, 'show': True}, 'visual': {'display': 'line', 'areaOpacity': 0, 'lineWidth': 1.5}}}, 'queries': [{'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  rate(kubevirt_vmi_storage_read_traffic_bytes_total{ node=~"$node", namespace=~"$namespace", name=~"$vm" }[5m])\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · read'}}}}, {'kind': 'TimeSeriesQuery', 'spec': {'plugin': {'kind': 'PrometheusTimeSeriesQuery', 'spec': {'query': 'sum by (node, namespace, name) (\n  rate(kubevirt_vmi_storage_write_traffic_bytes_total{ node=~"$node", namespace=~"$namespace", name=~"$vm" }[5m])\n) and on (node, namespace, name) topk($limit, max by (node, namespace, name) (kubevirt_vmi_memory_domain_bytes{node=~"$node", namespace=~"$namespace", name=~"$vm"} @ end()))', 'seriesNameFormat': '{{namespace}}/{{name}} · {{node}} · write'}}}}]}}}, 'layouts': [{'kind': 'Grid', 'spec': {'display': {'title': 'Selected VMs — node, namespace and VM filters apply to every chart', 'collapse': {'open': True}}, 'items': [{'x': 0, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/GuestMemory'}}, {'x': 12, 'y': 0, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/ResidentMemory'}}, {'x': 0, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/CPU'}}, {'x': 12, 'y': 8, 'width': 12, 'height': 8, 'content': {'$ref': '#/spec/panels/Network'}}, {'x': 0, 'y': 16, 'width': 24, 'height': 8, 'content': {'$ref': '#/spec/panels/Storage'}}]}}], 'duration': '1h', 'refreshInterval': '30s'}}})
+
+TASK [shanemcd.cxl_lab.observability : Apply the CXL memory-tier recording rules] ***
+changed: [lab-server]
+
+TASK [shanemcd.cxl_lab.observability : Wait for the Perses content CRs] ********
+ok: [lab-server] => (item={'kind': 'PersesDatasource', 'name': 'thanos-querier'})
+ok: [lab-server] => (item={'kind': 'PersesDashboard', 'name': 'openshift-cluster-overview'})
+ok: [lab-server] => (item={'kind': 'PersesDashboard', 'name': 'infra-cxl-glance'})
+ok: [lab-server] => (item={'kind': 'PersesDashboard', 'name': 'vm-explorer'})
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY [Verify the live CXL lab] *************************************************
+
+TASK [shanemcd.cxl_lab.workspace : Resolve the lab workspace owner] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Remember the workspace account] *************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Stat the kubeconfig] ***************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the cluster is installed] ***************
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Verify each CXL worker guest] ******************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/guest-worker.yml for lab-server => (item=worker-cxl-0)
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/guest-worker.yml for lab-server => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.verify : Read the region commit state on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the dax device state on worker-cxl-0] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the guest NUMA topology on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the CXL node meminfo on worker-cxl-0] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the booted kernel on worker-cxl-0] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the NUMA demotion knob on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the demotion unit state on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the region commit service state on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the test-bypass kernel signature on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Run the bounded CXL touch test on worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the guest checklist on worker-cxl-0] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Collect the guest evidence for worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the region commit state on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the dax device state on worker-cxl-1] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the guest NUMA topology on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the CXL node meminfo on worker-cxl-1] *****
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the booted kernel on worker-cxl-1] ********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the NUMA demotion knob on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the demotion unit state on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the region commit service state on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the test-bypass kernel signature on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Run the bounded CXL touch test on worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the guest checklist on worker-cxl-1] ****
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Collect the guest evidence for worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Verify the host safety gates] ******************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/host-gates.yml for lab-server
+
+TASK [shanemcd.cxl_lab.verify : Count QEMU processes carrying the Type-3 device] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert only the CXL worker QEMUs carry the Type-3 device] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Verify the per-worker host safety gates] *******
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/host-gates-worker.yml for lab-server => (item=worker-cxl-0)
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/host-gates-worker.yml for lab-server => (item=worker-cxl-1)
+
+TASK [shanemcd.cxl_lab.verify : Read the QEMU status for worker-cxl-0] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the QEMU pid for worker-cxl-0] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the QEMU process runs for worker-cxl-0] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Collect the host gate evidence for worker-cxl-0] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the QEMU status for worker-cxl-1] *********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the QEMU pid for worker-cxl-1] ************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the QEMU process runs for worker-cxl-1] ***
+ok: [lab-server] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [shanemcd.cxl_lab.verify : Collect the host gate evidence for worker-cxl-1] ***
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Verify the cluster state] **********************
+included: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/cluster.yml for lab-server
+
+TASK [shanemcd.cxl_lab.verify : Wait for the cluster to settle] ****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the node states] **************************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the clusterversion state] *****************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the machine config pool states] ***********
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Read the cluster operator states] **************
+ok: [lab-server]
+
+TASK [shanemcd.cxl_lab.verify : Assert the cluster state] **********************
+[ERROR]: Task failed: Action failed: Cluster state check failed — nodes: cxl-master-0 True; worker-cxl-0 True; worker-cxl-1 True; worker-dram-0 True; clusterversion: 5.1.0-0.nightly-2026-10-18-125305
+True; mcps: master True; worker False; worker-cxl False; operators: 34 of 34 Available.
+Origin: /var/home/shanemcd/cxl-lab/ansible_collections/shanemcd/cxl_lab/roles/verify/tasks/cluster.yml:85:3
+
+83   changed_when: false
+84
+85 - name: Assert the cluster state
+     ^ column 3
+
+fatal: [lab-server]: FAILED! => {
+    "assertion": "verify_mcp_updated_count | int == verify_mcp_expected | length",
+    "changed": false,
+    "evaluated_to": false,
+    "msg": "Cluster state check failed — nodes: cxl-master-0 True; worker-cxl-0 True; worker-cxl-1 True; worker-dram-0 True; clusterversion: 5.1.0-0.nightly-2026-10-18-125305\nTrue; mcps: master True; worker False; worker-cxl False; operators: 34 of 34 Available."
+}
+
+TASK [shanemcd.cxl_lab.workspace : Keep existing lab artifacts accessible to the workspace owner] ***
+ok: [lab-server]
+
+PLAY RECAP *********************************************************************
+lab-server                 : ok=401  changed=16   unreachable=0    failed=1    skipped=128  rescued=0    ignored=0   
+

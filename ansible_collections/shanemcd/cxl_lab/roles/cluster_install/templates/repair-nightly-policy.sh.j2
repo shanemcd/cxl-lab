@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Managed by shanemcd.cxl_lab.cluster_install — do not edit.
+#
+# Nightly-profile installs carry a boot-time container-policy relax (ignition
+# merge) that leaves /etc/containers/policy.json different from the
+# payload-rendered one. A worker that booted with a render predating the
+# {{ cluster_install_nightly_policy_mc_prefix }}-* MachineConfigs trips the
+# MCD's on-disk validation on EVERY sync ("content mismatch for file
+# /etc/containers/policy.json") and never takes the update that would align
+# disk with the render — the pool stays Degraded forever.
+#
+# This script writes each worker's CURRENT rendered policy bytes to the node
+# so validation passes; the MCD then converges to the newer render (which
+# carries the relaxed policy via the 99-* MC). Idempotent: once converged,
+# rendered bytes equal on-disk bytes and nothing is written.
+set -euo pipefail
+export KUBECONFIG="{{ kubeconfig_path }}"
+OC="{{ install_bin_dir }}/oc"
+SSH_KEY="{{ install_ssh_key_path }}"
+SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10)
+CHANGED=0
+
+decode_policy() {
+  # $1 = rendered MachineConfig name; prints decoded policy.json bytes (or nothing)
+  $OC get mc "$1" -o json | python3 -c '
+import sys, json, base64, urllib.parse
+d = json.load(sys.stdin)
+for f in d.get("spec", {}).get("config", {}).get("storage", {}).get("files", []):
+    if f.get("path") == "/etc/containers/policy.json":
+        s = f["contents"]["source"]
+        if "base64," in s:
+            sys.stdout.buffer.write(base64.b64decode(s.split("base64,", 1)[1]))
+        else:
+            sys.stdout.buffer.write(urllib.parse.unquote_to_bytes(s.split(",", 1)[1]))
+        break
+'
+}
+
+{% for worker in (dram_workers + cxl_workers) %}
+NODE="{{ worker.name }}"
+IP="{{ lab_subnet_prefix }}.{{ worker.ip_suffix }}"
+cur="$($OC get node "$NODE" -o jsonpath='{.metadata.annotations.machineconfiguration\.openshift\.io/currentConfig}' 2>/dev/null || true)"
+if [ -z "$cur" ]; then
+  echo "$NODE: no currentConfig annotation yet - skipping"
+else
+  tmp="$(mktemp)"
+  if ! decode_policy "$cur" > "$tmp"; then
+    echo "$NODE: cannot read render $cur - skipping"
+  elif [ ! -s "$tmp" ]; then
+    echo "$NODE: render $cur has no policy.json - skipping"
+  else
+    want="$(sha256sum "$tmp" | cut -d' ' -f1)"
+    have="$(ssh -i "$SSH_KEY" "${SSH_OPTS[@]}" "core@${IP}" \
+            'sudo sha256sum /etc/containers/policy.json 2>/dev/null' \
+            | cut -d' ' -f1 || true)"
+    if [ "$want" = "$have" ]; then
+      echo "$NODE: on-disk policy already matches $cur"
+    else
+      ssh -i "$SSH_KEY" "${SSH_OPTS[@]}" "core@${IP}" \
+        'sudo tee /etc/containers/policy.json > /dev/null' < "$tmp"
+      echo "repaired: $NODE policy.json -> bytes of $cur"
+      CHANGED=1
+    fi
+  fi
+  rm -f "$tmp"
+fi
+{% endfor %}
+
+echo "repair-nightly-policy: changed=$CHANGED"
