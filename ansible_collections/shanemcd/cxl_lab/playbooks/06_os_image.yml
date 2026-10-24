@@ -3,23 +3,12 @@
   hosts: all
   become: true
   gather_facts: false
-  # Runs between the network and install-config stages (see site.yml): the
-  # install-time MachineConfigs assembled in the next stage reference the
-  # layered image's local ref, and the BIB node disk must exist before the
-  # worker overlays are created (06_vms). No task in this stage touches the
-  # cluster.
+
   pre_tasks:
     - ansible.builtin.import_role:
         name: shanemcd.cxl_lab.workspace
+
   tasks:
-    - name: Run stage with user-owned workspace artifacts
-      block:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.layered_image
-      always:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.layered_image
+

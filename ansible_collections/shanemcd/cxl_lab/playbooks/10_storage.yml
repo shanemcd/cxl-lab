@@ -3,24 +3,12 @@
   hosts: all
   become: true
   gather_facts: false
-  # One dynamically-provisioned StorageClass for the lab. The host runs
-  # the kernel nfsd (pattern-consistent with dnsmasq and the install
-  # registry); the in-cluster provisioner carves per-PVC subdirectories
-  # out of the export. LVM Storage is absent from the catalogs this lab
-  # can reach, and the in-catalog alternatives are Ceph-family — outside
-  # the host's RAM budget. See roles/storage.
+
   pre_tasks:
     - ansible.builtin.import_role:
         name: shanemcd.cxl_lab.workspace
+
   tasks:
-    - name: Run stage with user-owned workspace artifacts
-      block:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.storage
-      always:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.storage
+

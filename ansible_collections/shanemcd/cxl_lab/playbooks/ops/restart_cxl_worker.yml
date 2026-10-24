@@ -10,14 +10,5 @@
     - ansible.builtin.import_role:
         name: shanemcd.cxl_lab.workspace
   tasks:
-    - name: Run stage with user-owned workspace artifacts
-      block:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.ops_restart_cxl_worker
-      always:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.ops_restart_cxl_worker

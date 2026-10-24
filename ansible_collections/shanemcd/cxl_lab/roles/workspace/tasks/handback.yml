@@ -1,0 +1,21 @@
+---
+# Stages run as root (libvirt, /etc, container builds), so artifacts they
+# create land root-owned in the invoking user's home. At the end of a run,
+# hand those trees back: chown only files that are actually root-owned,
+# and never descend into the NFS export (cluster PVC data) or the QEMU
+# build tree (container-managed scratch).
+- name: Hand root-owned lab artifacts back to the workspace owner
+  ansible.builtin.shell: |
+    set -o pipefail
+    find {{ item }} \( -path '{{ storage_export_dir }}' -o -path '{{ qemu_build_dir }}' \) -prune -o \
+        -user root -print0 |
+      xargs -0 -r chown {{ lab_workspace_identity.uid }}:{{ lab_workspace_identity.gid }}
+  loop:
+    - "{{ install_dir }}"
+    - "{{ vm_assets_dir }}"
+    - "{{ artifacts_local_cache_dir }}"
+    - "{{ kubeconfig_controller_path | dirname }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false
+  tags: [always]

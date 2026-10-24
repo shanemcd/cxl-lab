@@ -2,21 +2,16 @@
 - name: Lab artifacts (cxltest kernel RPMs, pinned downloads, host QEMU)
   hosts: all
   become: true
-  gather_facts: true
+  gather_facts: false
+
   pre_tasks:
     - ansible.builtin.import_role:
         name: shanemcd.cxl_lab.workspace
+
   tasks:
-    - name: Run stage with user-owned workspace artifacts
-      block:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.artifacts
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.qemu_builder
-      always:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.artifacts
+
+    - ansible.builtin.import_role:
+        name: shanemcd.cxl_lab.qemu_builder
+

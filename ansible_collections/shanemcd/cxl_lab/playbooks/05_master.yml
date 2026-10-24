@@ -3,26 +3,20 @@
   hosts: all
   become: true
   gather_facts: false
+
   pre_tasks:
     - ansible.builtin.import_role:
         name: shanemcd.cxl_lab.workspace
+
   tasks:
-    - name: Run master stage with user-owned workspace artifacts
-      block:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
-        # Rootful builder outputs are collected before final ownership repair.
-        - name: Collect the in-flight QEMU build, if any
-          ansible.builtin.include_role:
-            name: shanemcd.cxl_lab.qemu_builder
-            tasks_from: collect
-          when: qemu_builder_build_in_flight | default(false)
-        - name: Run the vms master phase
-          ansible.builtin.include_role:
-            name: shanemcd.cxl_lab.vms
-            tasks_from: master
-      always:
-        - ansible.builtin.import_role:
-            name: shanemcd.cxl_lab.workspace
-            tasks_from: reconcile
+    - name: Collect the in-flight QEMU build, if any
+      ansible.builtin.include_role:
+        name: shanemcd.cxl_lab.qemu_builder
+        tasks_from: collect
+      when: qemu_builder_build_in_flight | default(false)
+
+    - name: Run the vms master phase
+      ansible.builtin.include_role:
+        name: shanemcd.cxl_lab.vms
+        tasks_from: master
+
